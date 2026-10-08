@@ -588,6 +588,11 @@ Create a log file "PlugY.log" in the current directory.
 This feature can slow down your game.
 - ActiveLogFile=0 		{0:No information is written while playing; 1:Always enabled}
 
+Open a message box when PlugY reports an error.
+With 0 there is no message box: errors are written to PlugY.log only when ActiveLogFile=1.
+Fatal errors still close the game with 0; only their message box is not shown.
+- ShowErrorMessageBox=1	{0:No message box; 1:Errors also open a message box}
+
 Load dll of a specific mod for used PlugY in same time.
 Separate each dll file name by the character pipe (|)
 - DllToLoad=			{(empty): load nothing; D2extra.dll|myDll.dll: Load both D2extra.dll and myDll.dll}
@@ -713,6 +718,13 @@ Use arrow buttons on bottom the stash (and shift key) for switching between the 
 Definition : The last page is the last page with an item in it.
 The multipage stashes are inactive for Diablo II Classic Character and on realm.
 You can change the name of the shared filename.
+Several games can share the same stash file. PlugY saves a game's shared stash to a separate file instead of
+the main one when another game saved the shared stash after this game loaded it, when the shared stash file
+could not be locked, or when the main file could not be written. The main file is never overwritten in those cases.
+The separate file is named _LOD_[HC_]<SharedStashFilename>.conflict-<YYYYMMDD-HHMMSS>-<pid>.sss
+(HC_ only for hardcore with SeparateHardcoreStash=1); merge its items into the main stash by hand.
+When a .d2x or .sss file exists but cannot be read or is truncated, PlugY refuses to enter the game
+("Unable to enter game") instead of loading an empty stash.
 Following are default values, between {} are some examples values with descriptions :
 - ActiveMultiPageStash=0		{0:Disabled; 1:Enabled}
 - NbPagesPerIndex=10			{10: Index page is 1,10,20,30,...,max}

@@ -15,33 +15,41 @@
 #define BUFFER_SIZE 0x4000
 #define FILE_VERSION 0x3130			//"01"
 #define FILE_EXTENDED 0x4D545343	//"CSTM"
+#define FILE_MIN_SIZE 14			// tag, version, number of players, number of stash pages
 
 
+// Returns NULL when the file exists but can't be read, so the next save never replaces it with an empty stash.
 BYTE * readExtendedSaveFile(char* name, DWORD* size)
 {
-	char filename[512];
-	BYTE* data;
-	d2_assert(!name, "Bad file name (NULL)", __FILE__, __LINE__);
-	D2FogGetSavePath( filename, 512-5);
-	strncat(filename, name, 512 - strlen(filename) - 5);
-	strcat(filename, ".d2x");
+	char filename[MAX_PATH];
+	BYTE* data = NULL;
+	*size = 0;
+	if (!name)
+	{
+		log_msg("readExtendedSaveFile : bad file name (NULL)\n");
+		return NULL;
+	}
+	if (!getSaveFilePath(filename, MAX_PATH, name, ".d2x"))
+		return NULL;
 
 	log_msg("Extended file to read : %s\n",filename);
 
-	FILE* file = fopen(filename, "rb");
-	if (file)
+	int found = readSaveFileData(filename, &data, size, FILE_MIN_SIZE);
+	if (found < 0)
 	{
-		fseek(file, 0, SEEK_END);
-		*size = ftell(file);
-		fseek(file, 0, SEEK_SET);
-		data = (BYTE*)D2FogMemAlloc(*size,__FILE__,__LINE__,0);
-		DWORD nbRead = fread(data, 1, *size, file);
-		fclose(file);
-		d2_assert(nbRead != *size , "nbRead from extented save file != size", __FILE__, __LINE__);
-	} else {
+		log_msg("Can't read the extended save file %s, the character is not loaded\n", filename);
+		return NULL;
+	}
+	if (!found)
+	{
 		log_msg("Can't open extented save file in mode \"rb\" (is not an error if it's a new player)\n");
 		DWORD maxSize = 100;
 		data = (BYTE*)D2FogMemAlloc(maxSize,__FILE__,__LINE__,0);
+		if (!data)
+		{
+			log_msg("readExtendedSaveFile : memory allocation failed\n");
+			return NULL;
+		}
 		*size = 14;
 		*((DWORD*)&data[0])  = FILE_EXTENDED; //"CSTM"
 		*((WORD *)&data[4])  = FILE_VERSION;
@@ -101,30 +109,25 @@ int loadExtendedSaveFile(Unit* ptChar, BYTE data[], DWORD maxSize)
 
 void writeExtendedSaveFile(char* name, BYTE* data, DWORD size)
 {
-	char szTempName[MAX_PATH];
 	char szSaveName[MAX_PATH];
-
-	//Get temporary savefile name.
-	D2FogGetSavePath(szTempName, MAX_PATH);
-	strcat(szTempName, name);
-	strcat(szTempName, ".d2~");
-	log_msg("Extended temporary file for saving : %s\n",szTempName);
-
-	//Write data in savefile.
-	FILE* customSaveFile = fopen(szTempName, "wb+");
-	fwrite(data, size, 1, customSaveFile);
-	fclose(customSaveFile);
-
-	//Get real savefile name.
-	D2FogGetSavePath(szSaveName, MAX_PATH);
-	strcat(szSaveName, name);
-	strcat(szSaveName, ".d2x");
+	if (!getSaveFilePath(szSaveName, MAX_PATH, name, ".d2x"))
+	{
+		log_box("PlugY could not save the stash of %s: the save path is too long.\nThe previous .d2x file was left unchanged.", name);
+		return;
+	}
 	log_msg("Extended file for saving : %s\n",szSaveName);
 
-//	if (!MoveFileEx(szTempName, szSaveName, MOVEFILE_WRITE_THROUGH|MOVEFILE_REPLACE_EXISTING))
-	DeleteFile(szSaveName);
-	if (!MoveFile(szTempName, szSaveName))
-		log_box("Could not create the extended save file.");
+	// one box per character: a .d2x frozen read-only on purpose would otherwise interrupt every save
+	static char lastBoxedName[64] = "";
+	if (!writeFileAtomic(szSaveName, data, size))
+	{
+		if (_stricmp(lastBoxedName, name))
+		{
+			strncpy(lastBoxedName, name, sizeof(lastBoxedName)-1);
+			log_box("PlugY could not save %s (read-only, locked by another program, or disk full).\nThe file on disk was not changed. An unsaved copy may be kept next to it as a .tmp file.", szSaveName);
+		} else
+			log_msg("Could not save %s (already reported to the player).\n", szSaveName);
+	}
 }
 
 

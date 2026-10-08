@@ -13,6 +13,7 @@
 #include <windows.h>
 
 extern int active_logFile;
+extern int active_ShowErrorMessageBox;
 
 void log_initfile();
 void log_close();

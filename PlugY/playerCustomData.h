@@ -49,6 +49,23 @@ struct PYPlayerData
 	Stash*	currentStash;
 	Stash*	selfStash;
 	Stash*	sharedStash;
+	DWORD	sharedBaselineHash;	// FNV-1a of the shared stash as serialized right after loading
+	DWORD	sharedDiskHash;		// FNV-1a of the shared stash file as last read or written by this process
+	union {
+		DWORD sharedStateFlags;
+		struct {
+			DWORD sharedBaselineValid:1;	//
+			DWORD sharedDiskExisted:1;		//
+			DWORD sharedInConflict:1;		// this game's shared stash goes to its conflict file; the player was told once
+		};
+	};
+	char	sharedConflictStamp[16];	// "YYYYMMDD-HHMMSS" of this game's conflict file, empty if none
+	union {
+		DWORD saveStateFlags;
+		struct {
+			DWORD backupDoneThisGame:1;	// backupSaveFiles already ran for this game
+		};
+	};
 };
 
 void Install_PlayerCustomData();

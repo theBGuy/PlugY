@@ -10,6 +10,7 @@
 
 extern bool active_AutoBackup;
 extern int maxBackupPerCharacter;
+extern bool plugyForcedSave;	// true while PlugY's /save runs D2SaveGame
 
 void backupSaveFiles(char* name, int isHardCoreGame);
 void Install_SavePlayerData();

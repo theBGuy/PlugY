@@ -14,8 +14,10 @@
 #include <direct.h>			// _getcwd()
 
 int active_logFile = 1;
+// Stays 1 until loadParameters reads the ini: boxes raised before that keep the historical behavior.
+int active_ShowErrorMessageBox = 1;
 
-static char log_file[MAX_PATH] = "";
+static char log_file[MAX_PATH + 16] = "";
 static bool log_init = false;
 static FILE* fLogFile = NULL;
 
@@ -23,8 +25,10 @@ void log_initfile()
 {
 	if (log_init) return;
 
-	_getcwd( log_file, MAX_PATH );
-	if( log_file[strlen(log_file)] != '\\')
+	if (!_getcwd( log_file, MAX_PATH ))
+		log_file[0] = 0;
+	int len = strlen(log_file);
+	if( len > 0 && log_file[len - 1] != '\\')
 		strcat(log_file, "\\");
 	strcat(log_file, "PlugY.log");
 
@@ -56,14 +60,17 @@ void log_close()
 
 void log_box( const char* pFormat, ... )
 {
-	char buffer[300];
+	// Large enough for messages naming two full save paths.
+	char buffer[1024];
 	va_list lArgs;
 	va_start( lArgs, pFormat );
-	vsprintf( buffer, pFormat, lArgs );
+	_vsnprintf( buffer, sizeof(buffer) - 1, pFormat, lArgs );
+	buffer[sizeof(buffer) - 1] = 0;
 	va_end(lArgs);
 
-	log_msg(buffer);
-	MessageBox(NULL, buffer, "PlugY, The Survival Kit", MB_OK|MB_ICONEXCLAMATION);
+	log_msg("%s\n", buffer);
+	if (active_ShowErrorMessageBox)
+		MessageBox(NULL, buffer, "PlugY, The Survival Kit", MB_OK|MB_ICONEXCLAMATION);
 }
 
 
@@ -105,7 +112,8 @@ void d2_assert( bool pCondition, char* pMessage, char* pLocation, int pLineNbr )
 			"%s\n"
 			"*-----------------------*\n",
 			pLineNbr, pLocation, pMessage);
-		MessageBox(NULL, pMessage, "Diablo 2 Error", MB_OK|MB_ICONEXCLAMATION);
+		if (active_ShowErrorMessageBox)
+			MessageBox(NULL, pMessage, "Diablo 2 Error", MB_OK|MB_ICONEXCLAMATION);
 		exit(1);
 	}
 }

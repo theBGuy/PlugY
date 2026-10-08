@@ -15,6 +15,15 @@
 
 /************************************ LOADING ***********************************/
 
+// The game only says "Unable to enter game", so the player is told which PlugY file was refused.
+static void showLoadError(const char* filePath, const char* extension)
+{
+	if (filePath[0])
+		log_box("PlugY can't load %s: the file is unreadable, truncated or damaged.\nThe character was not loaded and no file was overwritten. Restore it from a backup, or close the program that locks it.", filePath);
+	else
+		log_box("PlugY can't load the %s file of this character: its path is too long.\nThe character was not loaded and no file was overwritten.", extension);
+}
+
 DWORD STDCALL LoadSPCustomData(Unit* ptChar)
 {
 	DWORD size = 0;
@@ -38,13 +47,39 @@ DWORD STDCALL LoadSPCustomData(Unit* ptChar)
 	{
 		log_msg("is LOD Game\n");
 		data = readExtendedSaveFile(PCPlayerData->name, &size);
-		ret = loadExtendedSaveFile(ptChar, data, size);
-		D2FogMemDeAlloc(data,__FILE__,__LINE__,0);
+		if (!data)
+		{
+			log_msg("LoadSPCustomData : can't read the extended save file\n");
+			ret = 0xE;//Unable to enter game, generic bad file
+		} else {
+			ret = loadExtendedSaveFile(ptChar, data, size);
+			D2FogMemDeAlloc(data,__FILE__,__LINE__,0);
+		}
+		if (ret)
+		{
+			char filePath[MAX_PATH];
+			if (!getSaveFilePath(filePath, MAX_PATH, PCPlayerData->name, ".d2x"))
+				filePath[0] = NULL;
+			showLoadError(filePath, ".d2x");
+		}
 		if (!ret && active_sharedStash)
 		{
-			data = readSharedSaveFile(PCPlayerData->name, &size);
-			ret = loadSharedSaveFile(ptChar, data, size);
-			D2FogMemDeAlloc(data,__FILE__,__LINE__,0);
+			bool sharedFileExisted = false;
+			char filePath[MAX_PATH];
+			data = readSharedSaveFile(PCPlayerData->name, &size, &sharedFileExisted, filePath);
+			if (!data)
+			{
+				log_msg("LoadSPCustomData : can't read the shared save file\n");
+				ret = 0xE;//Unable to enter game, generic bad file
+			} else {
+				DWORD sharedDiskHash = fnv1a(data, size);
+				ret = loadSharedSaveFile(ptChar, data, size);
+				D2FogMemDeAlloc(data,__FILE__,__LINE__,0);
+				if (!ret)
+					initSharedStashBaseline(ptChar, sharedDiskHash, sharedFileExisted);
+			}
+			if (ret)
+				showLoadError(filePath, ".sss");
 		}
 	} else {
 		log_msg("is not LOD Game\n");
@@ -202,6 +237,13 @@ void FASTCALL SendSaveFiles (char* ptPath, DWORD maxsize, char* name)
 	log_msg("Send Extended Save File\n");
 	DWORD sizeExtended = 0;
 	BYTE* dataExtended = readExtendedSaveFile(name, &sizeExtended);
+	if (!dataExtended)
+	{
+		// Without the extended file the server refuses the character, so the shared file is not sent either.
+		log_msg("Can't read the extended save file, no save file is sent\n");
+		log_msg("End SendSaveFiles.\n\n");
+		return;
+	}
 	sendData(dataExtended, sizeExtended, false);
 	D2FogMemDeAlloc(dataExtended,__FILE__,__LINE__,0);
 
@@ -211,8 +253,12 @@ void FASTCALL SendSaveFiles (char* ptPath, DWORD maxsize, char* name)
 		log_msg("Send Shared Save File\n");
 		DWORD sizeShared = 0;
 		BYTE* dataShared = readSharedSaveFile(name, &sizeShared);
-		sendData(dataShared, sizeShared, true);
-		D2FogMemDeAlloc(dataShared,__FILE__,__LINE__,0);
+		if (dataShared)
+		{
+			sendData(dataShared, sizeShared, true);
+			D2FogMemDeAlloc(dataShared,__FILE__,__LINE__,0);
+		} else
+			log_msg("Can't read the shared save file, it is not sent\n");
 	}
 
 	// Ending load

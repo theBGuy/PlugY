@@ -53,6 +53,7 @@ const char* S_GENERAL = "GENERAL";
 const char* S_active_plugin = "ActivePlugin";
 const char* S_active_DisableBattleNet = "DisableBattleNet";
 const char* S_active_logFile = "ActiveLogFile";
+const char* S_active_ShowErrorMessageBox = "ShowErrorMessageBox";
 const char* S_dllFilenames = "DllToLoad";
 const char* S_dllFilenames2 = "DllToLoad2";
 const char* S_active_Commands = "ActiveCommands";
@@ -293,6 +294,10 @@ void init_General(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFi
 	GET_PRIVATE_PROFILE_STRING(S_GENERAL, S_active_logFile, "0");
 	active_logFile = atoi(buffer) + 1;
 	log_msg("active_logFile\t\t\t\t= %d\n", active_logFile);
+
+	GET_PRIVATE_PROFILE_STRING(S_GENERAL, S_active_ShowErrorMessageBox, "1");
+	active_ShowErrorMessageBox = atoi(buffer) != 0;
+	log_msg("active_ShowErrorMessageBox\t= %d\n", active_ShowErrorMessageBox);
 
 	GET_PRIVATE_PROFILE_STRING(S_GENERAL,S_dllFilenames,"");
 	strcat(buffer,"|");

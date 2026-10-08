@@ -86,6 +86,20 @@ BOOL FileExists(char *name)
 	return ( (attr != (DWORD)-1) && !(attr & FILE_ATTRIBUTE_DIRECTORY) );
 }
 
+// Several game instances may start at once and read the same ini, so share it and retry briefly.
+static HANDLE OpenFileForRead(const char *path)
+{
+	HANDLE file = CreateFile(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	for (int retry = 0; (file == INVALID_HANDLE_VALUE) && (retry < 10); retry++)
+	{
+		Sleep(50);
+		file = CreateFile(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	}
+	if (file == INVALID_HANDLE_VALUE)
+		log_msg("Can't open file for reading : %s (error %u)\n", path, GetLastError());
+	return file;
+}
+
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -158,7 +172,7 @@ BOOL INIFile::InitReadWrite(const char *path, int readWrite, DWORD writeCacheSiz
 					m_cache = NULL;
 				}
 				else
-					m_cache[fileSize] = 0;
+					m_cache[read] = 0;
 			}
 			D2MPQCloseFile(refFile);
 			if(m_cache)
@@ -171,13 +185,7 @@ BOOL INIFile::InitReadWrite(const char *path, int readWrite, DWORD writeCacheSiz
 	{
 		if(FileExists(m_path))
 		{
-			m_file = CreateFile(m_path,
-								GENERIC_READ,
-								0,
-								NULL,
-								OPEN_EXISTING,
-								FILE_ATTRIBUTE_NORMAL,
-								NULL);
+			m_file = OpenFileForRead(m_path);
 
 			if(m_file != INVALID_HANDLE_VALUE)
 			{
@@ -194,7 +202,7 @@ BOOL INIFile::InitReadWrite(const char *path, int readWrite, DWORD writeCacheSiz
 						m_cache = NULL;
 					}
 					else
-						m_cache[fileSize] = 0;
+						m_cache[read] = 0;
 				}
 
 				CloseHandle(m_file);
@@ -436,7 +444,7 @@ BOOL INIFileW::InitReadWrite(const char *path, int readWrite, DWORD writeCacheSi
 					m_cache = NULL;
 				}
 				else
-					m_cache[fileSize] = 0;
+					m_cache[read / sizeof(WCHAR)] = 0;
 			}
 			D2MPQCloseFile(refFile);
 			if (m_cache)
@@ -449,13 +457,7 @@ BOOL INIFileW::InitReadWrite(const char *path, int readWrite, DWORD writeCacheSi
 	{
 		if (FileExists(m_path))
 		{
-			m_file = CreateFile(m_path,
-				GENERIC_READ,
-				0,
-				NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
+			m_file = OpenFileForRead(m_path);
 
 			if (m_file != INVALID_HANDLE_VALUE)
 			{
@@ -472,7 +474,7 @@ BOOL INIFileW::InitReadWrite(const char *path, int readWrite, DWORD writeCacheSi
 						m_cache = NULL;
 					}
 					else
-						m_cache[fileSize] = 0;
+						m_cache[read / sizeof(WCHAR)] = 0;
 				}
 
 				CloseHandle(m_file);

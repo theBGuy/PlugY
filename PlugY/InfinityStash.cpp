@@ -10,7 +10,9 @@
 #include "infinityStash.h"
 #include "updateClient.h"
 #include "interface_Stash.h"
+#include "customLibraries.h"
 #include "common.h"
+#include <stdlib.h>
 
 #define STASH_TAG 0x5453			//"ST"
 #define JM_TAG 0x4D4A				//"JM"
@@ -251,11 +253,17 @@ TchangeToSelectedStash changeToSelectedStash;
 DWORD loadStash(Unit* ptChar, Stash* ptStash, BYTE data[], DWORD startSize, DWORD maxSize, DWORD* retSize)
 {
 	DWORD curSize = startSize;
-	DWORD nbBytesRead;
+	DWORD nbBytesRead = 0;
 
 	log_msg("loadStash\n");
 
+	// Every read below stays inside the file: a file cut short is refused, never read past its end.
 	*retSize = curSize;
+	if (curSize > maxSize || maxSize - curSize < 2)
+	{
+		log_msg("loadStash -> stash of character %s is truncated (no \"ST\" tag at %u, size %u)\n", PCPlayerData->name, curSize, maxSize);
+		return 0x7;//Unable to enter game. Bad inventory data
+	}
 	if( *(WORD *)&data[curSize] != STASH_TAG )//"ST"
 	{
 		log_msg("loadStash -> Bad tag of stash of character %s : %04X\n",PCPlayerData->name,*(WORD *)&data[curSize]);
@@ -263,24 +271,44 @@ DWORD loadStash(Unit* ptChar, Stash* ptStash, BYTE data[], DWORD startSize, DWOR
 	}
 	curSize += 2;
 
-	// Read flags.
-	int len = strlen((char*)&data[curSize]);
-	if (*(WORD*)&data[curSize + len + 1] != JM_TAG)
+	// Read flags : they are present unless the bytes right after the first NUL are the "JM" tag (old format).
+	BYTE* nul = (BYTE*)memchr(&data[curSize], 0, maxSize - curSize);
+	if (!nul || maxSize - (DWORD)(nul + 1 - data) < 2)
 	{
+		log_msg("loadStash -> stash of character %s is truncated (flags or name at %u, size %u)\n", PCPlayerData->name, curSize, maxSize);
+		return 0x7;//Unable to enter game. Bad inventory data
+	}
+	if (*(WORD*)(nul + 1) != JM_TAG)
+	{
+		if (maxSize - curSize < 4)
+		{
+			log_msg("loadStash -> stash of character %s is truncated (flags at %u, size %u)\n", PCPlayerData->name, curSize, maxSize);
+			return 0x7;//Unable to enter game. Bad inventory data
+		}
 		ptStash->flags = *(DWORD *)&data[curSize];
 		curSize += 4;
 	}
 
 	// Read Name
-//	if (strlen((char *)&data[curSize]) > 0xF)
-//		*(char *)&data[curSize+0xF] = NULL;
-	if (strlen((char *)&data[curSize]))
-		ptStash->name = (char*)malloc(strlen((char *)&data[curSize]) + 1);//D2AllocMem(PCGame->memoryPool, strlen((char *)&data[curSize]),__FILE__,__LINE__,0);
+	nul = (BYTE*)memchr(&data[curSize], 0, maxSize - curSize);
+	if (!nul)
+	{
+		log_msg("loadStash -> stash of character %s is truncated (name at %u, size %u)\n", PCPlayerData->name, curSize, maxSize);
+		return 0x7;//Unable to enter game. Bad inventory data
+	}
+	DWORD nameLen = nul - &data[curSize];
+	if (nameLen)
+		ptStash->name = (char*)malloc(nameLen + 1);//D2AllocMem(PCGame->memoryPool, strlen((char *)&data[curSize]),__FILE__,__LINE__,0);
 	if (ptStash->name)
 		strcpy(ptStash->name, (char *)&data[curSize]);
-	curSize += strlen((char *)&data[curSize]) + 1;
+	curSize += nameLen + 1;
 
-	// Read inventory.
+	// Read inventory : at least its "JM" tag and item count.
+	if (maxSize - curSize < 4)
+	{
+		log_msg("loadStash -> stash of character %s is truncated (inventory at %u, size %u)\n", PCPlayerData->name, curSize, maxSize);
+		return 0x7;//Unable to enter game. Bad inventory data
+	}
 	DWORD ret = D2LoadInventory(PCGame, ptChar, (saveBitField*)&data[curSize], 0x60, maxSize-curSize, 0, &nbBytesRead);
 	if (ret) log_msg("loadStash -> D2LoadInventory failed\n");
 	log_msg("Stash loaded (%d : %s)\n", ptStash->id, ptStash->name);
@@ -318,16 +346,27 @@ DWORD loadStashList(Unit* ptChar, BYTE* data, DWORD maxSize, DWORD* curSize, boo
 	DWORD curStash = 0;
 	Stash* newStash = NULL;
 
+	if (*curSize > maxSize || maxSize - *curSize < 4)
+	{
+		log_msg("loadStashList -> file truncated before the number of stash pages (at %u, size %u)\n", *curSize, maxSize);
+		return 0x7;//Unable to enter game. Bad inventory data
+	}
 	DWORD nbStash = *(DWORD*)&data[*curSize];
 	*curSize += 4;
 
 	log_msg("loadStashList nbStash=%d\n", nbStash);
+	// every saved page takes at least 7 bytes ("ST", name NUL, "JM", item count), so a larger count is corrupt
+	if (nbStash > (maxSize - *curSize) / 7)
+	{
+		log_msg("loadStashList -> bad number of stash pages : %u\n", nbStash);
+		return 0x7;//Unable to enter game. Bad inventory data
+	}
 
 	while (curStash < nbStash)
 	{
 		newStash = addStash(ptChar, isShared, false, newStash);
 		changeToSelectedStash(ptChar, newStash, 0, false);
-		DWORD ret = loadStash(ptChar, newStash, data, *curSize, 10000000, curSize);
+		DWORD ret = loadStash(ptChar, newStash, data, *curSize, maxSize, curSize);
 		if (ret) return ret;
 		curStash++;
 	}
@@ -438,6 +477,109 @@ void saveStashList(Unit* ptChar, Stash* ptStash, BYTE** data, DWORD* maxSize, DW
 	*(DWORD*)(*data + curSizeNbStash) = nbStash;
 }
 
+
+static int compareItemHash(const void* a, const void* b)
+{
+	DWORD ha = *(const DWORD*)a;
+	DWORD hb = *(const DWORD*)b;
+	return ha < hb ? -1 : ha > hb ? 1 : 0;
+}
+
+// Same page content as saveStash, but with the items sorted: selecting a page reverses its item list.
+static bool hashStashCanonical(Unit* ptChar, Stash* ptStash, DWORD* hash)
+{
+	*hash = fnv1a((BYTE*)&ptStash->flags, sizeof(ptStash->flags), *hash);
+	char name[21] = {0};
+	if (ptStash->name)
+		strncpy(name, ptStash->name, 20);
+	*hash = fnv1a((BYTE*)name, strlen(name) + 1, *hash);
+
+	Unit* ptItem;
+	if ((ptStash->id == PCPY->currentStash->id) && (ptStash->isShared == PCPY->currentStash->isShared))
+		ptItem = D2InventoryGetFirstItem(PCInventory);
+	else
+		ptItem = ptStash->ptListItem;
+
+	DWORD itemBuffer[0x2000 / sizeof(DWORD)];
+	DWORD* itemHashes = NULL;
+	DWORD nbItems = 0;
+	DWORD maxItems = 0;
+	bool ok = true;
+	while (ok && ptItem)
+	{
+		if (D2ItemGetPage(D2GetRealItem(ptItem)) == 4)
+		{
+			DWORD nbBytes = D2SaveItem(D2GetRealItem(ptItem), (saveBitField*)itemBuffer, sizeof(itemBuffer), 1, 1, 0);
+			if (!nbBytes || nbBytes > sizeof(itemBuffer))
+			{
+				log_msg("hashStashCanonical : can't serialize an item of page %d\n", ptStash->id);
+				ok = false;
+				break;
+			}
+			if (nbItems == maxItems)
+			{
+				maxItems = maxItems ? maxItems * 2 : 64;
+				DWORD* newHashes = (DWORD*)realloc(itemHashes, maxItems * sizeof(DWORD));
+				if (!newHashes)
+				{
+					log_msg("hashStashCanonical : memory allocation failed\n");
+					ok = false;
+					break;
+				}
+				itemHashes = newHashes;
+			}
+			itemHashes[nbItems++] = fnv1a((BYTE*)itemBuffer, nbBytes);
+		}
+		ptItem = D2UnitGetNextItem(ptItem);
+	}
+	if (ok)
+	{
+		if (nbItems)
+			qsort(itemHashes, nbItems, sizeof(DWORD), compareItemHash);
+		*hash = fnv1a((BYTE*)&nbItems, sizeof(nbItems), *hash);
+		*hash = fnv1a((BYTE*)itemHashes, nbItems * sizeof(DWORD), *hash);
+	}
+	free(itemHashes);
+	return ok;
+}
+
+// Order-independent fingerprint of what saveSharedSaveFile writes, so an untouched shared stash matches its load-time value.
+bool getSharedStashCanonicalHash(Unit* ptChar, DWORD* hash)
+{
+	*hash = FNV1A_INIT;
+	if (!PCPY->currentStash)
+		return false;
+	*hash = fnv1a((BYTE*)&PCPY->sharedGold, sizeof(PCPY->sharedGold), *hash);
+
+	Stash* ptStash = PCPY->sharedStash;
+	while (ptStash)
+	{
+		if (!hashStashCanonical(ptChar, ptStash, hash))
+			return false;
+		ptStash = endStashList(ptChar, ptStash->nextStash) ? NULL : ptStash->nextStash;
+	}
+
+	TCustomDll* currentDll = customDlls;
+	if (!currentDll)
+		return true;
+	DWORD curSize = 0;
+	DWORD maxSize = 0x4000;
+	BYTE* data = (BYTE *)D2AllocMem(PCGame->memoryPool, maxSize,__FILE__,__LINE__,0);
+	if (!data)
+	{
+		log_msg("getSharedStashCanonicalHash : memory allocation failed\n");
+		return false;
+	}
+	while (currentDll)
+	{
+		currentDll->saveSharedSaveFile(ptChar, &data, &maxSize, &curSize);
+		currentDll=currentDll->nextDll;
+	}
+	*hash = fnv1a(data, curSize, *hash);
+	D2FreeMem(PCGame->memoryPool, data,__FILE__,__LINE__,0);
+	return true;
+}
+
 /////// client
 void updateSelectedStashClient(Unit* ptChar)
 {
@@ -476,8 +618,15 @@ void selectStash(Unit* ptChar, Stash* newStash, bool forceUpdate)
 
 
 ///// public functions
+bool hasCurrentStash(Unit* ptChar)
+{
+	// PCPY is an offset into PlayerData, so a NULL PlayerData is what makes it invalid.
+	return ptChar && PCPlayerData && PCPY->currentStash;
+}
+
 void toggleToSelfStash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* selStash = PCPY->selfStash;
 	if (selStash && (selStash != PCPY->currentStash))
 	{
@@ -488,6 +637,7 @@ void toggleToSelfStash(Unit* ptChar)
 
 void toggleToSharedStash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* selStash = PCPY->sharedStash;
 	if (selStash && (selStash != PCPY->currentStash))
 	{
@@ -498,9 +648,9 @@ void toggleToSharedStash(Unit* ptChar)
 
 void swapStash(Unit* ptChar, Stash* curStash, Stash* swpStash)
 {
-	log_msg("swapStash ID:%d\tshared:%d\tonlyItems:%d\tclient:%d\n", swpStash->id, swpStash->isShared, 1, 0);
 	if (!ptChar || !curStash || !swpStash || curStash == swpStash)
 		return;
+	log_msg("swapStash ID:%d\tshared:%d\tonlyItems:%d\tclient:%d\n", swpStash->id, swpStash->isShared, 1, 0);
 	changeToSelectedStash(ptChar, swpStash, 1, 0);
 	updateClient(ptChar, UC_SELECT_STASH, swpStash->id, swpStash->flags | 8, PCPY->flags);
 }
@@ -508,6 +658,7 @@ void swapStash(Unit* ptChar, Stash* curStash, Stash* swpStash)
 void toggleStash(Unit* ptChar, DWORD page)
 {
 	log_msg("toggle stash page = %u\n", page);
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* curStash = PCPY->currentStash;
 	Stash* swpStash = curStash->isShared ? PCPY->selfStash : PCPY->sharedStash;
 	swapStash(ptChar, curStash, swpStash);
@@ -516,7 +667,21 @@ void toggleStash(Unit* ptChar, DWORD page)
 void swapStash(Unit* ptChar, DWORD page, bool toggle)
 {
 	log_msg("swap stash page = %u, toggle=%u\n", page, toggle);
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* curStash = PCPY->currentStash;
+	bool isShared = curStash->isShared != toggle;
+	DWORD nbPages = isShared ? PCPY->nbSharedPages : PCPY->nbSelfPages;
+	DWORD maxPages = isShared ? maxSharedPages : maxSelfPages;
+	Stash* target = isShared ? PCPY->sharedStash : PCPY->selfStash;
+	for (DWORD i = 0; target && i < page; i++)
+		target = target->nextStash;
+	// The page comes from the client and every missing page up to it gets allocated, so creating pages is capped
+	// even for an unlimited stash; a page that already exists is always reachable.
+	if (!target && ((int)maxPages < 0 ? page >= 10000 : page > maxPages))
+	{
+		log_msg("swap stash refused : page %u is out of range (pages=%u, max=%d)\n", page, nbPages, maxPages);
+		return;
+	}
 	Stash* swpStash = curStash->isShared == toggle ? PCPY->selfStash : PCPY->sharedStash;
 	if (!swpStash)
 		swpStash = addStash(ptChar, !curStash->isShared, true, swpStash);
@@ -532,6 +697,7 @@ void swapStash(Unit* ptChar, DWORD page, bool toggle)
 
 void insertStash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* curStash = PCPY->currentStash;
 	Stash* stash = addStash(ptChar, curStash->isShared, false, curStash);
 	while (stash->previousStash != curStash)
@@ -549,6 +715,8 @@ void insertStash(Unit* ptChar)
 
 bool deleteStash(Unit* ptChar, bool isClient)
 {
+	if (!hasCurrentStash(ptChar))
+		return false;
 	if (firstClassicStashItem(ptChar) != NULL)
 		return false;
 	//if (D2InventoryGetFirstItem())
@@ -586,6 +754,7 @@ bool deleteStash(Unit* ptChar, bool isClient)
 void renameCurrentStash(Unit* ptChar, char* name)
 {
 	log_msg("renameCurrentStash : '%s'\n", name);
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* stash = PCPY->currentStash;
 	int len = 0;
 	if (name != NULL)
@@ -604,7 +773,7 @@ void renameCurrentStash(Unit* ptChar, char* name)
 
 void setCurrentStashIndex(Unit* ptChar, int index)
 {
-	if (!PCPY->currentStash)
+	if (!hasCurrentStash(ptChar))
 		return;
 	PCPY->currentStash->isIndex = index >= 1;
 	PCPY->currentStash->isMainIndex = index == 2;
@@ -614,6 +783,7 @@ void setCurrentStashIndex(Unit* ptChar, int index)
 
 void selectPreviousStash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* selStash = PCPY->currentStash->previousStash;
 	if (selStash && (selStash != PCPY->currentStash))
 		selectStash(ptChar, selStash);
@@ -622,6 +792,7 @@ void selectPreviousStash(Unit* ptChar)
 
 void selectPrevious2Stash(Unit* ptChar)// Select first stash
 {
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* selStash = PCPY->showSharedStash ? PCPY->sharedStash : PCPY->selfStash;
 	if (selStash && (selStash != PCPY->currentStash))
 		selectStash(ptChar, selStash);
@@ -629,6 +800,7 @@ void selectPrevious2Stash(Unit* ptChar)// Select first stash
 
 void selectNextStash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* selStash = PCPY->currentStash;
 	if (!selStash->isShared && (selStash->id >= maxSelfPages))	return;
 	if (selStash->isShared && (selStash->id >= maxSharedPages)) return;
@@ -642,6 +814,7 @@ void selectNextStash(Unit* ptChar)
 
 void selectNext2Stash(Unit* ptChar)//select last stash
 {
+	if (!hasCurrentStash(ptChar)) return;
 	Stash* selStash = PCPY->showSharedStash ? PCPY->sharedStash : PCPY->selfStash;//PCPY->currentStash;
 	Stash* lastStash = NULL;
 	Unit* currentStashItem = firstClassicStashItem(ptChar);
@@ -658,6 +831,7 @@ void selectNext2Stash(Unit* ptChar)//select last stash
 
 void selectPreviousIndexStash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	selectPreviousStash(ptChar);
 	Stash* selStash = PCPY->currentStash;
 	while (selStash && !selStash->isIndex)
@@ -676,6 +850,7 @@ void selectPreviousIndexStash(Unit* ptChar)
 
 void selectPreviousIndex2Stash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	selectPreviousStash(ptChar);
 	Stash* selStash = PCPY->currentStash;
 	while (selStash && !selStash->isMainIndex)
@@ -694,6 +869,7 @@ void selectPreviousIndex2Stash(Unit* ptChar)
 
 void selectNextIndexStash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	selectNextStash(ptChar);
 	Stash* selStash = PCPY->currentStash;
 	while (selStash && !selStash->isIndex)
@@ -715,6 +891,7 @@ void selectNextIndexStash(Unit* ptChar)
 
 void selectNextIndex2Stash(Unit* ptChar)
 {
+	if (!hasCurrentStash(ptChar)) return;
 	selectNextStash(ptChar);
 	Stash* selStash = PCPY->currentStash;
 	while (selStash && !selStash->isMainIndex)

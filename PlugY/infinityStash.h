@@ -65,6 +65,7 @@ extern DWORD SharedNormalPageColor;
 extern DWORD SharedIndexPageColor;
 extern DWORD SharedMainIndexPageColor;
 
+bool hasCurrentStash(Unit* ptChar);
 void toggleToSharedStash(Unit* ptChar);
 void toggleToSelfStash(Unit* ptChar);
 void setCurrentStashIndex(Unit* ptChar, int index);
@@ -88,6 +89,7 @@ void setSelectedStashClient(DWORD stashId, DWORD stashFlags, DWORD flags, bool b
 Stash* addStash(Unit* ptChar, bool isShared, bool autoSetIndex, Stash* ptStash = NULL);
 DWORD loadStashList(Unit* ptChar, BYTE* data, DWORD maxSize, DWORD* curSize, bool isShared);
 void saveStashList(Unit* ptChar, Stash* ptStash, BYTE** data, DWORD* maxSize, DWORD* curSize);
+bool getSharedStashCanonicalHash(Unit* ptChar, DWORD* hash);	// false when the hash can't be computed (e.g. an item fails to serialize)
 
 void getCurrentStashName(WCHAR* buffer, DWORD maxSize, Unit* ptChar);
 WCHAR* getDefaultStashName(Unit* ptChar);

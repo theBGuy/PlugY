@@ -26,11 +26,65 @@ int renameIndex = 0;
 char renameString[21];
 DWORD PageSwap;
 
+// Any client can send these packets, so a command is only run when the feature that owns it is active.
+static bool isServerUpdateAllowed(Unit* ptChar, int type)
+{
+	switch(type)
+	{
+		case US_UNASSIGN_STR_POINT :
+		case US_UNASSIGN_ENE_POINT :
+		case US_UNASSIGN_DEX_POINT :
+		case US_UNASSIGN_VIT_POINT :
+		case US_UNASSIGN_STR_POINTS :
+		case US_UNASSIGN_ENE_POINTS :
+		case US_UNASSIGN_DEX_POINTS :
+		case US_UNASSIGN_VIT_POINTS :	return active_StatsPoints;
+		case US_UNASSIGN_SKILLS :		return active_SkillsPoints;
+
+		case US_SELECT_SELF :
+		case US_SELECT_SHARED :
+		case US_SWAP0_TOGGLE :			return active_sharedStash && active_multiPageStash && hasCurrentStash(ptChar);
+
+		case US_SET_INDEX :
+		case US_SET_MAIN_INDEX :
+		case US_RESET_INDEX :
+		case US_SELECT_PREVIOUS :
+		case US_SELECT_NEXT :
+		case US_SELECT_PREVIOUS_INDEX :
+		case US_SELECT_NEXT_INDEX :
+		case US_SELECT_PREVIOUS2 :
+		case US_SELECT_NEXT2 :
+		case US_SELECT_PREVIOUS_INDEX2 :
+		case US_SELECT_NEXT_INDEX2 :
+		case US_INSERT_PAGE :
+		case US_DELETE_PAGE :
+		case US_SWAP3 :
+		case US_SWAP2 :
+		case US_SWAP1 :
+		case US_SWAP0 :
+		case US_PAGENAME :				return active_multiPageStash && hasCurrentStash(ptChar);
+
+		case US_MAXGOLD :				return ptChar && PCPlayerData;
+		// Shared gold is saved with the shared stash, so it moves only while that stash is loaded.
+		case US_PUTGOLD :
+		case US_TAKEGOLD :				return ptChar && PCPlayerData && PCPY->sharedStashIsOpened;
+
+		default :						return true;
+	}
+}
+
 int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 {
 	int type = param & 0xFF;
 	DWORD arg = (param & 0xFF00) >> 8;
 	log_msg("Received custom message: type=%i, arg=%i\n", type, arg);
+	if (!isServerUpdateAllowed(ptChar, type))
+	{
+		if (type >= US_SWAP3 && type <= US_SWAP0_TOGGLE)
+			PageSwap = 0;
+		log_msg("Custom message refused: type=%i (feature disabled or no current stash)\n", type);
+		return 1;
+	}
 	switch(type)
 	{
 		case US_UNASSIGN_STR_POINT :	UnassignStrPoint( ptChar ); return 1;
@@ -48,8 +102,8 @@ int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 		case US_RESET_INDEX:			setCurrentStashIndex(ptChar, 0); return 1;
 		case US_SELECT_PREVIOUS :		selectPreviousStash( ptChar ); return 1;
 		case US_SELECT_NEXT :			selectNextStash( ptChar ); return 1;
-		case US_SELECT_SELF :			if (active_sharedStash) toggleToSelfStash( ptChar ); return 1;
-		case US_SELECT_SHARED :			if (active_sharedStash) toggleToSharedStash( ptChar ); return 1;
+		case US_SELECT_SELF :			toggleToSelfStash( ptChar ); return 1;
+		case US_SELECT_SHARED :			toggleToSharedStash( ptChar ); return 1;
 		case US_SELECT_PREVIOUS_INDEX :	selectPreviousIndexStash( ptChar ); return 1;
 		case US_SELECT_NEXT_INDEX :		selectNextIndexStash( ptChar ); return 1;
 		case US_SELECT_PREVIOUS2 :		selectPrevious2Stash( ptChar ); return 1;
@@ -78,6 +132,12 @@ int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 			{
 				renameString[renameIndex] = NULL;
 				renameIndex = 0;
+				// US_PAGENAME shares renameString and accepts longer strings than the name fields hold.
+				if (strlen(renameString) >= sizeof(PCPlayerData->name))
+				{
+					log_msg("Rename on Server refused : name too long\n");
+					return 1;
+				}
 				log_msg("Rename on Server : %s -> %s\n", PCPlayerData->name, renameString);
 				strcpy(PCPlayerData->name, renameString);
 				strcpy(PCPlayerData->ptNetClient->name, renameString);

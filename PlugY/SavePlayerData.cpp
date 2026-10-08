@@ -15,6 +15,7 @@
 
 bool active_AutoBackup = false;
 int maxBackupPerCharacter = 20;
+bool plugyForcedSave = false;
 
 /*backup
 Save SP :
@@ -37,6 +38,27 @@ Save MP :
 		0052C93B  |. E8 C05A0000    CALL Game.00532400                       ; \Game.00532400
 			005324FD  |. E8 3EFEFFFF    CALL Game.00532340                       ; \Game.00532340
 */
+static const char* backupExtensions[] = {".d2s", ".d2x", ".ma0", ".ma1", ".ma2", ".ma3", ".map"};
+static const int nbBackupExtensions = sizeof(backupExtensions)/sizeof(backupExtensions[0]);
+
+// True for the backup folders of this character only : <name>_YYYYMMDD_HHMMSS.
+static bool isBackupFolder(WIN32_FIND_DATA* findData, const char* name)
+{
+	if (!(findData->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+		return false;
+	const char* folder = findData->cFileName;
+	int len = strlen(name);
+	if (_strnicmp(folder, name, len) || (int)strlen(folder) != len + 16)
+		return false;
+	for (int i = 0; i < 16; i++)
+	{
+		char c = folder[len + i];
+		if ((i == 0 || i == 9) ? c != '_' : (c < '0' || c > '9'))
+			return false;
+	}
+	return true;
+}
+
 void backupSaveFiles(char* name, int isHardCoreGame)
 {
 	if (!active_AutoBackup)
@@ -48,109 +70,86 @@ void backupSaveFiles(char* name, int isHardCoreGame)
 	char szBackupName[MAX_PATH];
 
 	D2FogGetSavePath(savePath, MAX_PATH);
+	savePath[MAX_PATH-1] = NULL;
 
 	// backupfiles
 	time_t t = time(NULL);
 	struct tm* tm = localtime(&t);
-	sprintf(backupPath, "%sbackup", savePath);
+	if (!tm || !formatPath(backupPath, MAX_PATH, "%sbackup", savePath))
+		return;
 	CreateDirectory(backupPath, NULL);
-	sprintf(backupPath, "%sbackup\\%s_%04d%02d%02d_%02d%02d%02d\\", savePath, name, tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+	if (!formatPath(backupPath, MAX_PATH, "%sbackup\\%s_%04d%02d%02d_%02d%02d%02d\\", savePath, name, tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec))
+		return;
 	CreateDirectory(backupPath, NULL);
 	log_msg("backup directory:%s isHardcore:%d\n", backupPath, isHardCoreGame);
 
-	sprintf(szSaveName,   "%s%s.d2s", savePath,   name);
-	sprintf(szBackupName, "%s%s.d2s", backupPath, name);
-	CopyFile(szSaveName, szBackupName, true);
-
-	sprintf(szSaveName,   "%s%s.d2x", savePath,   name);
-	sprintf(szBackupName, "%s%s.d2x", backupPath, name);
-	CopyFile(szSaveName, szBackupName, true);
-
-	sprintf(szSaveName,   "%s%s.ma0", savePath,   name);
-	sprintf(szBackupName, "%s%s.ma0", backupPath, name);
-	CopyFile(szSaveName, szBackupName, true);
-
-	sprintf(szSaveName,   "%s%s.ma1", savePath,   name);
-	sprintf(szBackupName, "%s%s.ma1", backupPath, name);
-	CopyFile(szSaveName, szBackupName, true);
-
-	sprintf(szSaveName,   "%s%s.ma2", savePath,   name);
-	sprintf(szBackupName, "%s%s.ma2", backupPath, name);
-	CopyFile(szSaveName, szBackupName, true);
-
-	sprintf(szSaveName,   "%s%s.ma3", savePath,   name);
-	sprintf(szBackupName, "%s%s.ma3", backupPath, name);
-	CopyFile(szSaveName, szBackupName, true);
-
-	sprintf(szSaveName,   "%s%s.map", savePath,   name);
-	sprintf(szBackupName, "%s%s.map", backupPath, name);
-	CopyFile(szSaveName, szBackupName, true);
+	for (int i = 0; i < nbBackupExtensions; i++)
+		if (formatPath(szSaveName,   MAX_PATH, "%s%s%s", savePath,   name, backupExtensions[i])
+		 && formatPath(szBackupName, MAX_PATH, "%s%s%s", backupPath, name, backupExtensions[i]))
+			CopyFile(szSaveName, szBackupName, true);
 
 	if (separateHardSoftStash && isHardCoreGame != 0)
 	{
-		sprintf(szSaveName,   "%s%s%s.sss", savePath,   "_LOD_HC_", sharedStashFilename);
-		sprintf(szBackupName, "%s%s%s.sss", backupPath, "_LOD_HC_", sharedStashFilename);
-		CopyFile(szSaveName, szBackupName, true);
+		if (formatPath(szSaveName,   MAX_PATH, "%s%s%s.sss", savePath,   "_LOD_HC_", sharedStashFilename)
+		 && formatPath(szBackupName, MAX_PATH, "%s%s%s.sss", backupPath, "_LOD_HC_", sharedStashFilename))
+			CopyFile(szSaveName, szBackupName, true);
 	}
 	if (!separateHardSoftStash || isHardCoreGame != 1)
 	{
-		sprintf(szSaveName,   "%s%s%s.sss", savePath,   separateHardSoftStash && isHardCoreGame != 0? "_LOD_HC_" : "_LOD_", sharedStashFilename);
-		sprintf(szBackupName, "%s%s%s.sss", backupPath, separateHardSoftStash && isHardCoreGame != 0? "_LOD_HC_" : "_LOD_", sharedStashFilename);
-		CopyFile(szSaveName, szBackupName, true);
+		if (formatPath(szSaveName,   MAX_PATH, "%s%s%s.sss", savePath,   separateHardSoftStash && isHardCoreGame != 0? "_LOD_HC_" : "_LOD_", sharedStashFilename)
+		 && formatPath(szBackupName, MAX_PATH, "%s%s%s.sss", backupPath, separateHardSoftStash && isHardCoreGame != 0? "_LOD_HC_" : "_LOD_", sharedStashFilename))
+			CopyFile(szSaveName, szBackupName, true);
 	}
 
 	// delete older backup
 	if (maxBackupPerCharacter > 0)
 	{
-		sprintf(szBackupName, "%sbackup\\%s_*", savePath, name);
+		char szSearch[MAX_PATH];
+		if (!formatPath(szSearch, MAX_PATH, "%sbackup\\%s_*", savePath, name))
+			return;
 		WIN32_FIND_DATA FindFileData;
-		HANDLE hFind = FindFirstFile(szBackupName, &FindFileData);
-		if (hFind)
+
+		// Count nb backup folders
+		int nbFolders = 0;
+		HANDLE hFind = FindFirstFile(szSearch, &FindFileData);
+		if (hFind != INVALID_HANDLE_VALUE)
 		{
-			// Count nb backup folders
-			int nbFolders = (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
-			while(FindNextFile(hFind, &FindFileData))
-				nbFolders += (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
+			do
+				nbFolders += isBackupFolder(&FindFileData, name);
+			while (FindNextFile(hFind, &FindFileData));
+			FindClose(hFind);
+		}
 
-			// delete nbFolders - maxfolder
-			log_msg("Backup nbFolders: %d\n", nbFolders);
-			nbFolders -= maxBackupPerCharacter;
-			if (nbFolders > 0)
+		// delete nbFolders - maxfolder
+		log_msg("Backup nbFolders: %d\n", nbFolders);
+		nbFolders -= maxBackupPerCharacter;
+		if (nbFolders <= 0)
+			return;
+
+		// NTFS lists names in sorted order and the _YYYYMMDD_HHMMSS suffix sorts chronologically, so the oldest come first.
+		hFind = FindFirstFile(szSearch, &FindFileData);
+		if (hFind == INVALID_HANDLE_VALUE)
+			return;
+		do
+		{
+			if (isBackupFolder(&FindFileData, name)
+			 && formatPath(backupPath, MAX_PATH, "%sbackup\\%s\\", savePath, FindFileData.cFileName))
 			{
-				hFind = FindFirstFile(szBackupName, &FindFileData);
-				do
-				{
-					if ((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
-					{
-						sprintf(backupPath, "%sbackup\\%s\\", savePath, FindFileData.cFileName);
-						log_msg("Delete backup : %s\n", backupPath);
+				log_msg("Delete backup : %s\n", backupPath);
 
-						sprintf(szBackupName, "%s%s.d2s", backupPath, name);
+				for (int i = 0; i < nbBackupExtensions; i++)
+					if (formatPath(szBackupName, MAX_PATH, "%s%s%s", backupPath, name, backupExtensions[i]))
 						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s%s.d2x", backupPath, name);
-						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s%s.ma0", backupPath, name);
-						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s%s.ma1", backupPath, name);
-						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s%s.ma2", backupPath, name);
-						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s%s.ma3", backupPath, name);
-						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s%s.map", backupPath, name);
-						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s_LOD_%s.sss", backupPath, sharedStashFilename);
-						DeleteFile(szBackupName);
-						sprintf(szBackupName, "%s_LOD_HC_%s.sss", backupPath, sharedStashFilename);
-						DeleteFile(szBackupName);
-						RemoveDirectory(backupPath);
-						nbFolders--;
-					}
-					FindNextFile(hFind, &FindFileData);
-				}
-				while (nbFolders > 0);
+				if (formatPath(szBackupName, MAX_PATH, "%s_LOD_%s.sss", backupPath, sharedStashFilename))
+					DeleteFile(szBackupName);
+				if (formatPath(szBackupName, MAX_PATH, "%s_LOD_HC_%s.sss", backupPath, sharedStashFilename))
+					DeleteFile(szBackupName);
+				RemoveDirectory(backupPath);
+				nbFolders--;
 			}
 		}
+		while (nbFolders > 0 && FindNextFile(hFind, &FindFileData));
+		FindClose(hFind);
 	}
 }
 
@@ -161,7 +160,12 @@ void STDCALL SaveSPPlayerCustomData(Unit* ptChar)
 	log_msg("\n--- Start SaveSPPlayerCustomData ---\n");
 
 	NetClient* ptClient = D2GetClient(ptChar,__FILE__,__LINE__);
-	backupSaveFiles(PCPlayerData->name, ptClient->isHardCoreGame);
+	// The first save of a game is always backed up; later /save calls are not, so they don't rotate the backups away.
+	if (!plugyForcedSave || !PCPY->backupDoneThisGame)
+	{
+		backupSaveFiles(PCPlayerData->name, ptClient->isHardCoreGame);
+		PCPY->backupDoneThisGame = 1;
+	}
 
 	if (active_PlayerCustomData)
 	{
@@ -170,10 +174,14 @@ void STDCALL SaveSPPlayerCustomData(Unit* ptChar)
 			DWORD curSizeExt = 0;
 			DWORD maxSizeExt = 0x4000;
 			BYTE* dataExt = (BYTE *)D2AllocMem(PCGame->memoryPool, maxSizeExt,__FILE__,__LINE__,0);
-			d2_assert(!dataExt, "Error : Memory allocation Extended SaveFile", __FILE__, __LINE__);
-			saveExtendedSaveFile(ptChar, &dataExt, &maxSizeExt, &curSizeExt);
-			writeExtendedSaveFile(PCPlayerData->name, dataExt, curSizeExt);
-			D2FreeMem(PCGame->memoryPool, dataExt,__FILE__,__LINE__,0);
+			if (!dataExt)
+				log_msg("Error : Memory allocation Extended SaveFile, extended save file not saved\n");
+			else
+			{
+				saveExtendedSaveFile(ptChar, &dataExt, &maxSizeExt, &curSizeExt);
+				writeExtendedSaveFile(PCPlayerData->name, dataExt, curSizeExt);
+				D2FreeMem(PCGame->memoryPool, dataExt,__FILE__,__LINE__,0);
+			}
 		}
 
 		if (active_sharedStash && PCPY->sharedStashIsOpened)
@@ -181,21 +189,29 @@ void STDCALL SaveSPPlayerCustomData(Unit* ptChar)
 			DWORD curSizeShr = 0;
 			DWORD maxSizeShr = 0x4000;
 			BYTE* dataShr = (BYTE *)D2AllocMem(PCGame->memoryPool, maxSizeShr,__FILE__,__LINE__,0);
-			d2_assert(!dataShr, "Error : Memory allocation Shared SaveFile", __FILE__, __LINE__);
-			saveSharedSaveFile(ptChar, &dataShr, &maxSizeShr, &curSizeShr);
-
-			writeSharedSaveFile(PCPlayerData->name, dataShr, curSizeShr, ptClient->isHardCoreGame );
-			D2FreeMem(PCGame->memoryPool, dataShr,__FILE__,__LINE__,0);
+			if (!dataShr)
+				log_msg("Error : Memory allocation Shared SaveFile, shared stash not saved\n");
+			else
+			{
+				saveSharedSaveFile(ptChar, &dataShr, &maxSizeShr, &curSizeShr);
+				writeSharedSaveFileIfChanged(ptChar, dataShr, curSizeShr, ptClient->isHardCoreGame != 0);
+				D2FreeMem(PCGame->memoryPool, dataShr,__FILE__,__LINE__,0);
+			}
 		}
 	}
 	log_msg("End saving.\n\n");
 }
 
 
+// PlugY files are saved on the second save pass, but PlugY's /save only runs the first one, so it forces them.
 FCT_ASM ( caller_SaveSPPlayerCustomData_114 )
 	MOV EAX,DWORD PTR SS:[ESP+8]
 	TEST EAX,EAX
+	JNZ doSave
+	MOVZX EAX,BYTE PTR DS:[plugyForcedSave]
+	TEST EAX,EAX
 	JE next
+doSave:
 	PUSH ECX
 	PUSH EDX
 	PUSH EDX

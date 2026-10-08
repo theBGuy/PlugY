@@ -207,7 +207,11 @@ void gambleReload(Unit* ptChar)
 void savePlayers(Unit* ptChar)
 {
 	if (active_savegame)
+	{
+		plugyForcedSave = true;
 		D2SaveGame(PCGame);
+		plugyForcedSave = false;
+	}
 }
 
 void maxGold(Unit* ptChar)
@@ -450,6 +454,7 @@ int STDCALL commands (char* ptText)
 	if (!strncmp(command, CMD_RENAME_PAGE, strlen(CMD_RENAME_PAGE)))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		char* param = &ptText[strlen(CMD_RENAME_PAGE)];
 		return renamePage(ptChar, param);
 	}
@@ -457,6 +462,7 @@ int STDCALL commands (char* ptText)
 	if (!strncmp(command, CMD_SHORT_RENAME_PAGE, strlen(CMD_SHORT_RENAME_PAGE)))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		char* param = &ptText[strlen(CMD_SHORT_RENAME_PAGE)];
 		return renamePage(ptChar, param);
 	}
@@ -464,6 +470,7 @@ int STDCALL commands (char* ptText)
 	if (!strcmp(command, CMD_SET_INDEX))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		updateServer(US_SET_INDEX);
 		return 0;
 	}
@@ -471,6 +478,7 @@ int STDCALL commands (char* ptText)
 	if (!strcmp(command, CMD_SET_MAIN_INDEX))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		updateServer(US_SET_MAIN_INDEX);
 		return 0;
 	}
@@ -478,6 +486,7 @@ int STDCALL commands (char* ptText)
 	if (!strcmp(command, CMD_RESET_INDEX))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		updateServer(US_RESET_INDEX);
 		return 0;
 	}
@@ -485,6 +494,7 @@ int STDCALL commands (char* ptText)
 	if (!strcmp(command, CMD_INSERT_PAGE))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		insertStash(ptChar);
 		updateServer(US_INSERT_PAGE);
 		return 0;
@@ -493,6 +503,7 @@ int STDCALL commands (char* ptText)
 	if (!strcmp(command, CMD_SHORT_INSERT_PAGE))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		insertStash(ptChar);
 		updateServer(US_INSERT_PAGE);
 		return 0;
@@ -501,6 +512,7 @@ int STDCALL commands (char* ptText)
 	if (!strcmp(command, CMD_DELETE_PAGE))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		if (deleteStash(ptChar, true))
 			updateServer(US_DELETE_PAGE);
 		return 0;
@@ -509,6 +521,7 @@ int STDCALL commands (char* ptText)
 	if (!strcmp(command, CMD_SHORT_DELETE_PAGE))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		if (deleteStash(ptChar, true))
 			updateServer(US_DELETE_PAGE);
 		return 0;
@@ -517,6 +530,7 @@ int STDCALL commands (char* ptText)
 	if (!strncmp(command, CMD_SWAP_PAGE, strlen(CMD_SWAP_PAGE)))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		int page = atoi(&command[strlen(CMD_SWAP_PAGE)]) - 1;
 		if (page < 0 && PCPY->currentStash->nextStash)
 			page = PCPY->currentStash->nextStash->id;
@@ -532,6 +546,7 @@ int STDCALL commands (char* ptText)
 	if (!strncmp(command, CMD_SHORT_SWAP_PAGE, strlen(CMD_SHORT_SWAP_PAGE)))
 	{
 		if (!active_multiPageStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		int page = atoi(&command[strlen(CMD_SHORT_SWAP_PAGE)]) - 1;
 		if (page < 0 && PCPY->currentStash->nextStash)
 			page = PCPY->currentStash->nextStash->id;
@@ -547,6 +562,7 @@ int STDCALL commands (char* ptText)
 	if (!strncmp(command, CMD_TOGGLE_PAGE, strlen(CMD_TOGGLE_PAGE)))
 	{
 		if (!active_sharedStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		int page = atoi(&command[strlen(CMD_TOGGLE_PAGE)]) - 1;
 		if (page < 0)
 			return 1;
@@ -560,6 +576,7 @@ int STDCALL commands (char* ptText)
 	if (!strncmp(command, CMD_SHORT_TOGGLE_PAGE, strlen(CMD_SHORT_TOGGLE_PAGE)))
 	{
 		if (!active_sharedStash) return 1;
+		if (!hasCurrentStash(ptChar)) return 0;
 		int page = atoi(&command[strlen(CMD_SHORT_TOGGLE_PAGE)]) - 1;
 		if (page < 0)
 			return 1;
