@@ -10,7 +10,9 @@
 #include "extraOptions.h"
 #include "windowed.h"
 #include "common.h"
+#include "../Commons/UpdateCheck.h"
 #include <stdio.h>
+#include <string.h>
 
 char* versionText = "";
 bool active_VersionTextChange = 0;
@@ -18,7 +20,156 @@ BYTE modVersionColor = 0;
 bool active_PrintPlugYVersion = 1;
 BYTE colorOfPlugYVersion = 4;
 
-DWORD newTextBoxData[]={4,0x237,0x243,0xC8,0x14,0,0,0,0,0,0,2};//type,x,y,l,h,?,?,?,?,?,?,?(0,257,C8,28)
+// Two centered lines (name, then version) in upstream's 200 px box, grown one line upward (y is the
+// box's bottom edge): one "PlugY4Kolbot <version>" line wraps and the box shows only its last line,
+// and a wider box would run into the Exit button. y is 6 px below upstream's so the version line keeps
+// the "v 1.14d" baseline (measured on 1.14d at 800x600: rows 558-567 for both).
+DWORD newTextBoxData[]={4,0x237,0x249,0xC8,0x28,0,0,0,0,0,0,2};//type,x,y,l,h,?,?,?,?,?,?,?(0,257,C8,28)
+
+// One line above the name: text moves 1:1 with y (measured on 1.14d at 800x600: a one-line box at
+// y=0x243 draws rows 558-567 and the box above draws the name on rows 545-553), so y=0x229 draws ~532-541.
+DWORD updateTextBoxData[]={4,0x237,0x229,0xC8,0x14,0,0,0,0,0,0,2};//type,x,y,l,h,?,?,?,?,?,?,?
+
+// Measured on 1.14d at 800x600: the 21-character line "Update: 14.10.0-rc.10" (13-character version)
+// draws on one line in this 200 px box (161 px wide); valid release versions never exceed 13.
+#define UPDATE_NOTICE_VERSION_MAX 13
+
+// Menu thread only, except updateThreadHint: the check thread writes it, then sets updateThreadDone,
+// and never touches it again, so the menu thread reads it only after seeing the flag.
+static bool updateCheckStarted = false;
+static bool updateThreadRunning = false;
+static char updateNoticeVersion[UPDATE_TAG_MAX] = "";	// "" while no newer release is known
+static UpdateHint updateThreadHint;
+static volatile LONG updateThreadDone = 0;
+
+static void setUpdateNotice(const char* version)
+{
+	if (strlen(version) <= UPDATE_NOTICE_VERSION_MAX)
+		strcpy(updateNoticeVersion, version);
+	else
+		log_msg("Update check: version %s is not shown on the main menu: longer than %d characters\n",
+			version, UPDATE_NOTICE_VERSION_MAX);
+}
+
+static void logNoUsableCache()
+{
+	log_msg("Update check: skipped, no usable update cache in %s\n", "%LOCALAPPDATA%\\PlugY4Kolbot");
+}
+
+// module is a reference on PlugY.dll taken for this thread: PlugY.exe's exit stub calls Release() and
+// then FreeLibrary(PlugY.dll), which must not unmap the code this thread is still running.
+static DWORD WINAPI updateCheckThread(LPVOID module)
+{
+	UpdateCheckForNewer(updateChannel, PLUGY_VERSION, &updateThreadHint);
+	InterlockedExchange(&updateThreadDone, 1);
+	FreeLibraryAndExitThread((HMODULE)module, 0);
+	return 0;
+}
+
+/* Logged here rather than on the check thread: log_msg is not safe to call from two threads.
+   Only an answer from GitHub or a fresh cache clears the notice; a failed or skipped refresh keeps
+   it, since a release never stops being newer than this build. */
+static void applyUpdateHint(const UpdateHint* hint)
+{
+	const char* known = hint->newer ? "; last known release: " : "";
+	const char* knownVersion = hint->newer ? hint->version : "";
+	if (hint->result == UPDATE_BUSY)
+		log_msg("Update check: skipped, another game is checking%s%s\n", known, knownVersion);
+	else if (hint->result == UPDATE_CACHE_UNAVAILABLE)
+		logNoUsableCache();
+	else if (hint->result != UPDATE_OK && hint->result != UPDATE_NO_RELEASE)
+		log_msg("Update check failed: %s (HTTP status %u, error %u)%s%s\n", UpdateResultName(hint->result),
+			hint->info.httpStatus, hint->info.winError, known, knownVersion);
+	else
+	{
+		if (hint->newer)
+			log_msg("Update check: version %s is available at %s\n", hint->version, hint->pageUrl);
+		else
+			log_msg("Update check: up to date\n");
+		updateNoticeVersion[0] = 0;
+	}
+	if (hint->newer)
+		setUpdateNotice(hint->version);
+}
+
+// The cached release for this channel, without its 'v', when it is newer than this build (the comparison UpdateCheckForNewer makes).
+static const char* newerCachedVersion(const UpdateCache* cache)
+{
+	UpdateVersion current, latest;
+	if (cache->channel != updateChannel || !UpdateParseTag(PLUGY_VERSION, &current)
+		|| !UpdateParseTag(cache->latestTag, &latest) || UpdateCompareVersions(&latest, &current) <= 0)
+		return NULL;
+	return cache->latestTag[0] == 'v' ? cache->latestTag + 1 : cache->latestTag;
+}
+
+/* The first call decides from the cache file alone; only a stale or missing cache starts the one
+   check thread, whose answer shows from the next menu build on, because a request can take minutes
+   and the menu thread must never wait on the network. A stale cache's newer release shows at once,
+   whatever its last check's status, so a bot that never returns to the main menu still sees it. */
+static void pollUpdateCheck()
+{
+	if (updateThreadRunning)
+	{
+		if (InterlockedCompareExchange(&updateThreadDone, 0, 0))
+		{
+			updateThreadRunning = false;
+			applyUpdateHint(&updateThreadHint);
+		}
+		return;
+	}
+	if (updateCheckStarted)
+		return;
+	updateCheckStarted = true;
+
+	wchar_t cachePath[MAX_PATH];
+	UpdateCache cache;
+	// Without a usable cache the core never asks GitHub, so no thread is started for it.
+	if (!UpdateCacheChannelPath(updateChannel, cachePath, MAX_PATH))
+	{
+		logNoUsableCache();
+		return;
+	}
+	bool haveCache = UpdateCacheRead(cachePath, &cache);
+	const char* version = haveCache ? newerCachedVersion(&cache) : NULL;
+	if (UpdateShouldCheck(haveCache ? &cache : NULL, updateChannel, UpdateUnixTimeNow()))
+	{
+		if (version)
+		{
+			log_msg("Update check: version %s is available at %s (last check; refreshing)\n", version, cache.pageUrl);
+			setUpdateNotice(version);
+		}
+		HMODULE module;
+		if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&updateCheckThread, &module))
+		{
+			log_msg("Update check failed: no module reference (error %u)\n", GetLastError());
+			return;
+		}
+		// Reserved, not committed: each of a farm's instances commits only the pages the check touches.
+		HANDLE hThread = CreateThread(NULL, 256 * 1024, updateCheckThread, module, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
+		if (hThread)
+		{
+			updateThreadRunning = true;
+			CloseHandle(hThread);
+		}
+		else
+		{
+			log_msg("Update check failed: no thread (error %u)\n", GetLastError());
+			FreeLibrary(module);
+		}
+		return;
+	}
+
+	// Fresh: a failed check within the hour keeps the last good release, which still counts.
+	if (version)
+	{
+		log_msg("Update check: version %s is available at %s\n", version, cache.pageUrl);
+		setUpdateNotice(version);
+	}
+	else if (!cache.ok)
+		log_msg("Update check: skipped, the last check failed less than an hour ago\n");
+	else
+		log_msg("Update check: up to date\n");
+}
 
 void STDCALL printPlugYVersion(void** childrens, DWORD* sgnNumChildren)
 {
@@ -26,12 +177,31 @@ void STDCALL printPlugYVersion(void** childrens, DWORD* sgnNumChildren)
 		SetWindowedOptions();
 	if (active_PrintPlugYVersion)
 	{
-		char buf[20];
+		char name[] = "PlugY4Kolbot";
+		char version[] = PLUGY_VERSION;
+		// The version line must fit the 200 px box on its own (measured on 1.14d: 13 characters do).
+		static_assert(sizeof(version) - 1 <= 13, "PLUGY_VERSION is longer than 13 characters");
 		void* textbox = D2CreateTextBox(newTextBoxData);
 		childrens[*sgnNumChildren] = textbox;
 		d2_assert((*sgnNumChildren)++ >= 40, "sgnNumChildren < MAX_CHILDREN", __FILE__, __LINE__);
-		sprintf(buf, "PlugY %s", PLUGY_VERSION);
-		D2PrintLineOnTextBox(textbox, buf, colorOfPlugYVersion);
+		D2PrintLineOnTextBox(textbox, name, colorOfPlugYVersion);
+		D2PrintLineOnTextBox(textbox, version, colorOfPlugYVersion);
+
+		if (active_CheckForUpdates)
+			pollUpdateCheck();
+		// The notice is optional, so a full child list (the bound d2_assert enforces above) skips it.
+		if (updateNoticeVersion[0] && *sgnNumChildren < 40)
+		{
+			char notice[32];
+			_snprintf(notice, sizeof(notice) - 1, "Update: %s", updateNoticeVersion);
+			notice[sizeof(notice) - 1] = 0;
+			void* noticeBox = D2CreateTextBox(updateTextBoxData);
+			if (noticeBox)
+			{
+				childrens[(*sgnNumChildren)++] = noticeBox;
+				D2PrintLineOnTextBox(noticeBox, notice, GREEN);
+			}
+		}
 	}
 }
 

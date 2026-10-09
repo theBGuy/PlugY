@@ -1,14 +1,15 @@
 ;--------------------------------------------------------------------------------------;
 ;                                                                                      ;
-;                               "PlugY, The Survival Kit"                              ;
+;                                    "PlugY4Kolbot"                                    ;
 ;                                                                                      ;
-;                                  by Yohann Nicolas                                   ;
+;                           based on PlugY by Yohann Nicolas                           ;
 ;                                                                                      ;
 ;                                     version 14.03                                    ;
 ;                                                                                      ;
 ;--------------------------------------------------------------------------------------;
 
 Official website : http://plugy.free.fr
+PlugY4Kolbot fork website : https://github.com/theBGuy/PlugY4Kolbot
 You can make a donation if you want.
 
 
@@ -634,6 +635,15 @@ Activate some new commands in PlugY. In parenthesis is the condition to be able 
 Quit D2, if PlugY failed to install all features.
 Disable it only if you know what you do.
 - ActiveCheckMemory=1
+
+Show "Update: <version>" in green above the PlugY version on the main menu when a newer PlugY4Kolbot
+release exists on GitHub (needs ActivePrintPlugYVersion=1 in [MAIN SCREEN]). A check that has to ask
+GitHub runs in the background, and its result shows the next time the main menu opens.
+Privacy: the check sends at most one request per day per Windows user and update channel (one per hour
+after a failed check) to api.github.com with a "PlugY4Kolbot/<version>" User-Agent; nothing else is sent.
+With 0, PlugY never contacts GitHub.
+- CheckForUpdates=1		{0:Never check; 1:Check for a newer release}
+- UpdateChannel=stable	{stable:Releases only; prerelease:Also alpha, beta and rc builds}
 
 Activate hidden or unfinished feature. (don't use it)
 - ActiveAllOthersFeatures=0 	{0:Disabled; 1:Enabled}

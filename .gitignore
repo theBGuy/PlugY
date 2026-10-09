@@ -40,3 +40,5 @@
 /PlugYRun/PlugYRun.aps
 harness/build/
 /harness/
+/build/out/
+/dist/

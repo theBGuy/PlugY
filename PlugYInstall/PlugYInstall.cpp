@@ -258,7 +258,7 @@ int main(int argc, char * argv[])
 #endif
 
 	int version = GetD2Version("Game.exe");
-	LPCSTR boxName = unpatch ? "Uninstall PlugY, The Survival Kit" : "Install PlugY, The Survival Kit";
+	LPCSTR boxName = unpatch ? "Uninstall PlugY4Kolbot" : "Install PlugY4Kolbot";
 	LPCSTR targetFilename = version > V113d ? "Game.exe" : "D2gfx.dll";
 
 	if (version < V107 || version > V114d)
@@ -450,16 +450,16 @@ int main(int argc, char * argv[])
 	if (res == 0)
 		msgBox(boxName, MB_OK | MB_ICONASTERISK,
 			"%s was modified.\n"
-			"PlugY, The Survival Kit %s.",
+			"PlugY4Kolbot %s.",
 			targetFilename, unpatch ? "is removed" : "is installed");
 	else if (res == 1)
 		msgBox(boxName, MB_OK | MB_ICONASTERISK,
-			"PlugY, The Survival Kit already %s.",
+			"PlugY4Kolbot already %s.",
 			unpatch ? "uninstalled" : "installed");
 	else if (res == 2)
 		msgBox(boxName, MB_OK | MB_ICONASTERISK,
 			"File contents in %s isn't correct.\n"
-			"Unable to %s PlugY, The Survival Kit.",
+			"Unable to %s PlugY4Kolbot.",
 			targetFilename, unpatch ? "uninstall" : "install");
 
     return 1;

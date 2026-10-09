@@ -38,6 +38,7 @@ const char* PARAM_DEFAULT_FILENAME = "PlugY\\PlugYDefault.ini";
 #include "language.h"
 #include "windowed.h"
 #include "savePlayerData.h"
+#include "../Commons/UpdateCheck.h"
 
 
 char* modDataDirectory = "PlugY";
@@ -46,6 +47,8 @@ bool active_DisableBattleNet = true;
 bool active_CheckMemory = true;
 bool active_D2Mod = false;
 char* dllFilenames;
+bool active_CheckForUpdates = true;
+int updateChannel = UPDATE_CHANNEL_STABLE;
 
 TargetMod selectModParam = MOD_NO;
 
@@ -60,6 +63,8 @@ const char* S_dllFilenames2 = "DllToLoad2";
 const char* S_active_Commands = "ActiveCommands";
 const char* S_active_CheckMemory = "ActiveCheckMemory";
 const char* S_active_othersFeatures = "ActiveAllOthersFeatures";
+const char* S_active_CheckForUpdates = "CheckForUpdates";
+const char* S_updateChannel = "UpdateChannel";
 
 const char* S_WINDOWED = "WINDOWED";
 const char* S_ActiveWindowed = "ActiveWindowed";
@@ -323,6 +328,14 @@ void init_General(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFi
 	GET_PRIVATE_PROFILE_STRING(S_GENERAL, S_active_othersFeatures, "0");
 	active_othersFeatures = atoi(buffer) != 0;
 	log_msg("active_othersFeatures\t\t= %u\n", active_othersFeatures);
+
+	GET_PRIVATE_PROFILE_STRING(S_GENERAL, S_active_CheckForUpdates, "1");
+	active_CheckForUpdates = atoi(buffer) != 0;
+	log_msg("active_CheckForUpdates\t\t= %d\n", active_CheckForUpdates);
+
+	GET_PRIVATE_PROFILE_STRING(S_GENERAL, S_updateChannel, "stable");
+	updateChannel = _stricmp(buffer, "prerelease") ? UPDATE_CHANNEL_STABLE : UPDATE_CHANNEL_PRERELEASE;
+	log_msg("updateChannel\t\t\t\t= %s\n", updateChannel == UPDATE_CHANNEL_PRERELEASE ? "prerelease" : "stable");
 
 	log_msg("\n");
 }

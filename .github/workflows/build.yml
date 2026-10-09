@@ -1,0 +1,66 @@
+name: build
+
+# Build check for every push to master and every PR: the node release tooling
+# plus a full Windows build, native tests and package, so a broken build, test
+# or installer surfaces here instead of at release time. The packaged dist/ is
+# uploaded as a run artifact for testing a PR build without cutting a release.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# Only the newest commit on a ref matters; superseded runs are cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7 # floating major; v7.0.1 was current on 2026-10-08
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7 # floating major; v7.1.0 was current on 2026-10-08
+        with:
+          node-version: 24
+
+      # The release tooling uses only node built-ins, so no install step. The
+      # glob is quoted for node to expand: a bare `scripts/` is run as one file.
+      - name: Test release scripts
+        run: node --test "scripts/*.test.mjs"
+
+      - name: Validate changelog.d fragment format
+        run: node scripts/changelog-draft.mjs --check
+
+  windows:
+    # windows-2022 is the only hosted Windows image that ships NSIS (needed by
+    # the installer) alongside VS2022 with the x86 C++ tools.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7 # floating major; v7.0.1 was current on 2026-10-08
+        with:
+          persist-credentials: false
+
+      # -Test also builds and runs the native update-check and updater suites;
+      # no --live, so the job never depends on the GitHub API.
+      - name: Build and test (Release, x86)
+        shell: pwsh
+        run: pwsh -NoProfile -File build/build.ps1 -Config Release -Test
+
+      - name: Package release assets
+        shell: pwsh
+        run: pwsh -NoProfile -File build/package.ps1
+
+      - name: Upload packaged build
+        uses: actions/upload-artifact@v7 # floating major; v7.0.2 was current on 2026-10-08
+        with:
+          name: plugy4kolbot-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error

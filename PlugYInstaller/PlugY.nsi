@@ -3,23 +3,43 @@ Unicode True
 
 !include "MUI2.nsh"
 
-!define VERSION "v14.03"
+; VERSION ("v14.3.0") names the installer; DISPLAY_VERSION is the bare version for
+; Add/Remove Programs. A /DVERSION=... override wins, minus a leading "v".
+!ifdef VERSION
+  !searchparse /noerrors "#${VERSION}" "#v" DISPLAY_VERSION
+  !ifndef DISPLAY_VERSION
+    !define DISPLAY_VERSION "${VERSION}"
+  !endif
+!else
+  !searchparse /file "..\Commons\PlugYVersion.h" '#define PLUGY_VERSION "' PLUGY_VERSION '"'
+  !define VERSION "v${PLUGY_VERSION}"
+  !define DISPLAY_VERSION "${PLUGY_VERSION}"
+!endif
 !define D2FILES "."
-!define NAME "PlugY, The Survival Kit"
+!define NAME "PlugY4Kolbot"
+; The pre-rename name keeps keying the registry, so installing over an upstream
+; PlugY upgrades it in place with a single Add/Remove entry (now shown as NAME).
+!define LEGACY_NAME "PlugY, The Survival Kit"
 !define MOD_DIR "Mod PlugY"
-!define REGKEY "SOFTWARE\${NAME}"
+!define REGKEY "SOFTWARE\${LEGACY_NAME}"
+!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACY_NAME}"
+!define REPO_URL "https://github.com/theBGuy/PlugY4Kolbot"
 !define UNINSTALL_FILE "PlugY Uninstaller.exe"
+; The updater finds an installer-layout install through REGKEY (InstallPath ==
+; its own folder, PlugYDllPath\PlugY.dll present), so it must sit in $INSTDIR.
+!define UPDATER_FILE "PlugY4KolbotUpdater.exe"
+!define UPDATER_LNK "Check for ${NAME} updates.lnk"
 
 !define MUI_COMPONENTSPAGE_SMALLDESC
 !define MUI_ICON "..\PlugYRun\PlugY.ico"
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_BITMAP "PlugYInstallerHeader.bmp"
 !define MUI_LANGDLL_REGISTRY_ROOT HKLM
-!define MUI_LANGDLL_REGISTRY_KEY "SOFTWARE\${NAME}"
+!define MUI_LANGDLL_REGISTRY_KEY "${REGKEY}"
 !define MUI_LANGDLL_REGISTRY_VALUENAME "Install Language"
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_UNFINISHPAGE_NOAUTOCLOSE
-!define MUI_FINISHPAGE_SHOWREADME "$(README_FILENAME)"
+!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\$(README_FILENAME)"
 !define MUI_FINISHPAGE_RUN ;"PlugY.exe"
 !define MUI_FINISHPAGE_RUN_FUNCTION "LaunchPlugY"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
@@ -28,7 +48,7 @@ Unicode True
 ;!define MUI_UNABORTWARNING
 
 Name "${NAME} ${VERSION}"
-OutFile "PlugY_The_Survival_Kit_${VERSION}_Installer.exe"
+OutFile "PlugY4Kolbot_${VERSION}_Installer.exe"
 InstallDirRegKey HKLM "${REGKEY}" "InstallPath"
 
 ;--------------------------------
@@ -108,7 +128,7 @@ LangString README_FILENAME ${LANG_ENGLISH} "PlugY_The_Survival_Kit_-_Readme.txt"
 LangString README_FILENAME ${LANG_FRENCH} "PlugY_The_Survival_Kit_-_LisezMoi.txt"
 LangString README_FILENAME ${LANG_GERMAN} "PlugY_The_Survival_Kit_-_Liesmich.txt"
 LangString README_FILENAME ${LANG_RUSSIAN} "PlugY_The_Survival_Kit_-_Readme.txt"
-LangString README_FILENAME ${LANG_TRADCHINESE} "PlugY_The_Survival_Kit_-_讀我檔案"
+LangString README_FILENAME ${LANG_TRADCHINESE} "PlugY_The_Survival_Kit_-_讀我檔案.txt"
 
 LangString ERROR_NO_D2_DIRECTORY_FOUND ${LANG_ENGLISH} "Error : Diablo II install directory not found.$\nPlease re-install your copy of Diablo II - Lord of Destruction."
 LangString ERROR_NO_D2_DIRECTORY_FOUND ${LANG_FRENCH} "Erreur : Le répertoire d'installation de Diablo II n'a pas été trouvé.$\nVeuillez ré-installer votre copie de Diablo II - Lord of Destruction."
@@ -161,15 +181,27 @@ InstType "Minimal"
 
 Section "!$(SECTION_NAME_CORE)" Core
   SectionIn 1 2 RO
+  ; Upgrading over an upstream install would otherwise leave its shortcuts beside the new ones.
+  Delete "$DESKTOP\${LEGACY_NAME}.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_NAME}\Uninstall.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_NAME}\${LEGACY_NAME}.lnk"
+  RMDir "$SMPROGRAMS\${LEGACY_NAME}"
   SetOutPath $D2Path
   File "${D2FILES}\PlugY.dll"
   SetOutPath $INSTDIR
   File "${D2FILES}\PlugY.exe"
+  File "${D2FILES}\${UPDATER_FILE}"
+  ; An upgrade keeps the user's PlugY.ini: new options take their defaults from
+  ; PlugY\PlugYDefault.ini, which is always replaced.
+  SetOverwrite off
   File "${D2FILES}\PlugY.ini"
+  SetOverwrite on
   File "${D2FILES}\PlugY_The_Survival_Kit_-_Readme.txt"
   File "${D2FILES}\PlugY_The_Survival_Kit_-_LisezMoi.txt"
   File "${D2FILES}\PlugY_The_Survival_Kit_-_Liesmich.txt"
   File "${D2FILES}\PlugY_The_Survival_Kit_-_讀我檔案.txt"
+  File /oname=LICENSE.txt "..\LICENSE"
+  File "..\CHANGELOG.md"
   setOutPath "$INSTDIR\PlugY"
   File "${D2FILES}\PlugY\EmptyPage.dc6"
   File "${D2FILES}\PlugY\PlugYDefault.ini"
@@ -196,10 +228,13 @@ Section $(SECTION_NAME_STARTMENU_SHORTCUTS) MenuShortcuts
   SetOutPath $INSTDIR
   CreateShortCut "$SMPROGRAMS\${NAME}\Uninstall.lnk" "$INSTDIR\${UNINSTALL_FILE}" "" "$INSTDIR\${UNINSTALL_FILE}" 0
   CreateShortCut "$SMPROGRAMS\${NAME}\${NAME}.lnk" "$INSTDIR\PlugY.exe" "" "$INSTDIR\PlugY.exe" 0
+  CreateShortCut "$SMPROGRAMS\${NAME}\${UPDATER_LNK}" "$INSTDIR\${UPDATER_FILE}" "" "$INSTDIR\${UPDATER_FILE}" 0
 SectionEnd
 
 Section $(SECTION_NAME_UNINSTALLER) Uninstaller
-  SectionIn 1
+  ; Always installed: an upgrade must replace an upstream install's uninstaller and its Add/Remove
+  ; entry, or that old uninstaller would later delete the wrong folders.
+  SectionIn 1 2 RO
 
   ; Create uninstaller
   setOutPath "$INSTDIR"
@@ -210,13 +245,15 @@ Section $(SECTION_NAME_UNINSTALLER) Uninstaller
   WriteRegStr HKLM "${REGKEY}" "PlugYDllPath" "$D2Path"
 
   ; Write the uninstall keys for Windows
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}" "InstallLocation" "$$INSTDIR"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}" "DisplayName" "${NAME}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}" "HelpLink" "http://plugy.free.fr"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}" "UninstallString" '"$INSTDIR\${UNINSTALL_FILE}"'
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}" "NoModify" 1
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}" "NoRepair" 1
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "${NAME}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "theBGuy"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "HelpLink" "${REPO_URL}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "URLInfoAbout" "${REPO_URL}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${DISPLAY_VERSION}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\${UNINSTALL_FILE}"'
+  WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
+  WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
 SectionEnd
 
 Section $(SECTION_PATCH_FILE) PatchFile
@@ -229,19 +266,27 @@ SectionEnd
 ; Uninstall
 Section "Uninstall" Uninstall
   ; Remove registry keys
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${NAME}"
+  DeleteRegKey HKLM "${UNINSTALL_KEY}"
   DeleteRegKey HKLM "${REGKEY}"
 
-  ; Remove shortcuts, if any
+  ; Remove shortcuts, if any, including an upstream install's
   Delete "$DESKTOP\${NAME}.lnk"
-  Delete "$SMPROGRAMS\${NAME}\*.*"
+  Delete "$SMPROGRAMS\${NAME}\Uninstall.lnk"
+  Delete "$SMPROGRAMS\${NAME}\${NAME}.lnk"
+  Delete "$SMPROGRAMS\${NAME}\${UPDATER_LNK}"
   RMDir "$SMPROGRAMS\${NAME}"
+  Delete "$DESKTOP\${LEGACY_NAME}.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_NAME}\Uninstall.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_NAME}\${LEGACY_NAME}.lnk"
+  RMDir "$SMPROGRAMS\${LEGACY_NAME}"
 
   ; Remove files and uninstaller
   Delete "$D2Path\PlugY.dll"
   Delete "$D2Path\PatchD2File.exe"
   Delete "$D2Path\RestoreD2File.exe"
   Delete "$INSTDIR\PlugY.exe"
+  Delete "$INSTDIR\${UPDATER_FILE}"
+  Delete "$INSTDIR\${UPDATER_FILE}.old"
   Delete "$INSTDIR\PlugY.log"
   Delete "$INSTDIR\BnetLog.txt"
   Delete "$INSTDIR\PlugY.ini"
@@ -249,19 +294,24 @@ Section "Uninstall" Uninstall
   Delete "$INSTDIR\PlugY_The_Survival_Kit_-_LisezMoi.txt"
   Delete "$INSTDIR\PlugY_The_Survival_Kit_-_Liesmich.txt"
   Delete "$INSTDIR\PlugY_The_Survival_Kit_-_讀我檔案.txt"
-  Delete "$D2Path\PlugY\EmptyPage.dc6"
-  Delete "$D2Path\PlugY\PlugYDefault.ini"
-  Delete "$D2Path\PlugY\PlugYFixed.ini"
-  Delete "$D2Path\PlugY\LocalizedStrings.ini"
-  Delete "$D2Path\PlugY\SharedGoldBtns.dc6"
-  Delete "$D2Path\PlugY\StashBtns.dc6"
-  Delete "$D2Path\PlugY\StatsBackground.dc6"
-  Delete "$D2Path\PlugY\statsinterface.txt"
-  Delete "$D2Path\PlugY\TradeStash.dc6"
-  Delete "$D2Path\PlugY\UnassignSkillsBtns.dc6"
-  Delete "$D2Path\PlugY\UnassignStatsBtns.dc6"
-  RMDir "$D2Path\PlugY"
+  Delete "$INSTDIR\LICENSE.txt"
+  Delete "$INSTDIR\CHANGELOG.md"
+  ; Core installs the data under $INSTDIR; a PlugY folder next to Game.exe belongs to a manual install.
+  Delete "$INSTDIR\PlugY\EmptyPage.dc6"
+  Delete "$INSTDIR\PlugY\PlugYDefault.ini"
+  Delete "$INSTDIR\PlugY\PlugYFixed.ini"
+  Delete "$INSTDIR\PlugY\LocalizedStrings.ini"
+  Delete "$INSTDIR\PlugY\SharedGoldBtns.dc6"
+  Delete "$INSTDIR\PlugY\StashBtns.dc6"
+  Delete "$INSTDIR\PlugY\StatsBackground.dc6"
+  Delete "$INSTDIR\PlugY\statsinterface.txt"
+  Delete "$INSTDIR\PlugY\TradeStash.dc6"
+  Delete "$INSTDIR\PlugY\UnassignSkillsBtns.dc6"
+  Delete "$INSTDIR\PlugY\UnassignStatsBtns.dc6"
+  RMDir "$INSTDIR\PlugY"
   Delete "$INSTDIR\${UNINSTALL_FILE}"
+  ; Non-recursive: the updater's PlugY4Kolbot-backup\ holds the user's replaced files,
+  ; so the install folder stays when backups exist.
   RMDir "$INSTDIR"
 SectionEnd
 

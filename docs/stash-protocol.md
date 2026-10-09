@@ -11,10 +11,10 @@ client.
 
 ## Requirements
 
-- Diablo II 1.14d, single player or a TCP/IP game hosted by this PlugY. Never on realms.
+- Diablo II 1.14d, single player or a TCP/IP game hosted by PlugY4Kolbot. Never on realms.
 - `[STASH] ActiveMultiPageStash=1` and `ActiveStashProtocol=1` (the default) in PlugY.ini.
 - D2BS with `EnableUnsupported=true`, so scripts can call `sendPacket`.
-- A TCP/IP joiner must run this PlugY with the same stash grid as the host. Otherwise the host refuses its
+- A TCP/IP joiner must run PlugY4Kolbot with the same stash grid as the host. Otherwise the host refuses its
   requests with `CLIENT_MISMATCH`, rather than letting its view of the stash go stale.
 
 ## 1. Handshake
@@ -23,8 +23,9 @@ Send the 3-byte packet `3A 3A seq` (`US_PY_HELLO`, `seq` any byte you choose). T
 `UC_PROTO` message, then a `UC_ACK` whose op is `0x80`.
 
 Before sending any request:
-- The ACK's feature bit `0x10` must be set. Without it, never send a `0x55` packet: a host without this PlugY
-  stalls on it. A shipped PlugY or a vanilla host doesn't answer HELLO at all; a short timeout is the answer.
+- The ACK's feature bit `0x10` must be set. Without it, never send a `0x55` packet: a host without
+  PlugY4Kolbot stalls on it. Upstream PlugY or a vanilla host doesn't answer HELLO at all; a short timeout is
+  the answer.
 - The ACK's `clientProto` must be 1 or more, and `clientGridMatch` 1. The client PlugY confirms the protocol
   when it receives the join-time `UC_PROTO`, so a HELLO sent right after joining can come back with
   `clientProto` 0. Wait a moment and send HELLO again (each HELLO re-sends `UC_PROTO`).

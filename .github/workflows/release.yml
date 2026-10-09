@@ -1,0 +1,215 @@
+name: release
+
+# Cut a PlugY4Kolbot release with the interactive driver:
+#   node scripts/release.mjs       (bumps Commons/PlugYVersion.h, assembles changelog.d/
+#                                   into CHANGELOG.md for a stable release, commits,
+#                                   creates the annotated tag vX.Y.Z or vX.Y.Z-rc.N /
+#                                   -beta.N / -alpha.N, and pushes master + the tag
+#                                   atomically; --dry-run rehearses)
+# The tag push runs this workflow: it checks the tag against the version header
+# and that the tagged commit is on master, builds every binary, runs the native
+# tests, packages every asset, attests their provenance, and creates a DRAFT GitHub Release titled
+# "PlugY4Kolbot vX.Y.Z". Review the draft, smoke-test its downloads, then publish:
+#   gh release edit vX.Y.Z --draft=false --latest      (stable release)
+#   gh release edit vX.Y.Z-rc.1 --draft=false          (pre-release; never marked Latest)
+# Passing --latest=false on a stable publish strips the Latest badge from it.
+
+on:
+  push:
+    # Semver tags only: the inherited upstream tags (v14.03 and older) never match.
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions: {}
+
+# One run per tag, never cancelled: a cancelled run could leave a half-uploaded draft.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # windows-2022 is the only hosted Windows image that ships NSIS (needed by
+    # the installer) alongside VS2022 with the x86 C++ tools.
+    runs-on: windows-2022
+    permissions:
+      contents: write # create the draft release and upload its assets
+      id-token: write # mint the OIDC token the provenance signature needs
+      attestations: write # store the provenance attestations
+    steps:
+      - uses: actions/checkout@v7 # floating major; v7.0.1 was current on 2026-10-08
+        with:
+          # Full history and branches, for the master-ancestry check below.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7 # floating major; v7.1.0 was current on 2026-10-08
+        with:
+          node-version: 24
+
+      # Fails before any build when the tag and Commons/PlugYVersion.h disagree,
+      # so a mistagged commit can never publish binaries under the wrong version.
+      - name: Check the tag matches the version header
+        id: tag
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $out = @(node scripts/version.mjs --check-tag $env:TAG)
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::Tag $env:TAG is not valid semver or does not equal v<PLUGY_VERSION> from Commons/PlugYVersion.h."
+            exit 1
+          }
+          # The draft step reads prerelease; an unexpected shape must fail here, not publish as stable.
+          if (-not ($out -cmatch '^version=.+$') -or -not ($out -cmatch '^prerelease=(true|false)$')) {
+            Write-Output "::error::Unexpected output from scripts/version.mjs --check-tag: $($out -join ' | ')"
+            exit 1
+          }
+          $out | ForEach-Object { $_ >> $env:GITHUB_OUTPUT }
+          $out | ForEach-Object { Write-Output $_ }
+
+      # Any semver tag push fires this workflow, so only commits that reached
+      # master may be released.
+      - name: Check the tagged commit is on master
+        shell: pwsh
+        run: |
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/master
+          $code = $LASTEXITCODE
+          if ($code -eq 1) {
+            Write-Output "::error::Tagged commit $env:GITHUB_SHA is not on master. Release tags must point at a commit already pushed to master."
+            exit 1
+          }
+          if ($code -ne 0) {
+            Write-Output "::error::Could not check whether $env:GITHUB_SHA is on master (git exit $code)."
+            exit 1
+          }
+          Write-Output "Tagged commit $env:GITHUB_SHA is on master."
+
+      # Runs before the build so a re-run for a published tag fails in seconds
+      # instead of rebuilding and minting throwaway attestations. Published
+      # (possibly immutable) releases must never be overwritten.
+      - name: Check the release state
+        id: state
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Search the release LIST: a draft is not bound to its tag until it is
+          # published, so the by-tag endpoint cannot find it.
+          $state = @(gh api "repos/$env:GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == env.TAG) | .draft')
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::Could not list the releases of $env:GH_REPO."
+            exit 1
+          }
+          if ($state -contains 'false') {
+            Write-Output "::error::Release $env:TAG is already published. Published releases are never overwritten; cut a new version instead."
+            exit 1
+          }
+          if ($state.Count -gt 1) {
+            Write-Output "::error::Found $($state.Count) draft releases for $env:TAG. Delete the extras, then re-run this job."
+            exit 1
+          }
+          $existing = $(if ($state.Count -eq 1) { 'true' } else { 'false' })
+          "existing-draft=$existing" >> $env:GITHUB_OUTPUT
+          Write-Output "existing-draft=$existing"
+
+      # A release ships only binaries whose native test suites pass.
+      - name: Build and test (Release, x86)
+        shell: pwsh
+        run: pwsh -NoProfile -File build/build.ps1 -Config Release -Test
+
+      - name: Package release assets
+        shell: pwsh
+        run: pwsh -NoProfile -File build/package.ps1
+
+      - name: Attest build provenance
+        uses: actions/attest@v4 # floating major; v4.2.2 was current on 2026-10-08
+        with:
+          subject-path: dist/*
+
+      - name: Assemble release notes
+        id: notes
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Decode node's stdout as UTF-8: the runner's console code page would
+          # mangle any non-ASCII changelog text.
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+          $body = @(node scripts/changelog-extract.mjs $env:TAG)
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::scripts/changelog-extract.mjs failed for $env:TAG."
+            exit 1
+          }
+          # The footer's source link is the GPL source offer, so a footer that
+          # lost its {{TAG}} placeholder must fail instead of shipping without it.
+          $footer = Get-Content -Raw -Encoding utf8 -LiteralPath .github/release-notes-footer.md
+          if (-not $footer.Contains('{{TAG}}')) {
+            Write-Output "::error::.github/release-notes-footer.md has no {{TAG}} placeholder for the source link."
+            exit 1
+          }
+          $footer = $footer.Replace('{{TAG}}', $env:TAG).Trim()
+          $text = ($body -join "`n").TrimEnd()
+          $notes = $(if ($text) { "$text`n`n$footer`n" } else { "$footer`n" })
+          $path = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          [System.IO.File]::WriteAllText($path, $notes, [System.Text.UTF8Encoding]::new($false))
+          "path=$path" >> $env:GITHUB_OUTPUT
+          Write-Output $notes
+
+      # Re-runs are idempotent: an existing DRAFT for the tag (found by the state
+      # step) gets fresh notes and exactly this run's assets.
+      - name: Create or update the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.tag.outputs.prerelease }}
+          EXISTING_DRAFT: ${{ steps.state.outputs.existing-draft }}
+          NOTES_FILE: ${{ steps.notes.outputs.path }}
+        run: |
+          # pwsh does not glob native-command arguments, so pass an explicit list.
+          $files = @(Get-ChildItem -LiteralPath dist -File | Sort-Object Name | ForEach-Object FullName)
+          if ($files.Count -eq 0) {
+            Write-Output '::error::dist/ is empty; there is nothing to release.'
+            exit 1
+          }
+          Write-Output 'Release assets:'
+          $files | ForEach-Object { Write-Output "  $_" }
+          $pre = $env:PRERELEASE -eq 'true'
+
+          if ($env:EXISTING_DRAFT -eq 'true') {
+            # Quoted: a bare isDraft,assets is a pwsh array and reaches gh as two arguments.
+            $json = gh release view $env:TAG --json 'isDraft,assets'
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            $release = ($json -join "`n") | ConvertFrom-Json
+            # The release may have been published while this job was building.
+            if (-not $release.isDraft) {
+              Write-Output "::error::Release $env:TAG was published during this run. Published releases are never overwritten."
+              exit 1
+            }
+            Write-Output "A draft release for $env:TAG already exists; refreshing its notes and assets."
+            gh release edit $env:TAG --title "PlugY4Kolbot $env:TAG" --notes-file $env:NOTES_FILE "--prerelease=$($pre.ToString().ToLowerInvariant())"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            # --clobber only replaces same-named assets, so drop the ones this build no longer produces.
+            $names = @($files | ForEach-Object { Split-Path -Leaf $_ })
+            foreach ($asset in @($release.assets)) {
+              if ($names -cnotcontains $asset.name) {
+                Write-Output "Deleting stale asset $($asset.name)"
+                gh release delete-asset $env:TAG $asset.name -y
+                if ($LASTEXITCODE -ne 0) { exit 1 }
+              }
+            }
+            gh release upload $env:TAG @files --clobber
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } elseif ($env:EXISTING_DRAFT -ne 'false') {
+            Write-Output "::error::Missing release state from the state step (got '$env:EXISTING_DRAFT')."
+            exit 1
+          } else {
+            $preArgs = @(if ($pre) { '--prerelease' })
+            gh release create $env:TAG --verify-tag --draft --title "PlugY4Kolbot $env:TAG" --notes-file $env:NOTES_FILE @preArgs @files
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }

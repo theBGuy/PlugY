@@ -1,14 +1,15 @@
 ;--------------------------------------------------------------------------------------;
 ;                                                                                      ;
-;                               "PlugY, The Survival Kit"                              ;
+;                                    "PlugY4Kolbot"                                    ;
 ;                                                                                      ;
-;                                  von Yohann Nicolas                                  ;
+;                         basiert auf PlugY von Yohann Nicolas                         ;
 ;                                                                                      ;
 ;                                     version 14.03                                    ;
 ;                                                                                      ;
 ;--------------------------------------------------------------------------------------;
 
 Offizielle website : http://plugy.free.fr
+Website des Forks PlugY4Kolbot : https://github.com/theBGuy/PlugY4Kolbot
 Ihr dürft gerne spenden, falls ihr möchtet.
 
 

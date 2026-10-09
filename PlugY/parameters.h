@@ -6,7 +6,7 @@
 =================================================================*/
 #pragma once
 
-#define PLUGY_VERSION "14.03"
+#include "../Commons/PlugYVersion.h"
 
 enum TargetMod
 {
@@ -21,6 +21,8 @@ extern bool active_CheckMemory;
 extern char* dllFilenames;
 extern bool active_D2Mod;
 extern TargetMod selectModParam;
+extern bool active_CheckForUpdates;
+extern int updateChannel;	// eUpdateChannel (Commons/UpdateCheck.h)
 
 void loadParameters();
 

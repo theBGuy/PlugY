@@ -41,7 +41,8 @@ void log_initfile()
 
 	log_msg("<----------------------------------------------->\n"
 			"\n"
-			"\t\tA Plugin by Yohann\n"
+			"\t\tPlugY4Kolbot\n"
+			"\t\tbased on PlugY by Yohann\n"
 			"\t\tversion %s\n"
 			"\n"
 			"\n"
@@ -70,7 +71,7 @@ void log_box( const char* pFormat, ... )
 
 	log_msg("%s\n", buffer);
 	if (active_ShowErrorMessageBox)
-		MessageBox(NULL, buffer, "PlugY, The Survival Kit", MB_OK|MB_ICONEXCLAMATION);
+		MessageBox(NULL, buffer, "PlugY4Kolbot", MB_OK|MB_ICONEXCLAMATION);
 }
 
 

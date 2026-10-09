@@ -1,0 +1,33 @@
+[
+  {
+    "url": "https://api.github.com/repos/theBGuy/PlugY4Kolbot/releases/1",
+    "html_url": "https:\/\/github.com\/theBGuy\/PlugY4Kolbot\/releases\/tag\/v1.2.3",
+    "id": 1,
+    "author": {"login": "theBGuy", "id": 1000001, "site_admin": false},
+    "tag_name": "\u00761.2.3",
+    "target_commitish": "master",
+    "name": "Escapes \"everywhere\"",
+    "draft": false,
+    "immutable": false,
+    "prerelease": false,
+    "created_at": "2026-10-01T11:00:00Z",
+    "published_at": "2026-10-01T12:00:00Z",
+    "assets": [
+      {
+        "url": "https://api.github.com/repos/theBGuy/PlugY4Kolbot/releases/assets/2",
+        "id": 2,
+        "name": "\u0041sset \u00e9.zip",
+        "label": null,
+        "uploader": {"login": "theBGuy", "id": 1000001},
+        "size": 3,
+        "digest": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "download_count": 0,
+        "browser_download_url": "https://github.com/theBGuy/PlugY4Kolbot/releases/download/v1.2.3/Asset.zip"
+      }
+    ],
+    "body": "Quote \" backslash \\ slash \/ b\b f\f n\n r\r t\t e-acute \u00e9 CJK \u4e2d emoji \ud83d\ude00 upper \u00C9 end",
+    "reactions": {"total_count": 0, "+1": 0, "-1": 0},
+    "numbers": [0, -1, 2.5, -0.0, 1e10, 1E+2, 3.25e-3],
+    "nested": {"a": [[{"b": [true, false, null]}]], "c": {}, "d": []}
+  }
+]
