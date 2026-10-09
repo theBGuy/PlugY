@@ -417,8 +417,8 @@ v1.00 Funktionen (es können alle einfach ein- und ausgeschaltet werden) :
 - PlugY\UnassignSkillsBtns.dc6
 - PlugY\UnassignStatsBtns.dc6
 - PlugY\statsinterface.txt
-- PatchD2gfxDll.exe (in Diablo II directory with PatchFile option)
-- RestoreD2gfxDll.exe (in Diablo II directory with PatchFile option)
+- PatchD2File.exe (im Diablo II-Verzeichnis mit der Option "Game.exe patchen")
+- RestoreD2File.exe (im Diablo II-Verzeichnis mit der Option "Game.exe patchen")
 
 
 
@@ -478,6 +478,14 @@ Wenn das Spiel unter Windows 2000 nicht startet nimm auch die alte Installation.
 
 
 Hinweis: Man kann ebenfalls die PlugY.dll in das Mod Verzeichnis installieren und die dc6 Dateien in das mpq.
+
+------- D2File Patcher
+
+PatchD2File.exe ändert Game.exe (vor 1.14 D2gfx.dll), damit es PlugY selbst startet, für Programme,
+die Game.exe direkt starten, wie D2Bot. RestoreD2File.exe macht die Änderung rückgängig. Braucht das
+Diablo II-Verzeichnis Administratorrechte (z. B. unter Program Files), fragt es danach.
+Optionen für Skripte (-u, --dir, --silent) und Exitcodes: siehe den Abschnitt "D2File Patcher" der
+englischen Datei PlugY_The_Survival_Kit_-_Readme.txt.
 
 
 ******************** FAQ ******************

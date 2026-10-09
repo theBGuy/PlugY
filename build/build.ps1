@@ -327,6 +327,9 @@ try {
         LinkExtra = @()
     }
     # PatchD2File and RestoreD2File are the same source; RESTORE selects the mode.
+    # They run as administrator from the Diablo II folder (the installer, or their own
+    # elevated restart): version.dll is delay-loaded, after main limits the search to
+    # System32, and 0x800 (LOAD_LIBRARY_SEARCH_SYSTEM32) covers the static imports.
     $Patch = @{
         Key       = 'patch'
         Sources   = @('PlugYInstall\PlugYInstall.cpp', 'Commons\VersionInfo.cpp')
@@ -337,7 +340,7 @@ try {
         Defines   = @('WIN32', $NDebug, '_WINDOWS', '_MBCS')
         RcFlags   = $ExeRc
         LinkFlags = $ExeLink
-        LinkExtra = @()
+        LinkExtra = @('/DELAYLOAD:version.dll', 'delayimp.lib', '/DEPENDENTLOADFLAG:0x800')
     }
     $Restore = $Patch.Clone()
     $Restore.Key = 'restore'

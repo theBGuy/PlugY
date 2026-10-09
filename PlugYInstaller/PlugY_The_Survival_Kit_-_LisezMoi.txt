@@ -372,8 +372,8 @@ Changements apportés par la v2.03 :
 - PlugY\UnassignSkillsBtns.dc6
 - PlugY\UnassignStatsBtns.dc6
 - PlugY\statsinterface.txt
-- PatchD2File.exe (dans le répertoire de Diablo II avec l'option PatchFile)
-- RestoreD2File.exe (dans le répertoire de Diablo II avec l'option PatchFile)
+- PatchD2File.exe (dans le répertoire de Diablo II avec l'option "Patcher Game.exe")
+- RestoreD2File.exe (dans le répertoire de Diablo II avec l'option "Patcher Game.exe")
 
 
 
@@ -431,11 +431,17 @@ Note : Le répertoire "PlugY" et son contenu peut être placé dans un mpq.
 
 ------- D2File Patcher
 
-Si vous avez des problème pour éxécuter PlugY.exe alors utiliser PatchD2File.exe. (Ca arrive quelque fois avec Windows 2000)
+PatchD2File.exe modifie Game.exe (D2gfx.dll avant la 1.14) pour qu'il lance PlugY lui-même, pour les
+programmes qui lancent Game.exe directement, comme D2Bot. RestoreD2File.exe annule la modification.
 - Sauvegarder D2gfx.dll ou game.exe.
-- Exécuter PatchD2File.exe qui modifie D2gfx.dll ou game.exe.
-- Créer un raccourci de Diablo II.exe, entrer le répertoire du mod voulu dans "démarrer dans" de propriété->raccourci.
+- Mettre PatchD2File.exe dans le répertoire de Diablo II et l'exécuter. Quand ce répertoire en a
+  besoin (par exemple sous Program Files), il demande les droits d'administrateur.
+- Sans D2Bot, créer un raccourci de Game.exe : entrer le répertoire qui contient PlugY.ini dans
+  "démarrer dans" de propriété->raccourci (sauf si PlugY est installé dans le répertoire de Diablo II).
 - Lancer le jeu avec le raccourci !
+
+Les options pour les scripts (-u, --dir, --silent) et les codes de sortie sont décrits dans la
+section "D2File Patcher" du fichier anglais PlugY_The_Survival_Kit_-_Readme.txt.
 
 
 ******************** FAQ ******************

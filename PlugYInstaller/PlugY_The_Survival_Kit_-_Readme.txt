@@ -428,16 +428,20 @@ v1.00 features (can all be easily enabled or disabled) :
 - PlugY\UnassignSkillsBtns.dc6
 - PlugY\UnassignStatsBtns.dc6
 - PlugY\statsinterface.txt
-- PatchD2File.exe (in Diablo II directory with PatchFile option)
-- RestoreD2File.exe (in Diablo II directory with PatchFile option)
+- PatchD2File.exe (in Diablo II directory with the "Patch Game.exe" option)
+- RestoreD2File.exe (in Diablo II directory with the "Patch Game.exe" option)
 
 
 
 ******** INSTALLATION ********
 Normal Installation :
 - Follow directive installer.
+- Choose the Diablo II folder, the one that holds Game.exe. Any copy of Diablo II works.
+- For D2Bot / kolbot, tick "Patch Game.exe (D2Bot / kolbot)": Game.exe then starts PlugY by itself,
+  and PlugY's files go next to it. Uninstalling restores Game.exe.
 
-note : You can choice "Diablo II" directory as install directory.
+note : With the patch, or with a copy of Diablo II other than the one Windows has registered, every
+file goes in the Diablo II folder. Otherwise you choose the PlugY folder ("Mod PlugY" by default).
 
 Installation in another mod:
 - Copy PlugY.ini, PlugY.exe and PlugY folder (+its contents) in the targeted mod folder.
@@ -487,11 +491,24 @@ Note : PlugY directory and its contents can be put in a mpq.
 
 ------- D2File Patcher
 
-If you have problem when you run PlugY.exe then use PatchD2File.exe. (It happend sometimes with Windows 2000)
+PatchD2File.exe changes Game.exe (D2gfx.dll before 1.14) so it starts PlugY by itself, for programs
+that start Game.exe directly, such as D2Bot. RestoreD2File.exe removes the change.
 - Do a backup of D2gfx.dll or game.exe.
-- Run PatchD2File.exe which modify D2gfx.dll or Game.exe.
-- Create a shortcut : Enter target mod directory in "start in" field of properties->shortcut. (unless you install PlugY in Diablo II directory)
-- Launch with the shorcut !
+- Put PatchD2File.exe in your Diablo II folder and run it. When the folder needs administrator
+  rights (such as under Program Files), it asks for them.
+- Without D2Bot, create a shortcut to Game.exe: enter the folder that holds PlugY.ini in the
+  "start in" field of properties->shortcut (unless PlugY is installed in the Diablo II folder).
+- Launch with the shortcut!
+
+Options, for scripts:
+  -u              remove the patch (PatchD2File.exe; RestoreD2File.exe always removes it)
+  --dir <folder>  the Diablo II folder (default: the current folder when it holds Game.exe,
+                  else the patcher's own folder)
+  --silent        no message boxes, and no request for administrator rights: the exit code answers
+Exit codes: 0 done, 1 already done, 2 unexpected file contents, 3 no supported game (Game.exe, or
+D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can't be opened),
+4 file in use (close Diablo II), 5 access denied or administrator rights not given, 6 cancelled,
+7 other error.
 
 
 ******************** FAQ ******************
