@@ -21,7 +21,14 @@
     updater and the tests always use the static CRT.
 
 .PARAMETER Clean
-    Delete build/out/<Config> before building.
+    Delete the output directory (build/out/<Config>, or its -Define variant) before building.
+
+.PARAMETER Define
+    Extra preprocessor symbols for PlugY.dll only, each a C identifier with an
+    optional =value (e.g. PLUGY_TEST_HOOKS for the live test harness); a comma
+    list is split, so pwsh -File works too. Such a build lands in
+    build/out/<Config>-<symbols joined by '-', '=' as '_'>/ and never replaces
+    the release binaries.
 
 .PARAMETER Test
     After the five binaries, also build tests/UpdateCheckTests.cpp and
@@ -40,11 +47,21 @@ param(
     [string]$Crt = 'MT',
     [switch]$Clean,
     [switch]$Test,
-    [string[]]$TestArgs
+    [string[]]$TestArgs,
+    [string[]]$Define = @()
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+# Each symbol becomes a /D argument and part of the output directory name, so only
+# plain identifiers (with an optional simple value) are accepted.
+$Define = @($Define | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+foreach ($symbol in $Define) {
+    if ($symbol -cnotmatch '\A[A-Za-z_][A-Za-z0-9_]*(=[A-Za-z0-9_.]*)?\z') {
+        throw "-Define '$symbol' is not a C identifier with an optional =value"
+    }
+}
 
 # vcvarsall output is imported into this process; when the script is run in-process
 # (./build.ps1) that would leak into the caller, so the finally block restores it.
@@ -52,7 +69,9 @@ $SavedEnv = @{}
 Get-ChildItem Env: | ForEach-Object { $SavedEnv[$_.Name] = $_.Value }
 
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$OutDir = Join-Path (Join-Path $PSScriptRoot 'out') $Config
+$OutName = $Config
+if ($Define.Count) { $OutName += '-' + (($Define | ForEach-Object { $_.Replace('=', '_') }) -join '-') }
+$OutDir = Join-Path (Join-Path $PSScriptRoot 'out') $OutName
 $ObjRoot = Join-Path $OutDir 'obj'
 $LogFile = Join-Path $OutDir 'build.log'
 
@@ -183,9 +202,15 @@ function Build-Target([hashtable]$Target) {
         ('/OUT:' + (Join-Path $OutDir $Target.Out)),
         ('/PDB:' + (Join-Path $OutDir $Target.Pdb))
     )
+    # link.exe reuses an existing PDB and carries its record into the binary's /Brepro identity stamps (measured:
+    # a rerun over the old PDB changed only those), so each link starts from none, a Debug one without its .ilk.
+    $pdbPath = Join-Path $OutDir $Target.Pdb
+    if (Test-Path -LiteralPath $pdbPath) { Remove-Item -LiteralPath $pdbPath -Force }
     # Incremental (Debug) links would otherwise drop the .ilk next to the binary.
     if ($Config -eq 'Debug') {
-        $linkArgs += '/ILK:' + (Join-Path $objDir ([System.IO.Path]::GetFileNameWithoutExtension($Target.Out) + '.ilk'))
+        $ilkPath = Join-Path $objDir ([System.IO.Path]::GetFileNameWithoutExtension($Target.Out) + '.ilk')
+        if (Test-Path -LiteralPath $ilkPath) { Remove-Item -LiteralPath $ilkPath -Force }
+        $linkArgs += '/ILK:' + $ilkPath
     }
     $linkArgs += $Target.LinkExtra + $objects + $resources + $Libs
     Invoke-Tool $Link $linkArgs
@@ -198,6 +223,7 @@ try {
     }
     New-Item -ItemType Directory -Force -Path $ObjRoot | Out-Null
     [System.IO.File]::WriteAllText($LogFile, "PlugY4Kolbot build: Config=$Config Crt=$Crt" + [Environment]::NewLine)
+    if ($Define.Count) { Write-Log ('Extra PlugY.dll defines: ' + ($Define -join ' ')) }
 
     # --- Toolchain discovery --------------------------------------------------------
     # FCT_ASM in d2functions.h relies on __declspec(naked) + inline __asm, which only
@@ -273,7 +299,7 @@ try {
         Pdb       = 'PlugY.pdb'
         ClFlags   = @('/nologo', '/c', '/W3', '/EHsc', '/Gd', '/arch:IA32', '/Zc:threadSafeInit-') + $OptFlags
         Defines   = @($NDebug, 'WIN32', '_WINDOWS', '_CRT_NON_CONFORMING_SWPRINTFS', '_CRT_SECURE_NO_WARNINGS',
-                      '_USRDLL', 'PLUGY_EXPORTS', '_WINDLL', '_MBCS')
+                      '_USRDLL', 'PLUGY_EXPORTS', '_WINDLL', '_MBCS') + $Define
         RcFlags   = @('/d', '_MBCS', '/l', '0x409', '/i', (Join-Path $RepoRoot 'PlugY'))
         LinkFlags = @('/NOLOGO', '/DLL', '/SUBSYSTEM:WINDOWS', '/MACHINE:X86', '/DEBUG',
                       '/DYNAMICBASE', '/NXCOMPAT', '/MANIFEST:EMBED') + $OptLink
@@ -392,7 +418,8 @@ try {
     $warnings = @(Get-Content -LiteralPath $LogFile | Where-Object { $_ -match ': warning [A-Z]+\d+' }).Count
     $tested = if ($Test) { '; update-check and updater tests passed' } else { '' }
     Write-Host ''
-    Write-Host "Built PlugY.dll, PlugY.exe, PatchD2File.exe, RestoreD2File.exe, PlugY4KolbotUpdater.exe ($Config, /$Crt) with $warnings warning(s) in $OutDir$tested" -ForegroundColor Green
+    $defined = if ($Define.Count) { ', PlugY.dll with ' + ($Define -join ' ') } else { '' }
+    Write-Host "Built PlugY.dll, PlugY.exe, PatchD2File.exe, RestoreD2File.exe, PlugY4KolbotUpdater.exe ($Config, /$Crt$defined) with $warnings warning(s) in $OutDir$tested" -ForegroundColor Green
     exit 0
 } finally {
     Restore-Environment
