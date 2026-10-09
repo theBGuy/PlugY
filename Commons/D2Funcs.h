@@ -158,6 +158,8 @@ F8(STD,  D2Common,10242,10242,10242,00000,00000,00000,00000,00000,00000,	Unit*,	
 F8(STD,  D2Common,10246,10246,10246,10855,10813,10289,10133,10402,23B950,	Unit*,		D2CanPutItemInInv, (Inventory* ptInventory, Unit* ptItem, DWORD p3, DWORD zero, Unit* ptUnit, const char* file, DWORD line));
 F8(STD,  D2Common,10243,10243,10243,10461,10827,10936,10646,10490,23AD90,	Unit*,		D2InvRemoveItem, (Inventory* ptInventory, Unit* ptItem));
 F8(STD,  D2Common,10249,10249,10249,10880,11068,10436,11107,10963,23BCC0,	DWORD,		D2InvAddItem, (Inventory* ptInventory, Unit* ptItem, DWORD posX, DWORD posY, DWORD vValueC, DWORD bIsClient, BYTE page));//result : boolean 0=echec  ; vValueC = 0 for Game.dll, 1 for Clientdll
+A8(STD,  D2Common,00000,00000,00000,00000,00000,00000,00000,00000,25C1F0,	void,		D2GetInventoryGrid, (DWORD invRecord, DWORD hiRes, InvGridInfo* ptGrid));//1.14d only. Record invRecord + 16*hiRes of inventory.txt; D2InvAddItem checks stash items against (0xC, 0)
+A8(STD,  D2Common,00000,00000,00000,00000,00000,00000,00000,00000,23CC30,	DWORD,		D2InvHasUpdateNode, (Inventory* ptInventory, DWORD itemNum));//1.14d only. 1 when an update node is queued for the item with this nItemNum
 F8(STD,  D2Common,10250,10250,10250,00000,00000,00000,00000,00000,00000,	DWORD,		D2Common10250, (const char* file, DWORD line, Inventory* ptInventory, DWORD posX, DWORD posY, DWORD vValueC, DWORD bIsClient, BYTE page));// result : boolean 0=echec  ; vValueC = 0 for Game.dll, 1 for Clientdll
 //F8(STD,  D2Common,10257,10257,10257,00000,00000,00000,00000,00000,00000,	Unit*,		D2GetItemFromBodyLoc, (Inventory* ptInventory, DWORD bodyloc));
 F8(STD,  D2Common,10273,10273,10273,00000,00000,00000,00000,00000,00000,	DWORD,		D2Common10273, (Inventory* ptInventory, void* unknown));
@@ -565,6 +567,7 @@ A8(FAST, D2Client,	00000,00000, C090,00000,00000,00000,00000,00000,00000,	BYTE,	
 A8(STD,  D2Client,	B6670,B59F0,B7BC0,00000,00000,00000,00000,00000,00000,	DWORD,		D2GetMouseX, ());//6FB57BC0
 A8(STD,  D2Client,	B6680,B5A00,B7BD0,00000,00000,00000,00000,00000,00000,	DWORD,		D2GetMouseY, ());//6FB57BD0
 A8(STD,  D2Client,	8DC40,8CFC0,883D0,00000,00000,00000,00000,00000,63DD0,	Unit*,		D2GetClientPlayer, ());//6FB283D0
+A8(FAST, D2Client,	00000,00000,00000,00000,00000,00000,00000,00000,63990,	Unit*,		D2FindClientUnit, (DWORD unitId, DWORD unitType));//1.14d only. Read-only walk of the client's unit table for unitType (the one the item packets fill), matching Unit nItemNum
 A8(FAST, D2Client,	 B920, B910, BF60,00000,00000,00000,00000,00000,4DA70,	void,		D2CleanStatMouseUp, ());//6FAABF60
 A8(FAST, D2Client,	 D210, D200, D990,00000,00000,00000,00000,00000,00000,	void,		D2SendToServer3, (BYTE type, WORD p));//6FAAD990
 //A8(FAST, D2Client,	00000,00000, DA20,00000,00000,00000,00000,00000,00000,	void,		D2SendToServer5, (BYTE type, DWORD p));//6FAADA20

@@ -28,6 +28,7 @@ const char* PARAM_DEFAULT_FILENAME = "PlugY\\PlugYDefault.ini";
 #include "bigStash.h"
 #include "skillsPoints.h"
 #include "infinityStash.h"
+#include "stashProtocol.h"
 #include "othersFeatures.h"
 #include "newInterfaces.h"
 #include "worldEvent.h"
@@ -99,6 +100,8 @@ const char* S_nbPagesPerIndex = "NbPagesPerIndex";
 const char* S_nbPagesPerIndex2 = "NbPagesPerIndex2";
 const char* S_maxSelfPages = "MaxPersonnalPages";
 const char* S_autoRenameStashPage = "AutoRenameStashPage";
+const char* S_active_stashProtocol = "ActiveStashProtocol";
+const char* S_pinnedItems = "PinnedItems";
 const char* S_PersonalNormalPageColor = "PersonalNormalPageColor";
 const char* S_PersonalIndexPageColor = "PersonalIndexPageColor";
 const char* S_PersonalMainIndexPageColor = "PersonalMainIndexPageColor";
@@ -573,6 +576,36 @@ void init_VersionText(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefau
 	log_msg("\n");
 }
 
+// PinnedItems: comma-separated item codes as written in the items txt files (e.g. "box"), at most MAX_PIN_CODES of
+// up to 4 characters, compared with ItemsBIN +0x80, where a shorter code is padded with spaces.
+static void readPinCodes(char* buffer)
+{
+	nbPinCodes = 0;
+	for (char* code = strtok(buffer, ","); code; code = strtok(NULL, ","))
+	{
+		while (*code == ' ' || *code == '\t')
+			code++;
+		DWORD len = strlen(code);
+		while (len && (code[len - 1] == ' ' || code[len - 1] == '\t'))
+			len--;
+		if (!len)
+			continue;
+		if (len > 4)
+		{
+			log_msg("PinnedItems : '%.*s' ignored, an item code has at most 4 characters\n", len, code);
+			continue;
+		}
+		if (nbPinCodes == MAX_PIN_CODES)
+		{
+			log_msg("PinnedItems : '%.*s' ignored, at most %u codes are used\n", len, code, MAX_PIN_CODES);
+			continue;
+		}
+		char padded[4] = { ' ', ' ', ' ', ' ' };
+		memcpy(padded, code, len);
+		pinCodes[nbPinCodes++] = *(DWORD*)padded;
+	}
+}
+
 void init_Stash(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFile, char* buffer, DWORD maxSize)
 {
 	GET_PRIVATE_PROFILE_STRING(S_STASH, S_active_bigStash, "0");
@@ -604,6 +637,15 @@ void init_Stash(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFile
 		GET_PRIVATE_PROFILE_STRING(S_STASH, S_autoRenameStashPage, "0");
 		autoRenameStashPage = atoi(buffer) != 0;
 		log_msg("autoRenameStashPage\t\t\t= %d\n", autoRenameStashPage);
+
+		GET_PRIVATE_PROFILE_STRING(S_STASH, S_active_stashProtocol, "1");
+		active_stashProtocol = atoi(buffer) != 0;
+		log_msg("active_stashProtocol\t\t\t= %d\n", active_stashProtocol);
+
+		GET_PRIVATE_PROFILE_STRING(S_STASH, S_pinnedItems, "box");
+		log_msg("pinnedItems\t\t\t\t= %s\n", buffer);
+		readPinCodes(buffer);
+		log_msg("nbPinCodes\t\t\t\t= %u\n", nbPinCodes);
 
 		GET_PRIVATE_PROFILE_STRING(S_STASH, S_PersonalNormalPageColor, "0");
 		PersonalNormalPageColor = getColor(buffer);

@@ -11,6 +11,7 @@
 #include "statsPoints.h"
 #include "skillsPoints.h"
 #include "infinityStash.h"
+#include "stashProtocol.h"
 #include "commands.h"
 #include "common.h"
 
@@ -64,6 +65,16 @@ static bool isServerUpdateAllowed(Unit* ptChar, int type)
 		case US_SWAP0 :
 		case US_PAGENAME :				return active_multiPageStash && hasCurrentStash(ptChar);
 
+#ifdef PLUGY_TEST_HOOKS
+		case US_TEST1 :
+		case US_TEST2 :					return active_multiPageStash && hasCurrentStash(ptChar);
+#endif
+
+		// The handshake only reports state, so scripts can probe for the stash protocol whatever is enabled.
+		case US_PY_HELLO :
+		case US_PY_CLIENT_HELLO :
+		case US_PY_CLIENT_GRID :		return true;
+
 		case US_MAXGOLD :				return ptChar && PCPlayerData;
 		// Shared gold is saved with the shared stash, so it moves only while that stash is loaded.
 		case US_PUTGOLD :
@@ -72,6 +83,35 @@ static bool isServerUpdateAllowed(Unit* ptChar, int type)
 		default :						return true;
 	}
 }
+
+#ifdef PLUGY_TEST_HOOKS
+// Test builds only (live test T27): moves one item of a hidden personal page onto the cells of that page's first
+// item, so the next switch to the page can't put it back. lastItem picks the list's last item, else its second.
+static void testOverlapStashItem(Unit* ptChar, DWORD pageId, bool lastItem)
+{
+	Stash* page = PCPY->selfStash;
+	while (page && page->id != pageId)
+		page = page->nextStash;
+	if (!page || page == PCPY->currentStash)
+	{
+		log_msg("TEST hook refused: personal page %u is missing or shown\n", pageId + 1);
+		return;
+	}
+	Unit* first = page->ptListItem;
+	Unit* target = first ? D2UnitGetNextItem(first) : NULL;
+	if (!target)
+	{
+		log_msg("TEST hook refused: personal page %u holds fewer than 2 items\n", pageId + 1);
+		return;
+	}
+	while (lastItem && D2UnitGetNextItem(target))
+		target = D2UnitGetNextItem(target);
+	log_msg("TEST hook: page %u %s item %u moved from (%u,%u) onto item %u at (%u,%u)\n", pageId + 1, lastItem ? "last" : "second",
+		target->nItemNum, target->path->x, target->path->y, first->nItemNum, first->path->x, first->path->y);
+	target->path->x = first->path->x;
+	target->path->y = first->path->y;
+}
+#endif
 
 int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 {
@@ -110,10 +150,31 @@ int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 		case US_SELECT_NEXT2 :			selectNext2Stash( ptChar ); return 1;
 		case US_SELECT_PREVIOUS_INDEX2:	selectPreviousIndex2Stash( ptChar ); return 1;
 		case US_SELECT_NEXT_INDEX2 :	selectNextIndex2Stash( ptChar ); return 1;
-		case US_INSERT_PAGE:			insertStash(ptChar); selectNextStash(ptChar); return 1;
-		case US_DELETE_PAGE:			deleteStash(ptChar, false); return 1;
+		// The client changes its own pages on UC_PAGE_OP, before the select that shows the new page and before the
+		// relocation reports that name page ids as they are after the delete's shift.
+		case US_INSERT_PAGE:
+			insertStash(ptChar);
+			if (serverRunsPageOps(ptChar))
+				sendPageOp(ptChar, PY_PAGE_OP_INSERT, PCPY->currentStash);
+			selectNextStash(ptChar);
+			return 1;
+		case US_DELETE_PAGE:
+			if (deleteStash(ptChar, false))
+			{
+				if (serverRunsPageOps(ptChar))
+					sendPageOp(ptChar, PY_PAGE_OP_DELETE, PCPY->currentStash);
+				flushPendingMoves(ptChar);
+			}
+			return 1;
 
 		case US_SAVE :					savePlayers( ptChar ); return 1;
+		case US_PY_HELLO :				answerStashHello(ptChar, (BYTE)arg); return 1;
+		case US_PY_CLIENT_HELLO :		setStashClientProto(ptChar, (BYTE)arg); return 1;
+		case US_PY_CLIENT_GRID :		setStashClientGrid(ptChar, (BYTE)arg); return 1;
+#ifdef PLUGY_TEST_HOOKS
+		case US_TEST1 :					testOverlapStashItem(ptChar, arg, true); return 1;
+		case US_TEST2 :					testOverlapStashItem(ptChar, arg, false); return 1;
+#endif
 
 		case US_MAXGOLD :				maxGold(ptChar); return 1;
 		case US_PUTGOLD :				putGold(ptChar, 0); return 1;

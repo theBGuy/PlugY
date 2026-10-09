@@ -1181,6 +1181,21 @@ struct InventoryBIN // size=0xF0 (240) (source total : fct of dll)
 	BYTE	uk12[2];		//+EE
 };
 
+// D2GetInventoryGrid's copy of InventoryBIN +0x10..+0x27 (one grid's size and screen box).
+struct InvGridInfo // size=0x18
+{
+	BYTE	gridX;			//+00
+	BYTE	gridY;			//+01
+	BYTE	uk1[2];			//+02
+	DWORD	gridLeft;		//+04
+	DWORD	gridRight;		//+08
+	DWORD	gridTop;		//+0C
+	DWORD	gridBottom;		//+10
+	BYTE	gridBoxWidth;	//+14
+	BYTE	gridBoxHeight;	//+15
+	BYTE	uk2[2];			//+16
+};
+
 
 struct DataTables//01EE6A20 * 01FDA2D0 //second comments=1.11
 {

@@ -22,6 +22,8 @@ Each features can be turned on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURA
 * Display item level in its popup.
 * Launch any number of Diablo II games on the same computer.
 * Increase the stash to 10x10 squares.
+* Stash requests for bots and scripts (1.14d): show any page, see what every page holds, and move items between pages without leaving the page shown (see [docs/stash-protocol.md](docs/stash-protocol.md)).
+* Pinned items, the Horadric Cube by default, stay on their page when you swap stash pages.
 * Change the save path directory.
 * Always display Mana and Life values above the globes.
 * D2 can load all files, even those opened with Microsoft Excel (disabled by default).

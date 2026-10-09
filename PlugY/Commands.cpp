@@ -16,6 +16,7 @@
 #include "windowed.h"
 #include "common.h"
 #include "savePlayerData.h"
+#include "stashProtocol.h"
 #include <stdio.h>
 
 bool active_Commands=true;
@@ -396,6 +397,23 @@ bool renameCharacter(Unit* ptChar, char* newName)
 
 /****************************************************************************************************/
 
+// A server that runs page insert/delete changes this client's pages itself, with UC_PAGE_OP, in order with its other
+// stash messages; a change made here first would be applied twice. Without that announcement (an older or
+// protocol-off host) the client changes its own pages first, then asks.
+static void requestInsertPage(Unit* ptChar)
+{
+	if (!clientAwaitsPageOps(ptChar))
+		insertStash(ptChar);
+	updateServer(US_INSERT_PAGE);
+}
+
+// The server refuses a delete of a page with items too: the local check only spares the packet.
+static void requestDeletePage(Unit* ptChar)
+{
+	if (clientAwaitsPageOps(ptChar) ? canDeleteStash(ptChar) : deleteStash(ptChar, true))
+		updateServer(US_DELETE_PAGE);
+}
+
 int STDCALL commands (char* ptText)
 {
 	log_msg("Command : %s\n", ptText);
@@ -495,8 +513,7 @@ int STDCALL commands (char* ptText)
 	{
 		if (!active_multiPageStash) return 1;
 		if (!hasCurrentStash(ptChar)) return 0;
-		insertStash(ptChar);
-		updateServer(US_INSERT_PAGE);
+		requestInsertPage(ptChar);
 		return 0;
 	}
 
@@ -504,8 +521,7 @@ int STDCALL commands (char* ptText)
 	{
 		if (!active_multiPageStash) return 1;
 		if (!hasCurrentStash(ptChar)) return 0;
-		insertStash(ptChar);
-		updateServer(US_INSERT_PAGE);
+		requestInsertPage(ptChar);
 		return 0;
 	}
 
@@ -513,8 +529,7 @@ int STDCALL commands (char* ptText)
 	{
 		if (!active_multiPageStash) return 1;
 		if (!hasCurrentStash(ptChar)) return 0;
-		if (deleteStash(ptChar, true))
-			updateServer(US_DELETE_PAGE);
+		requestDeletePage(ptChar);
 		return 0;
 	}
 
@@ -522,8 +537,7 @@ int STDCALL commands (char* ptText)
 	{
 		if (!active_multiPageStash) return 1;
 		if (!hasCurrentStash(ptChar)) return 0;
-		if (deleteStash(ptChar, true))
-			updateServer(US_DELETE_PAGE);
+		requestDeletePage(ptChar);
 		return 0;
 	}
 

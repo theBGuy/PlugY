@@ -10,6 +10,7 @@
 
 #include "updateClient.h"
 #include "infinityStash.h"
+#include "stashProtocol.h"
 #include "savePlayerData.h" //Install_SavePlayerData()
 #include "loadPlayerData.h" //Install_LoadPlayerData()
 #include "common.h"
@@ -83,11 +84,14 @@ void FASTCALL updateItem_111(Unit* ptItem, Unit* ptChar)
 void STDCALL updateClientPlayerOnLoading(Unit* ptChar)
 {
 	log_msg("--- Start updateClientPlayerOnLoading ---\n");
+	// the join flush has built the client by now, and the client mirrors the switch below, so its relocations count
+	PCPY->clientReady = 1;
 	if (PCGame->isLODGame)
 	{
 		PCPY->showSharedStash = openSharedStashOnLoading && active_sharedStash;
 		selectStash(ptChar, PCPY->showSharedStash ? PCPY->sharedStash : PCPY->selfStash, true);
 	}
+	sendProto(ptChar);	// after the page select, so a client confirming the handshake already shows its page
 	updateClient(ptChar, UC_SHARED_GOLD, PCPY->sharedGold, 0, 0);
 	log_msg("End update client on loading.\n\n");
 }

@@ -316,6 +316,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\StashProtocol.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\StatPerLevelUp.cpp"
 				>
 			</File>
@@ -503,6 +507,10 @@
 			</File>
 			<File
 				RelativePath=".\skillsPoints.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stashProtocol.h"
 				>
 			</File>
 			<File

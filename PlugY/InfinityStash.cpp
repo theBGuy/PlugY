@@ -8,6 +8,7 @@
 =================================================================*/
 
 #include "infinityStash.h"
+#include "stashProtocol.h"
 #include "updateClient.h"
 #include "interface_Stash.h"
 #include "customLibraries.h"
@@ -140,6 +141,142 @@ Stash* getStash(Unit* ptChar, DWORD isShared, DWORD id)
 }
 
 
+Unit* findStashItem(Unit* ptChar, DWORD gid, StashLoc* out)
+{
+	out->page = NULL;
+	out->prev = NULL;
+	out->kind = STASHLOC_PHANTOM;
+	for (Unit* ptItem = D2InventoryGetFirstItem(PCInventory); ptItem; ptItem = D2UnitGetNextItem(ptItem))
+	{
+		if (ptItem->nItemNum != gid)
+			continue;
+		if (D2ItemGetPage(ptItem) == 4 && ptItem->ptItemData->ptInventory == PCInventory)
+		{
+			out->kind = STASHLOC_CURRENT;
+			out->page = PCPY->currentStash;
+		}
+		return ptItem;
+	}
+
+	Stash* lists[2] = { PCPY->selfStash, PCPY->sharedStash };
+	for (int i = 0; i < 2; i++)
+		for (Stash* page = lists[i]; page; page = page->nextStash)
+		{
+			if (page == PCPY->currentStash)
+				continue;
+			Unit* prev = NULL;
+			for (Unit* ptItem = page->ptListItem; ptItem; prev = ptItem, ptItem = D2UnitGetNextItem(ptItem))
+				if (ptItem->nItemNum == gid)
+				{
+					out->kind = STASHLOC_LIST;
+					out->page = page;
+					out->prev = prev;
+					return ptItem;
+				}
+		}
+	return NULL;
+}
+
+bool detachItem(Unit* ptChar, Unit* item, StashLoc* loc)
+{
+	if (loc->kind == STASHLOC_CURRENT)
+	{
+		// The unlink clears next/prev; ItemData2 is cleared too but stays with a stash item, as in changeToSelectedStash.
+		BYTE tmp = item->ptItemData->ItemData2;
+		if (!D2InvRemoveItem(PCInventory, item))
+		{
+			log_msg("detachItem -> item %u: the inventory refused to release it; left in place\n", item->nItemNum);
+			return false;
+		}
+		item->ptItemData->ItemData2 = tmp;
+		return true;
+	}
+	if (loc->kind == STASHLOC_LIST)
+	{
+		Unit* next = item->ptItemData->ptNextItem;
+		if (loc->prev)
+			loc->prev->ptItemData->ptNextItem = next;
+		else
+			loc->page->ptListItem = next;
+		item->ptItemData->ptNextItem = NULL;
+		item->ptItemData->ptPrevItem = NULL;
+		return true;
+	}
+	log_msg("detachItem -> item %u is not an owned stash item; left in place\n", item->nItemNum);
+	return false;
+}
+
+bool attachItem(Unit* ptChar, Unit* item, Stash* target, BYTE x, BYTE y)
+{
+	// A still-linked item would drag the rest of its old list into the chain or the target list.
+	d2_assert(item->ptItemData->ptNextItem != NULL, "attachItem : item is still linked", __FILE__, __LINE__);
+	if (target == PCPY->currentStash)
+		return D2InvAddItem(PCInventory, item, x, y, 0xC, 0, 4) != 0;	// 1.14d ignores the bIsClient argument
+	item->path->x = x;
+	item->path->y = y;
+	D2ItemSetPage(item, 4);	// saveStash writes only page-4 items
+	item->ptItemData->ptNextItem = target->ptListItem;
+	target->ptListItem = item;
+	return true;
+}
+
+bool stashFindSpot(Unit* ptChar, Stash* page, Unit* item, BYTE* x, BYTE* y, bool explicitXY)
+{
+	// the record and resolution D2InvAddItem checks a stash item against, so a spot found here is one it accepts
+	InvGridInfo grid;
+	D2GetInventoryGrid(0xC, 0, &grid);
+	ItemsBIN* itemBin = D2GetItemsBIN(item->nTxtFileNo);
+	if (!itemBin || !grid.gridX || !grid.gridY)
+		return false;
+	DWORD width = itemBin->InvWidth;
+	DWORD height = itemBin->InvHeight;
+	if (!width || !height || width > grid.gridX || height > grid.gridY)
+		return false;
+	BYTE* used = (BYTE*)calloc(grid.gridX * grid.gridY, 1);
+	if (!used)
+		return false;
+
+	// the current page's items are the owned page-4 items of the inventory chain; other pages hold theirs in a list
+	bool isCurrent = page == PCPY->currentStash;
+	for (Unit* ptItem = isCurrent ? D2InventoryGetFirstItem(PCInventory) : page->ptListItem; ptItem; ptItem = D2UnitGetNextItem(ptItem))
+	{
+		if (ptItem == item || D2ItemGetPage(ptItem) != 4 || (isCurrent && ptItem->ptItemData->ptInventory != PCInventory))
+			continue;
+		ItemsBIN* bin = D2GetItemsBIN(ptItem->nTxtFileNo);
+		if (!bin)
+			continue;
+		for (DWORD i = ptItem->path->x; i < ptItem->path->x + bin->InvWidth && i < grid.gridX; i++)
+			for (DWORD j = ptItem->path->y; j < ptItem->path->y + bin->InvHeight && j < grid.gridY; j++)
+				used[j * grid.gridX + i] = 1;
+	}
+
+	bool found = false;
+	DWORD firstX = explicitXY ? *x : 0;
+	DWORD lastX = explicitXY ? *x : grid.gridX - width;
+	DWORD firstY = explicitXY ? *y : 0;
+	DWORD lastY = explicitXY ? *y : grid.gridY - height;
+	// column-major from (0,0), the order kolbot's Container.FindSpot uses
+	for (DWORD i = firstX; !found && i <= lastX && i + width <= grid.gridX; i++)
+		for (DWORD j = firstY; !found && j <= lastY && j + height <= grid.gridY; j++)
+		{
+			bool isFree = true;
+			for (DWORD a = 0; isFree && a < width; a++)
+				for (DWORD b = 0; isFree && b < height; b++)
+					isFree = !used[(j + b) * grid.gridX + i + a];
+			if (isFree)
+			{
+				*x = (BYTE)i;
+				*y = (BYTE)j;
+				found = true;
+			}
+		}
+	free(used);
+	return found;
+}
+
+static void placeUnplacedItems(Unit* ptChar, Unit* unplaced, Stash* source, DWORD bIsClient);
+
+
 int changeToSelectedStash_9(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DWORD bIsClient)
 {
 	if (!newStash) return 0;
@@ -201,7 +338,9 @@ int changeToSelectedStash_9(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DWO
 	return 1;
 }
 
-int changeToSelectedStash_10(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DWORD bIsClient)
+// keepPinned (page swaps, 1.14d): a pinned item of the page shown stays in the grid and a pinned item of newStash
+// stays in its list, so a swap never carries one off its page; every other switch moves every item.
+static int changeStashItems(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DWORD bIsClient, bool keepPinned)
 {
 	if (!newStash) return 0;
 
@@ -218,7 +357,7 @@ int changeToSelectedStash_10(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DW
 	while (ptItem)
 	{
 		ptNextItem = D2UnitGetNextItem(ptItem);
-		if (D2ItemGetPage(ptItem) == 4)
+		if (D2ItemGetPage(ptItem) == 4 && !(keepPinned && isPinnedItem(ptChar, ptItem, bIsClient)))
 		{
 			BYTE tmp = ptItem->ptItemData->ItemData2;
 			ptItem = D2InvRemoveItem(PCInventory, ptItem);
@@ -234,7 +373,41 @@ int changeToSelectedStash_10(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DW
 
 	// add items of new stash
 	ptItem = newStash->ptListItem;
-	while (ptItem)
+	Unit* unplaced = NULL;
+	Unit* lastUnplaced = NULL;
+	Unit* kept = NULL;
+	Unit* lastKept = NULL;
+	if (version_D2Game == V114d)
+	{
+		// D2InvAddItem's tail link never clears the added item's ptNextItem, and a refused item stays out of the
+		// chain, so each item leaves the page list before its add; refused ones are kept, in list order.
+		while (ptItem)
+		{
+			ptNextItem = ptItem->ptItemData->ptNextItem;
+			ptItem->ptItemData->ptNextItem = NULL;
+			if (keepPinned && isPinnedItem(ptChar, ptItem, bIsClient))
+			{
+				if (lastKept)
+					lastKept->ptItemData->ptNextItem = ptItem;
+				else
+					kept = ptItem;
+				lastKept = ptItem;
+				ptItem = ptNextItem;
+				continue;
+			}
+			ptItem->ptItemData->ptPrevItem = NULL;
+			if (!D2InvAddItem(PCInventory, ptItem, ptItem->path->x, ptItem->path->y, 0xC, bIsClient, 4))
+			{
+				if (lastUnplaced)
+					lastUnplaced->ptItemData->ptNextItem = ptItem;
+				else
+					unplaced = ptItem;
+				lastUnplaced = ptItem;
+			}
+			ptItem = ptNextItem;
+		}
+	}
+	else while (ptItem)
 	{
 		D2InvAddItem(PCInventory, ptItem, ptItem->path->x, ptItem->path->y, 0xC, bIsClient, 4);
 		ptItem = D2UnitGetNextItem(ptItem);
@@ -244,8 +417,22 @@ int changeToSelectedStash_10(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DW
 	else
 		PCPY->currentStash = newStash;
 	PCPY->currentStash->ptListItem = NULL;
+	// kept is set only on a swap (bOnlyItems): newStash's list is then its kept pinned items plus the grid's others
+	if (kept)
+	{
+		lastKept->ptItemData->ptNextItem = newStash->ptListItem;
+		newStash->ptListItem = kept;
+	}
+
+	if (unplaced)
+		placeUnplacedItems(ptChar, unplaced, newStash, bIsClient);
 
 	return 1;
+}
+
+int changeToSelectedStash_10(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DWORD bIsClient)
+{
+	return changeStashItems(ptChar, newStash, bOnlyItems, bIsClient, false);
 }
 
 TchangeToSelectedStash changeToSelectedStash;
@@ -295,6 +482,15 @@ static bool placeInFreeSpot(Unit* ptChar, Unit* ptItem)
 	return D2PlaceItemInInventory(__FILE__, __LINE__, PCGame, ptChar, ptItem->nItemNum, 0, 0, 1, 1, NULL) != 0;
 }
 
+static Stash* addMovedItemsPage(Unit* ptChar, Stash* lastStash)
+{
+	Stash* page = addStash(ptChar, lastStash->isShared, false, lastStash);
+	page->name = (char*)malloc(strlen(movedItemsPageName) + 1);
+	if (page->name)
+		strcpy(page->name, movedItemsPageName);
+	return page;
+}
+
 // Items still held after their own page loaded go to new pages appended to the list; leaves the last one selected.
 static DWORD moveHeldItemsToNewPages(Unit* ptChar, Stash* lastStash, DWORD* nbNewPages)
 {
@@ -304,10 +500,7 @@ static DWORD moveHeldItemsToNewPages(Unit* ptChar, Stash* lastStash, DWORD* nbNe
 		Unit* ptItem = heldItems[i];
 		if (!page || !placeInFreeSpot(ptChar, ptItem))
 		{
-			page = addStash(ptChar, lastStash->isShared, false, lastStash);
-			page->name = (char*)malloc(strlen(movedItemsPageName) + 1);
-			if (page->name)
-				strcpy(page->name, movedItemsPageName);
+			page = addMovedItemsPage(ptChar, lastStash);
 			changeToSelectedStash(ptChar, page, 0, false);
 			(*nbNewPages)++;
 			if (!placeInFreeSpot(ptChar, ptItem))
@@ -321,6 +514,230 @@ static DWORD moveHeldItemsToNewPages(Unit* ptChar, Stash* lastStash, DWORD* nbNe
 	}
 	nbHeldItems = 0;
 	return 0;
+}
+
+static void recordPendingMove(Unit* ptChar, Unit* ptItem, Stash* page, BYTE x, BYTE y)
+{
+	// before the join flush the client is built from the final server state, so there is nothing to report
+	if (!PCPY->clientReady)
+	{
+		log_msg("page switch -> item %u: client not built yet, relocation not recorded\n", ptItem->nItemNum);
+		return;
+	}
+	if (PCPY->nbPendingMoves >= sizeof(PCPY->pendingMoves) / sizeof(PCPY->pendingMoves[0]))
+	{
+		log_msg("page switch -> item %u: pending relocation list full, relocation not recorded\n", ptItem->nItemNum);
+		return;
+	}
+	PYPendingMove* move = &PCPY->pendingMoves[PCPY->nbPendingMoves++];
+	move->gid = ptItem->nItemNum;
+	move->page = page->id;
+	move->shared = (BYTE)page->isShared;
+	move->x = x;
+	move->y = y;
+}
+
+// deleteStash rewrites this page's list right after its switch, so nothing may be placed on it then. Server side only:
+// a TCP/IP host runs its own client on another thread, and only the server relocates.
+static Stash* pageRefilledByDelete = NULL;
+
+// Items a page switch couldn't put back at their saved cells (unplaced, linked through ptNextItem, in list order).
+// The client never decides where they go: it leaves each one detached in no list, like a hidden page item, still in
+// the client unit table, so no PlugY pointer outlives a packet that frees it and the game's teardown frees it at
+// exit; the server's report finds it by gid. The server keeps every one in the save set: a free spot of the page
+// now shown, else the last page of the item's list if it is a "Moved items" page with room, else a new one.
+static void placeUnplacedItems(Unit* ptChar, Unit* unplaced, Stash* source, DWORD bIsClient)
+{
+	while (unplaced)
+	{
+		Unit* ptItem = unplaced;
+		unplaced = ptItem->ptItemData->ptNextItem;
+		ptItem->ptItemData->ptNextItem = NULL;
+		DWORD fromX = ptItem->path->x;
+		DWORD fromY = ptItem->path->y;
+		if (bIsClient)
+		{
+			PCPY->clientDesync++;
+			log_msg("page switch (client) -> item %u can't go back to (%u,%u); left detached until the server places it (desync %u)\n", ptItem->nItemNum, fromX, fromY, PCPY->clientDesync);
+			continue;
+		}
+		BYTE x = 0, y = 0;
+		Stash* page = PCPY->currentStash;
+		if (!stashFindSpot(ptChar, page, ptItem, &x, &y, false) || !attachItem(ptChar, ptItem, page, x, y))
+		{
+			Stash* last = getLastStash(source->isShared ? PCPY->sharedStash : PCPY->selfStash);
+			if (last && last != PCPY->currentStash && last != pageRefilledByDelete && last->name && !strcmp(last->name, movedItemsPageName) && stashFindSpot(ptChar, last, ptItem, &x, &y, false))
+				page = last;
+			else
+			{
+				page = addMovedItemsPage(ptChar, last);
+				x = y = 0;
+				// Saved at (0,0) rather than dropped: if the game's own grid refuses it there too, that character's
+				// next load fails (0x7) instead of losing the item.
+				if (!stashFindSpot(ptChar, page, ptItem, &x, &y, false))
+					log_msg("ERROR page switch -> item %u doesn't fit even on an empty page; saved at (0,0), the next load may refuse the character\n", ptItem->nItemNum);
+			}
+			attachItem(ptChar, ptItem, page, x, y);
+		}
+		log_msg("page switch -> item %u can't go back to (%u,%u); relocated to (%u,%u) on %s page %u%s\n", ptItem->nItemNum, fromX, fromY, x, y, page->isShared ? "shared" : "personal", page->id + 1, page == PCPY->currentStash ? " (shown)" : "");
+		recordPendingMove(ptChar, ptItem, page, x, y);
+	}
+}
+
+void flushPendingMoves(Unit* ptChar)
+{
+	if (!ptChar || !PCPlayerData)
+		return;
+	// Each record is resolved now, not when it was made: deleteStash moves page contents to other ids after its switch.
+	// The client ran the same switch on its own copy, so it doesn't know where the item was: the source is unknown.
+	for (DWORD i = 0; i < PCPY->nbPendingMoves; i++)
+	{
+		PYPendingMove* move = &PCPY->pendingMoves[i];
+		StashLoc loc;
+		Unit* ptItem = findStashItem(ptChar, move->gid, &loc);
+		if (!ptItem || !loc.page)
+		{
+			log_msg("flushPendingMoves -> item %u is no longer a stash item; nothing to report\n", move->gid);
+			continue;
+		}
+		move->page = loc.page->id;
+		move->shared = (BYTE)loc.page->isShared;
+		move->x = (BYTE)ptItem->path->x;
+		move->y = (BYTE)ptItem->path->y;
+		log_msg("flushPendingMoves -> item %u is on %s page %u at (%u,%u)\n", move->gid, move->shared ? "shared" : "personal", move->page + 1, move->x, move->y);
+		sendItemMoved(ptChar, move->gid, NULL, false, loc.page, move->x, move->y, PY_MOVED_RELOCATED, 0);
+	}
+	PCPY->nbPendingMoves = 0;
+}
+
+// Server side only: puts an item that is in no list and no grid where a page switch puts one it can't place.
+void relocateStashItem(Unit* ptChar, Unit* item, Stash* source)
+{
+	item->ptItemData->ptNextItem = NULL;
+	item->ptItemData->ptPrevItem = NULL;
+	placeUnplacedItems(ptChar, item, source, 0);
+}
+
+DWORD pinCodes[MAX_PIN_CODES];
+DWORD nbPinCodes = 0;
+
+// A client that never confirmed the protocol has no codes from the server and swaps every item: pinning on the
+// server alone would leave the two sides showing different grids. The confirm only answers UC_PROTO, which
+// ActiveStashProtocol=0 never sends, but a script can send it too.
+bool serverPinsSwaps(Unit* ptChar)
+{
+	return version_D2Game == V114d && active_stashProtocol && nbPinCodes && ptChar && PCPlayerData
+		&& PCPY->clientProto >= PY_STASH_PROTO;
+}
+
+// Item codes compared ignoring case, so PinnedItems=BOX pins the cube too.
+static DWORD lowerItemCode(DWORD code)
+{
+	BYTE* c = (BYTE*)&code;
+	for (int i = 0; i < 4; i++)
+		if (c[i] >= 'A' && c[i] <= 'Z')
+			c[i] += 'a' - 'A';
+	return code;
+}
+
+bool isPinnedItem(Unit* ptChar, Unit* item, DWORD bIsClient)
+{
+	if (version_D2Common != V114d || !ptChar || !PCPlayerData || !item)
+		return false;
+	const DWORD* codes = pinCodes;
+	DWORD nbCodes = nbPinCodes;
+	if (bIsClient)
+	{
+		codes = PCPY->serverPinCodes;
+		nbCodes = PCPY->nbServerPinCodes;
+	}
+	else if (!serverPinsSwaps(ptChar))
+		return false;
+	if (!nbCodes)
+		return false;
+	ItemsBIN* itemBin = D2GetItemsBIN(item->nTxtFileNo);
+	if (!itemBin)
+		return false;
+	DWORD itemCode = lowerItemCode(itemBin->ItemCode);
+	for (DWORD i = 0; i < nbCodes && i < MAX_PIN_CODES; i++)
+		if (itemCode == lowerItemCode(codes[i]))
+			return true;
+	return false;
+}
+
+// Marks in owner the cells of a page's pinned items (pinned) or of its other items. The page shown holds its items in
+// the inventory chain, where only owned page-4 items are stash items. Server side.
+static void markPageCells(Unit* ptChar, Unit* first, bool isShown, bool pinned, InvGridInfo* grid, Unit** owner)
+{
+	for (Unit* ptItem = first; ptItem; ptItem = D2UnitGetNextItem(ptItem))
+	{
+		if (D2ItemGetPage(ptItem) != 4 || (isShown && ptItem->ptItemData->ptInventory != PCInventory) || isPinnedItem(ptChar, ptItem, 0) != pinned)
+			continue;
+		ItemsBIN* bin = D2GetItemsBIN(ptItem->nTxtFileNo);
+		if (!bin)
+			continue;
+		for (DWORD i = ptItem->path->x; i < ptItem->path->x + bin->InvWidth && i < grid->gridX; i++)
+			for (DWORD j = ptItem->path->y; j < ptItem->path->y + bin->InvHeight && j < grid->gridY; j++)
+				owner[j * grid->gridX + i] = ptItem;
+	}
+}
+
+// The item of moving on the first cell it shares with an item of staying (*stayingItem), NULL when none.
+static Unit* findCellClash(Unit** moving, Unit** staying, DWORD nbCells, Unit** stayingItem)
+{
+	for (DWORD c = 0; c < nbCells; c++)
+		if (moving[c] && staying[c])
+		{
+			*stayingItem = staying[c];
+			return moving[c];
+		}
+	return NULL;
+}
+
+// Server only, before a swap creates any page. A swap keeps pinned items where they are, so an item swapped onto their
+// cells could not be placed and would be relocated, possibly off its page: the swap is refused instead. Checked both
+// ways: target's items against the pinned items staying in the grid, the grid's items against those staying in
+// target's list.
+static bool pinnedSwapBlocked(Unit* ptChar, Stash* target)
+{
+	if (!serverPinsSwaps(ptChar))
+		return false;
+	InvGridInfo grid;
+	D2GetInventoryGrid(0xC, 0, &grid);
+	DWORD nbCells = (DWORD)grid.gridX * grid.gridY;
+	if (!nbCells)
+		return false;
+	Unit** cells = (Unit**)calloc(nbCells * 4, sizeof(Unit*));
+	if (!cells)
+	{
+		log_msg("swap stash refused : memory allocation failed\n");
+		return true;
+	}
+	Unit** shownPinned = cells;
+	Unit** shownOthers = cells + nbCells;
+	Unit** targetPinned = cells + 2 * nbCells;
+	Unit** targetOthers = cells + 3 * nbCells;
+	Unit* shownFirst = D2InventoryGetFirstItem(PCInventory);
+	markPageCells(ptChar, shownFirst, true, true, &grid, shownPinned);
+	markPageCells(ptChar, shownFirst, true, false, &grid, shownOthers);
+	markPageCells(ptChar, target->ptListItem, false, true, &grid, targetPinned);
+	markPageCells(ptChar, target->ptListItem, false, false, &grid, targetOthers);
+	Unit* pinned = NULL;
+	Unit* incoming = findCellClash(targetOthers, shownPinned, nbCells, &pinned);
+	Unit* outgoing = incoming ? NULL : findCellClash(shownOthers, targetPinned, nbCells, &pinned);
+	if (incoming)
+		log_msg("swap stash refused : item %u of %s page %u would land on pinned item %u, which stays on the page shown\n",
+			incoming->nItemNum, target->isShared ? "shared" : "personal", target->id + 1, pinned->nItemNum);
+	else if (outgoing)
+		log_msg("swap stash refused : item %u of the page shown would land on pinned item %u, which stays on %s page %u\n",
+			outgoing->nItemNum, pinned->nItemNum, target->isShared ? "shared" : "personal", target->id + 1);
+	free(cells);
+	return incoming || outgoing;
+}
+
+int swapStashItems(Unit* ptChar, Stash* target, DWORD bIsClient, bool keepPinned)
+{
+	return changeStashItems(ptChar, target, 1, bIsClient, keepPinned && version_D2Game == V114d);
 }
 
 // Single player only: a modal box on a TCP/IP host would stall the server thread for every player.
@@ -747,8 +1164,12 @@ void setSelectedStashClient(DWORD stashId, DWORD stashFlags, DWORD flags, bool b
 	if (!newStash) do
 		newStash = addStash(ptChar, (stashFlags & 1) == 1, false, newStash);
 	while (newStash->id < stashId);
-	newStash->flags = stashFlags;
-	changeToSelectedStash(ptChar, newStash, bOnlyItems, 1);
+	newStash->flags = stashFlags & ~STASH_SWAP_PINNED;
+	// pinned items are kept only when the server kept them, so both sides run the same swap whatever codes this has
+	if (bOnlyItems)
+		swapStashItems(ptChar, newStash, 1, (stashFlags & STASH_SWAP_PINNED) != 0);
+	else
+		changeToSelectedStash(ptChar, newStash, 0, 1);
 	PCPY->flags = flags;
 }
 
@@ -762,6 +1183,7 @@ void selectStash(Unit* ptChar, Stash* newStash, bool forceUpdate)
 	log_msg("selectStash ID:%d\tshared:%d\tforceUpdate:%d\n", newStash->id, newStash->isShared, forceUpdate);
 	changeToSelectedStash(ptChar, newStash, 0, 0);
 	updateSelectedStashClient(ptChar);
+	flushPendingMoves(ptChar);	// after the client has run the same switch
 }
 
 
@@ -800,8 +1222,18 @@ void swapStash(Unit* ptChar, Stash* curStash, Stash* swpStash)
 	if (!ptChar || !curStash || !swpStash || curStash == swpStash)
 		return;
 	log_msg("swapStash ID:%d\tshared:%d\tonlyItems:%d\tclient:%d\n", swpStash->id, swpStash->isShared, 1, 0);
-	changeToSelectedStash(ptChar, swpStash, 1, 0);
-	updateClient(ptChar, UC_SELECT_STASH, swpStash->id, swpStash->flags | 8, PCPY->flags);
+	bool keepPinned = serverPinsSwaps(ptChar);
+	swapStashItems(ptChar, swpStash, 0, keepPinned);
+	updateClient(ptChar, UC_SELECT_STASH, swpStash->id, (swpStash->flags & ~STASH_SWAP_PINNED) | 8 | (keepPinned ? STASH_SWAP_PINNED : 0), PCPY->flags);
+	flushPendingMoves(ptChar);	// after the client has run the same swap
+}
+
+// Page ids come from the client and every missing page up to one gets allocated, so creating pages is capped even
+// for an unlimited stash; a page that already exists is always reachable.
+bool canCreateStashPage(bool isShared, DWORD page)
+{
+	DWORD maxPages = isShared ? maxSharedPages : maxSelfPages;
+	return (int)maxPages < 0 ? page < 10000 : page <= maxPages;
 }
 
 void toggleStash(Unit* ptChar, DWORD page)
@@ -824,13 +1256,14 @@ void swapStash(Unit* ptChar, DWORD page, bool toggle)
 	Stash* target = isShared ? PCPY->sharedStash : PCPY->selfStash;
 	for (DWORD i = 0; target && i < page; i++)
 		target = target->nextStash;
-	// The page comes from the client and every missing page up to it gets allocated, so creating pages is capped
-	// even for an unlimited stash; a page that already exists is always reachable.
-	if (!target && ((int)maxPages < 0 ? page >= 10000 : page > maxPages))
+	if (!target && !canCreateStashPage(isShared, page))
 	{
 		log_msg("swap stash refused : page %u is out of range (pages=%u, max=%d)\n", page, nbPages, maxPages);
 		return;
 	}
+	// a refused swap changes nothing and sends nothing, so the client, which only mirrors swaps, stays as it is
+	if (target && target != curStash && pinnedSwapBlocked(ptChar, target))
+		return;
 	Stash* swpStash = curStash->isShared == toggle ? PCPY->selfStash : PCPY->sharedStash;
 	if (!swpStash)
 		swpStash = addStash(ptChar, !curStash->isShared, true, swpStash);
@@ -862,11 +1295,14 @@ void insertStash(Unit* ptChar)
 	stash->ptListItem = NULL;
 }
 
+bool canDeleteStash(Unit* ptChar)
+{
+	return hasCurrentStash(ptChar) && firstClassicStashItem(ptChar) == NULL;
+}
+
 bool deleteStash(Unit* ptChar, bool isClient)
 {
-	if (!hasCurrentStash(ptChar))
-		return false;
-	if (firstClassicStashItem(ptChar) != NULL)
+	if (!canDeleteStash(ptChar))
 		return false;
 	//if (D2InventoryGetFirstItem())
 	Stash* stash = PCPY->currentStash;
@@ -882,7 +1318,11 @@ bool deleteStash(Unit* ptChar, bool isClient)
 	if (stash->nextStash->ptListItem != NULL)
 	{
 		log_msg("deleteStash ID:%d\tshared:%d\tonlyItems:%d\tclient:%d\n", stash->id, stash->isShared, 1, isClient);
+		if (!isClient)
+			pageRefilledByDelete = stash->nextStash;
 		changeToSelectedStash(ptChar, stash->nextStash, 1, isClient);
+		if (!isClient)
+			pageRefilledByDelete = NULL;
 	}
 	stash = stash->nextStash;
 	while (stash->nextStash)
@@ -1527,6 +1967,8 @@ void Install_MultiPageStash()
 	Install_InterfaceStash();
 
 	changeToSelectedStash = version_D2Common >= V110 ? changeToSelectedStash_10 : changeToSelectedStash_9;
+
+	Install_StashProtocol();
 
 	if ( version_D2Game >= V110 )
 	{

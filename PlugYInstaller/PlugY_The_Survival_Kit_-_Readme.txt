@@ -739,6 +739,8 @@ Following are default values, between {} are some examples values with descripti
 - SharedNormalPageColor=4		{0:Color of the shared stash name without index (see * for color list)}
 - SharedIndexPageColor=8		{0:Color of the shared stash name with index (see * for color list)
 - SharedMainIndexPageColor=1	{0:Color of the shared stash name with main index (see * for color list)}
+- ActiveStashProtocol=1			{0:Disabled; 1:Enabled, on 1.14d bots and scripts (such as kolbot) can show any stash page, see what every page holds, and move a stash item to any page without leaving the page shown; each request gets its own answer; inserting or deleting a page (/insertpage, /deletepage, or a script) keeps the pages you see and the pages saved the same}
+- PinnedItems=box			{(empty):Swaps move every item; box:The Horadric Cube stays on its page when you swap pages (/swappage, /togglepage), on 1.14d with ActiveStashProtocol=1. Up to 5 item codes in any case, separated by commas (such as box,key). A swap that would put a pinned item and another item on the same cells is not done}
 
 - ActiveSharedStash=0			{0:Disabled; 1:Enabled if ActiveMultiPageStash=1}
 - ActiveSharedStashInMultiPlayer=0	{0:Disabled; 1:Enabled shared stash in multiplayer. Use only with different save folders.}
