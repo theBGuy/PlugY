@@ -12,6 +12,7 @@
 #include "interface_Stash.h"
 #include "customLibraries.h"
 #include "common.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 #define STASH_TAG 0x5453			//"ST"
@@ -250,6 +251,95 @@ int changeToSelectedStash_10(Unit* ptChar, Stash* newStash, DWORD bOnlyItems, DW
 TchangeToSelectedStash changeToSelectedStash;
 
 
+// The game's inventory loader frees every item it can't place at its saved position (e.g. a page saved with
+// ActiveBigStash=1 loaded with it off) and still reports success. While a PlugY page loads, such items are held
+// instead, then re-placed by loadStash (same page) or loadStashList (new pages at the end).
+static const char* movedItemsPageName = "Moved items";
+static bool holdUnplacedStashItems = false;
+static Unit** heldItems = NULL;
+static DWORD nbHeldItems = 0;
+static DWORD maxHeldItems = 0;
+static DWORD nbMovedItems = 0;	// items held while loading the current stash list
+
+static bool holdItem(Unit* ptItem)
+{
+	if (nbHeldItems == maxHeldItems)
+	{
+		DWORD newMax = maxHeldItems ? maxHeldItems * 2 : 16;
+		Unit** newList = (Unit**)realloc(heldItems, newMax * sizeof(Unit*));
+		if (!newList) return false;
+		heldItems = newList;
+		maxHeldItems = newMax;
+	}
+	heldItems[nbHeldItems++] = ptItem;
+	nbMovedItems++;
+	return true;
+}
+
+// Replaces the loader's call to D2LoadPlaceItem (same register/stack contract).
+DWORD FASTCALL placeLoadedItem(Game* ptGame, Unit* ptChar, Unit* ptItem, Unit* ptParent)
+{
+	DWORD ret = D2LoadPlaceItem(ptGame, ptChar, ptItem, ptParent);
+	// a failed stash placement leaves the item unplaced in cursor mode (4), the state D2PlaceItemInInventory needs
+	if (ret && holdUnplacedStashItems && ptItem && ptItem->mode == 4 && D2ItemGetPage(ptItem) == 4 && holdItem(ptItem))
+	{
+		log_msg("loadStash -> item %u doesn't fit at its saved position (%u,%u); it will be moved\n", ptItem->nItemNum, ptItem->path->x, ptItem->path->y);
+		return 0;
+	}
+	return ret;
+}
+
+// Uses the game's own free-spot search on the current page of the item's inventory page.
+static bool placeInFreeSpot(Unit* ptChar, Unit* ptItem)
+{
+	return D2PlaceItemInInventory(__FILE__, __LINE__, PCGame, ptChar, ptItem->nItemNum, 0, 0, 1, 1, NULL) != 0;
+}
+
+// Items still held after their own page loaded go to new pages appended to the list; leaves the last one selected.
+static DWORD moveHeldItemsToNewPages(Unit* ptChar, Stash* lastStash, DWORD* nbNewPages)
+{
+	Stash* page = NULL;
+	for (DWORD i = 0; i < nbHeldItems; i++)
+	{
+		Unit* ptItem = heldItems[i];
+		if (!page || !placeInFreeSpot(ptChar, ptItem))
+		{
+			page = addStash(ptChar, lastStash->isShared, false, lastStash);
+			page->name = (char*)malloc(strlen(movedItemsPageName) + 1);
+			if (page->name)
+				strcpy(page->name, movedItemsPageName);
+			changeToSelectedStash(ptChar, page, 0, false);
+			(*nbNewPages)++;
+			if (!placeInFreeSpot(ptChar, ptItem))
+			{
+				log_msg("loadStashList -> item %u doesn't fit even on an empty page\n", ptItem->nItemNum);
+				nbHeldItems = 0;
+				return 0x7;//Unable to enter game. Bad inventory data
+			}
+		}
+		log_msg("loadStashList -> item %u moved to (%u,%u) on new page %u\n", ptItem->nItemNum, ptItem->path->x, ptItem->path->y, page->id + 1);
+	}
+	nbHeldItems = 0;
+	return 0;
+}
+
+// Single player only: a modal box on a TCP/IP host would stall the server thread for every player.
+void showMovedStashItemsNotice(Unit* ptChar)
+{
+	DWORD nbSelf = PCPY->selfItemsOnNewPages;
+	DWORD nbShared = PCPY->sharedItemsOnNewPages;
+	if (!nbSelf && !nbShared)
+		return;
+	char where[128];
+	if (nbSelf && nbShared)
+		_snprintf(where, sizeof(where), "%u at the end of your personal stash and %u at the end of your shared stash", nbSelf, nbShared);
+	else
+		_snprintf(where, sizeof(where), "%u at the end of your %s stash", nbSelf ? nbSelf : nbShared, nbSelf ? "personal" : "shared");
+	where[sizeof(where) - 1] = NULL;
+	log_box("Some stash items didn't fit on their page (the stash was probably saved with a different ActiveBigStash setting).\nPlugY kept them on new pages named \"%s\": %s.", movedItemsPageName, where);
+}
+
+
 DWORD loadStash(Unit* ptChar, Stash* ptStash, BYTE data[], DWORD startSize, DWORD maxSize, DWORD* retSize)
 {
 	DWORD curSize = startSize;
@@ -285,7 +375,10 @@ DWORD loadStash(Unit* ptChar, Stash* ptStash, BYTE data[], DWORD startSize, DWOR
 			log_msg("loadStash -> stash of character %s is truncated (flags at %u, size %u)\n", PCPlayerData->name, curSize, maxSize);
 			return 0x7;//Unable to enter game. Bad inventory data
 		}
+		// the list being loaded decides isShared: a page flagged for the other list would make saveStash serialize the wrong items
+		DWORD isShared = ptStash->isShared;
 		ptStash->flags = *(DWORD *)&data[curSize];
+		ptStash->isShared = isShared;
 		curSize += 4;
 	}
 
@@ -309,8 +402,22 @@ DWORD loadStash(Unit* ptChar, Stash* ptStash, BYTE data[], DWORD startSize, DWOR
 		log_msg("loadStash -> stash of character %s is truncated (inventory at %u, size %u)\n", PCPlayerData->name, curSize, maxSize);
 		return 0x7;//Unable to enter game. Bad inventory data
 	}
+	DWORD firstHeld = nbHeldItems;
+	holdUnplacedStashItems = version_D2Game == V114d;
 	DWORD ret = D2LoadInventory(PCGame, ptChar, (saveBitField*)&data[curSize], 0x60, maxSize-curSize, 0, &nbBytesRead);
+	holdUnplacedStashItems = false;
 	if (ret) log_msg("loadStash -> D2LoadInventory failed\n");
+
+	// Held items go to free spots of this page only once all of its items are placed, so none takes another's spot.
+	DWORD stillHeld = firstHeld;
+	for (DWORD i = firstHeld; !ret && i < nbHeldItems; i++)
+	{
+		if (placeInFreeSpot(ptChar, heldItems[i]))
+			log_msg("loadStash -> item %u moved to (%u,%u) on page %u\n", heldItems[i]->nItemNum, heldItems[i]->path->x, heldItems[i]->path->y, ptStash->id + 1);
+		else
+			heldItems[stillHeld++] = heldItems[i];
+	}
+	if (!ret) nbHeldItems = stillHeld;
 	log_msg("Stash loaded (%d : %s)\n", ptStash->id, ptStash->name);
 
 	*retSize=curSize + nbBytesRead;
@@ -362,6 +469,8 @@ DWORD loadStashList(Unit* ptChar, BYTE* data, DWORD maxSize, DWORD* curSize, boo
 		return 0x7;//Unable to enter game. Bad inventory data
 	}
 
+	nbHeldItems = 0;
+	nbMovedItems = 0;
 	while (curStash < nbStash)
 	{
 		newStash = addStash(ptChar, isShared, false, newStash);
@@ -369,6 +478,24 @@ DWORD loadStashList(Unit* ptChar, BYTE* data, DWORD maxSize, DWORD* curSize, boo
 		DWORD ret = loadStash(ptChar, newStash, data, *curSize, maxSize, curSize);
 		if (ret) return ret;
 		curStash++;
+	}
+
+	if (nbHeldItems)
+	{
+		DWORD nbItems = nbHeldItems;
+		DWORD nbNewPages = 0;
+		DWORD ret = moveHeldItemsToNewPages(ptChar, newStash, &nbNewPages);
+		if (ret) return ret;
+		if (isShared)
+			PCPY->sharedItemsOnNewPages += nbItems;
+		else
+			PCPY->selfItemsOnNewPages += nbItems;
+	}
+	if (nbMovedItems)
+	{
+		log_msg("loadStashList -> %u items moved\n", nbMovedItems);
+		if (isShared)
+			PCPY->sharedMovedOnLoad = 1;
 	}
 
 	if (!isShared)
@@ -485,6 +612,28 @@ static int compareItemHash(const void* a, const void* b)
 	return ha < hb ? -1 : ha > hb ? 1 : 0;
 }
 
+// D2SaveItem output of an item and its socketed items without ITEMFLAG_NEWITEM: the game sets it on a socketed item
+// as it loads and clears it later by itself, so it would make an untouched stash look modified. Server thread only;
+// the flags are restored before anything else can see them.
+static DWORD saveItemWithoutNewFlag(Unit* ptItem, saveBitField* data, DWORD maxSize)
+{
+	Unit* flagged[16];
+	DWORD nbFlagged = 0;
+	if (ptItem->ptItemData->flags2 & ITEMFLAG_NEWITEM)
+		flagged[nbFlagged++] = ptItem;
+	Inventory* ptSockets = *(Inventory**)((DWORD)ptItem + shifting.ptInventory);
+	for (Unit* ptSocketed = ptSockets ? D2InventoryGetFirstItem(ptSockets) : NULL; ptSocketed && nbFlagged < 16; ptSocketed = D2UnitGetNextItem(ptSocketed))
+		if (ptSocketed->ptItemData->flags2 & ITEMFLAG_NEWITEM)
+			flagged[nbFlagged++] = ptSocketed;
+
+	for (DWORD i = 0; i < nbFlagged; i++)
+		flagged[i]->ptItemData->flags2 &= ~ITEMFLAG_NEWITEM;
+	DWORD nbBytes = D2SaveItem(ptItem, data, maxSize, 1, 1, 0);
+	for (DWORD i = 0; i < nbFlagged; i++)
+		flagged[i]->ptItemData->flags2 |= ITEMFLAG_NEWITEM;
+	return nbBytes;
+}
+
 // Same page content as saveStash, but with the items sorted: selecting a page reverses its item list.
 static bool hashStashCanonical(Unit* ptChar, Stash* ptStash, DWORD* hash)
 {
@@ -509,7 +658,7 @@ static bool hashStashCanonical(Unit* ptChar, Stash* ptStash, DWORD* hash)
 	{
 		if (D2ItemGetPage(D2GetRealItem(ptItem)) == 4)
 		{
-			DWORD nbBytes = D2SaveItem(D2GetRealItem(ptItem), (saveBitField*)itemBuffer, sizeof(itemBuffer), 1, 1, 0);
+			DWORD nbBytes = saveItemWithoutNewFlag(D2GetRealItem(ptItem), (saveBitField*)itemBuffer, sizeof(itemBuffer));
 			if (!nbBytes || nbBytes > sizeof(itemBuffer))
 			{
 				log_msg("hashStashCanonical : can't serialize an item of page %d\n", ptStash->id);

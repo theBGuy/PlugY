@@ -81,6 +81,8 @@ DWORD STDCALL LoadSPCustomData(Unit* ptChar)
 			if (ret)
 				showLoadError(filePath, ".sss");
 		}
+		if (!ret)
+			showMovedStashItemsNotice(ptChar);
 	} else {
 		log_msg("is not LOD Game\n");
 	}
@@ -665,6 +667,14 @@ void Install_LoadPlayerData()
 		customPackID -= 3;
 	else if ( version_D2Game == V110 )
 		customPackID --;
+
+	if ( version_D2Game == V114d )
+	{
+		// Keep the stash items the inventory loader can't place instead of letting it free them.
+		mem_seek R8(D2Game, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 1336A7);
+		MEMC_REF4( D2LoadPlaceItem, placeLoadedItem);
+		//005336A6  |. E8 65DBFFFF    CALL Game.00531210
+	}
 
 	log_msg("\n");
 

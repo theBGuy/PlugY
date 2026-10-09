@@ -706,6 +706,8 @@ Following are default values, between {} are some examples values with descripti
 Increase the stash to 10x10 squares.
 Use PlugY\TradeStash.dc6 to change the background image.
 When bigStash is enabled, you must restart D2 for play in single/multi/open when you have started a game in closed Bnet previously (and vice versa).
+On 1.14d you can turn bigStash off at any time and keep every item: an item that doesn't fit the smaller stash
+moves to a free spot of its page, or to a new page named "Moved items" at the end of the stash.
 Following are default values, between {} are some examples values with descriptions :
 - ActiveBigStash=0	{0:Default stash size is used; 1: Enabled, Stash uses 10x10 squared}
 

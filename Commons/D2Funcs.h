@@ -398,6 +398,8 @@ A8(STD,  D2Game,00000,00000,00000,D6D10,235C0, D410,200E0,59980,142B40,	void,		D
 //A8(FAST, D2Game,00000,00000,4C7B0,00000,00000,00000,00000,00000,00000,	Unit*,		D2GetSkillItem, (Unit* ptChar));//6FC7C7B0
 //A8(FAST, D2Game,00000,00000,5A500,00000,00000,00000,00000,00000,00000,	DWORD,		D2SavePlayer, (Game* ptGame, Unit* ptChar, char* playername, DWORD zero));//6FC8A500
 A8(FAST, D2Game,4F100,4F500,5B8A0,B9D70,25D50,44950,54810,3A4C0,1335E0,	DWORD,		D2LoadInventory, (Game* ptGame, Unit* pChar, saveBitField* pdata, DWORD p2, DWORD maxSize, DWORD p4, DWORD *ptNbBytesRead));//6FC8B8A0
+A8(FAST, D2Game,00000,00000,00000,00000,00000,00000,00000,00000,131210,	DWORD,		D2LoadPlaceItem, (Game* ptGame, Unit* ptChar, Unit* ptItem, Unit* ptParent));//1.14d only. 0 = placed; otherwise D2LoadInventory frees the item
+A8(FAST, D2Game,00000,00000,00000,00000,00000,00000,00000,00000,160200,	DWORD,		D2PlaceItemInInventory, (const char* file, DWORD line, Game* ptGame, Unit* ptChar, DWORD itemNum, int x, int y, DWORD findFreeSpot, DWORD p9, Inventory* ptInventory));//1.14d only. Item must be in cursor mode; 0 = not placed
 A8(FAST, D2Game,7BAE0,7BFD0,8BB00,97620,BEF80,93650,E03A0,6DC40,152F60,	Unit*,		D2GameGetObject, (Game* ptGame, DWORD type, DWORD itemNum));//6FCBBB00
 //A8(FAST, D2Game,00000,00000,9F320,501C0,F1C50,F1A50,F3220,00000,00000,	Unit*,		D2GetOwnerMonster, (Unit* ptMonster));
 //A8(FAST, D2Game,00000,00000,E08D0,00000,00000,00000,00000,00000,00000,	void,		D2UpdateSkillDataAfterUnassignment, (Game* ptGame, Unit* ptChar, DWORD skillID));//6FD108D0

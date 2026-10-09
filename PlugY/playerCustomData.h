@@ -64,8 +64,11 @@ struct PYPlayerData
 		DWORD saveStateFlags;
 		struct {
 			DWORD backupDoneThisGame:1;	// backupSaveFiles already ran for this game
+			DWORD sharedMovedOnLoad:1;	// loading moved shared stash items that no save has stored yet
 		};
 	};
+	DWORD	selfItemsOnNewPages;	// items loading had to put on new pages, reported once by LoadSPCustomData
+	DWORD	sharedItemsOnNewPages;	//
 };
 
 void Install_PlayerCustomData();

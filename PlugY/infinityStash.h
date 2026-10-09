@@ -88,6 +88,8 @@ void setSelectedStashClient(DWORD stashId, DWORD stashFlags, DWORD flags, bool b
 
 Stash* addStash(Unit* ptChar, bool isShared, bool autoSetIndex, Stash* ptStash = NULL);
 DWORD loadStashList(Unit* ptChar, BYTE* data, DWORD maxSize, DWORD* curSize, bool isShared);
+DWORD FASTCALL placeLoadedItem(Game* ptGame, Unit* ptChar, Unit* ptItem, Unit* ptParent);
+void showMovedStashItemsNotice(Unit* ptChar);
 void saveStashList(Unit* ptChar, Stash* ptStash, BYTE** data, DWORD* maxSize, DWORD* curSize);
 bool getSharedStashCanonicalHash(Unit* ptChar, DWORD* hash);	// false when the hash can't be computed (e.g. an item fails to serialize)
 

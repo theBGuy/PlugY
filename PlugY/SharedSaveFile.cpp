@@ -226,6 +226,7 @@ void initSharedStashBaseline(Unit* ptChar, DWORD diskHash, bool diskExisted)
 	PCPY->sharedBaselineHash = 0;
 	PCPY->sharedConflictStamp[0] = NULL;
 
+	// taken after any item moved while loading: the move alone is not a change of this game
 	DWORD baselineHash;
 	if (!getSharedStashCanonicalHash(ptChar, &baselineHash))
 	{
@@ -273,6 +274,12 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 	DWORD canonicalHash;
 	bool canonicalValid = getSharedStashCanonicalHash(ptChar, &canonicalHash);
 
+	// once this game wrote a conflict file it is kept current, or merging it later could duplicate items taken back
+	bool unchanged = PCPY->sharedBaselineValid && canonicalValid && canonicalHash == PCPY->sharedBaselineHash && !PCPY->sharedConflictStamp[0];
+	// Items moved while loading are saved only over the file as it was loaded: several games loading the same file
+	// move the same items, and the first one to save stores the move for all of them.
+	bool onlyMovedOnLoad = unchanged && PCPY->sharedMovedOnLoad;
+
 	char szSaveName[MAX_PATH];
 	char message[1024];
 	message[0] = NULL;
@@ -280,9 +287,7 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 	{
 		_snprintf(message, sizeof(message), "PlugY could not save the shared stash: the save path is too long.\nThe shared stash file on disk was not changed.");
 	}
-	// once this game wrote a conflict file it is kept current, or merging it later could duplicate items taken back
-	else if (PCPY->sharedBaselineValid && canonicalValid && canonicalHash == PCPY->sharedBaselineHash
-	 && !isSaveFileMissing(szSaveName) && !PCPY->sharedConflictStamp[0])
+	else if (unchanged && !onlyMovedOnLoad && !isSaveFileMissing(szSaveName))
 	{
 		log_msg("shared stash unchanged since load; not rewritten\n");
 		return;
@@ -294,7 +299,11 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 		char tail[MAX_PATH + 64];
 		const char* conflictResult;
 
-		if (!hLock)
+		if (!hLock && onlyMovedOnLoad)
+		{
+			log_msg("shared stash busy; the items moved while loading are saved by a later save\n");
+		}
+		else if (!hLock)
 		{
 			// Without the lock another game may be replacing the file right now, so only this game's own file is written.
 			conflictResult = conflictTail(writeSharedConflictFile(ptChar, data, size, isHardcore, szConflictName), szConflictName, tail);
@@ -320,10 +329,17 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 					PCPY->sharedDiskExisted = 1;
 					PCPY->sharedBaselineHash = canonicalValid ? canonicalHash : 0;
 					PCPY->sharedBaselineValid = canonicalValid;
+					PCPY->sharedMovedOnLoad = 0;
+				} else if (onlyMovedOnLoad) {
+					log_msg("can't save the items moved while loading; the shared stash file is unchanged\n");
 				} else {
 					conflictResult = conflictTail(writeSharedConflictFile(ptChar, data, size, isHardcore, szConflictName), szConflictName, tail);
 					_snprintf(message, sizeof(message), "PlugY could not save the shared stash %s (read-only, locked by another program, or disk full); it was not changed.\n%s", szSaveName, conflictResult);
 				}
+			} else if (onlyMovedOnLoad) {
+				// this game changed nothing itself, and the newer file already has the move or other games' changes
+				log_msg("another game saved the shared stash; this game only moved items while loading, nothing to save\n");
+				PCPY->sharedMovedOnLoad = 0;
 			} else {
 				conflictResult = conflictTail(writeSharedConflictFile(ptChar, data, size, isHardcore, szConflictName), szConflictName, tail);
 				_snprintf(message, sizeof(message), "Another game saved the shared stash %s after this game loaded it (or it can no longer be read), so it was not overwritten.\n%s", szSaveName, conflictResult);
