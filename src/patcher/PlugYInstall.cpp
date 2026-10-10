@@ -7,7 +7,7 @@
 =================================================================*/
 #pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
 
-#include "../Commons/VersionInfo.h"
+#include "../common/VersionInfo.h"
 #include <shellapi.h>
 #include <stdio.h>
 #include <wchar.h>

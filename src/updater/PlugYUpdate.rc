@@ -1,13 +1,13 @@
 // PlugY4Kolbot updater resources. Kept ASCII: rc.exe reads a BOM-less script in the ANSI code page.
 
 #include <windows.h>
-#include "../Commons/PlugYVersion.h"
+#include "../common/PlugYVersion.h"
 
 #define IDI_PLUGYUPDATE 101
 
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
-IDI_PLUGYUPDATE ICON "../PlugYRun/PlugY.ico"
+IDI_PLUGYUPDATE ICON "../launcher/PlugY.ico"
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION PLUGY_VERSION_MAJOR,PLUGY_VERSION_MINOR,PLUGY_VERSION_PATCH,0

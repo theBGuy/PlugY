@@ -496,7 +496,7 @@ test("stamping changes only the token and right padding of the one banner line",
       assert.equal(rightB.length, rightA.length - (tokenB.length - tokenA.length));
     }
     assert.ok(
-      decodeLabel(after, "PlugYInstaller/PlugY_The_Survival_Kit_-_讀我檔案.txt").includes(`版本 ${PROBE}`),
+      decodeLabel(after, "game-files/PlugY_The_Survival_Kit_-_讀我檔案.txt").includes(`版本 ${PROBE}`),
     );
 
     // Restamping (the stable run after an rc) equals stamping the originals directly.
@@ -623,7 +623,7 @@ test("a write failing midway names the failed file and the ones already stamped"
     }
     assert.ok(error, "writeBannerPlans must throw");
     assert.match(error.message, new RegExp(`could not write ${BANNER_FILES[2].path.replace(/[.]/g, "\\.")}`));
-    assert.match(error.message, /already stamped: PlugYInstaller\/PlugY\.ini, PlugYInstaller\/PlugY\/PlugYDefault\.ini$/);
+    assert.match(error.message, /already stamped: game-files\/PlugY\.ini, game-files\/PlugY\/PlugYDefault\.ini$/);
     assert.deepEqual(error.written, [BANNER_FILES[0].path, BANNER_FILES[1].path]);
   } finally {
     chmodSync(target, 0o666);

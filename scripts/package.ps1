@@ -4,14 +4,14 @@
 
 .DESCRIPTION
     Writes exactly these files to -OutDir, where <V> is PLUGY_VERSION from
-    Commons/PlugYVersion.h:
+    src/common/PlugYVersion.h:
       PlugY4Kolbot_v<V>.zip                 DLL, launcher, updater, INI, readmes, PlugY/ data
       PlugY4Kolbot_v<V>_D2FilePatcher.zip   PatchD2File.exe, RestoreD2File.exe
-      PlugY4Kolbot_v<V>_Installer.exe       NSIS installer (PlugYInstaller/PlugY.nsi)
+      PlugY4Kolbot_v<V>_Installer.exe       NSIS installer (installer/PlugY.nsi)
       PlugY4Kolbot_v<V>_symbols.zip         PDBs (updater included) and PlugY.map
       SHA256SUMS.txt                        sha256sum -c format, LF endings
     Inputs are staged under build/out/package/, so nothing is written inside the
-    source tree. Run build/build.ps1 first. Needs 7-Zip and NSIS 3.11 or later
+    source tree. Run scripts/build.ps1 first. Needs 7-Zip and NSIS 3.11 or later
     (makensis).
 
 .PARAMETER Config
@@ -33,9 +33,11 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$BinDir = Join-Path (Join-Path $PSScriptRoot 'out') $Config
-$StageRoot = Join-Path (Join-Path $PSScriptRoot 'out') 'package'
-$InstallerSrc = Join-Path $RepoRoot 'PlugYInstaller'
+$BuildOut = Join-Path $RepoRoot 'build\out'
+$BinDir = Join-Path $BuildOut $Config
+$StageRoot = Join-Path $BuildOut 'package'
+$GameFiles = Join-Path $RepoRoot 'game-files'
+$InstallerSrc = Join-Path $RepoRoot 'installer'
 if (-not $OutDir) { $OutDir = Join-Path $RepoRoot 'dist' }
 # Resolved against the PowerShell location: .NET's GetFullPath would use the
 # process working directory, which Set-Location does not change.
@@ -111,7 +113,7 @@ function New-Zip([string]$Dir, [string]$Zip) {
 }
 
 # --- Version ------------------------------------------------------------------------
-$VersionHeader = Join-Path $RepoRoot 'Commons\PlugYVersion.h'
+$VersionHeader = Join-Path $RepoRoot 'src\common\PlugYVersion.h'
 $m = [regex]::Match([System.IO.File]::ReadAllText($VersionHeader), '(?m)^#define PLUGY_VERSION "([^"]*)"')
 if (-not $m.Success) { Fail "PLUGY_VERSION not found in $VersionHeader" }
 $Version = $m.Groups[1].Value
@@ -125,21 +127,21 @@ $Base = "PlugY4Kolbot_v$Version"
 $Binaries = @('PlugY.dll', 'PlugY.exe', 'PatchD2File.exe', 'RestoreD2File.exe', 'PlugY4KolbotUpdater.exe')
 $Symbols = @('PlugY.pdb', 'PlugY.map', 'PlugYRun.pdb', 'PatchD2File.pdb', 'RestoreD2File.pdb', 'PlugY4KolbotUpdater.pdb')
 foreach ($name in $Binaries + $Symbols) {
-    if (-not (Test-Path -LiteralPath (Join-Path $BinDir $name))) { Fail "$name missing from $BinDir (run build/build.ps1 -Config $Config first)" }
+    if (-not (Test-Path -LiteralPath (Join-Path $BinDir $name))) { Fail "$name missing from $BinDir (run scripts/build.ps1 -Config $Config first)" }
 }
 $License = Join-Path $RepoRoot 'LICENSE'
 $Changelog = Join-Path $RepoRoot 'CHANGELOG.md'
-$Ini = Join-Path $InstallerSrc 'PlugY.ini'
+$Ini = Join-Path $GameFiles 'PlugY.ini'
 foreach ($file in @($License, $Changelog, $Ini)) {
     if (-not (Test-Path -LiteralPath $file)) { Fail "$file not found" }
 }
 # The zh-TW readme name is non-ASCII and this file must stay ASCII, so readmes are
 # selected by pattern; PlugY.nsi installs exactly four.
-$Readmes = @(Get-ChildItem -LiteralPath $InstallerSrc -Filter 'PlugY_The_Survival_Kit_-_*.txt' -File | ForEach-Object { $_.FullName })
-if ($Readmes.Count -ne 4) { Fail "expected 4 readmes in $InstallerSrc, found $($Readmes.Count)" }
+$Readmes = @(Get-ChildItem -LiteralPath $GameFiles -Filter 'PlugY_The_Survival_Kit_-_*.txt' -File | ForEach-Object { $_.FullName })
+if ($Readmes.Count -ne 4) { Fail "expected 4 readmes in $GameFiles, found $($Readmes.Count)" }
 # The zip must carry exactly the data files the installer installs, so the set comes
 # from PlugY.nsi's File lines and the folder may hold nothing else.
-$DataDir = Join-Path $InstallerSrc 'PlugY'
+$DataDir = Join-Path $GameFiles 'PlugY'
 $nsiText = [System.IO.File]::ReadAllText((Join-Path $InstallerSrc 'PlugY.nsi'), [System.Text.Encoding]::UTF8)
 $DataNames = @([regex]::Matches($nsiText, '(?m)^\s*File\s+"\$\{D2FILES\}\\PlugY\\([^"\\]+)"') | ForEach-Object { $_.Groups[1].Value })
 if ($DataNames.Count -eq 0) { Fail "no File `"`${D2FILES}\PlugY\...`" lines found in PlugY.nsi" }
@@ -159,7 +161,7 @@ foreach ($name in $Binaries) {
     $checkFile = $name -notin @('PatchD2File.exe', 'RestoreD2File.exe')
     if ($info.ProductVersion -cne $Version -or ($checkFile -and $info.FileVersion -cne $FileVersion)) {
         $expected = "ProductVersion $Version" + $(if ($checkFile) { ", FileVersion $FileVersion" } else { '' })
-        Fail ("binaries were built from a different version; run build/build.ps1 first ($name has " +
+        Fail ("binaries were built from a different version; run scripts/build.ps1 first ($name has " +
               "ProductVersion $($info.ProductVersion), FileVersion $($info.FileVersion); expected $expected)")
     }
 }
@@ -219,15 +221,15 @@ Copy-Into $symbolsDir @($Symbols | ForEach-Object { Bin $_ })
 New-Zip $symbolsDir (Join-Path $OutDir "${Base}_symbols.zip")
 
 # --- Installer ----------------------------------------------------------------------
-# PlugY.nsi takes its payload from its own directory and reaches ..\PlugYRun,
-# ..\Commons, ..\LICENSE and ..\CHANGELOG.md, so the stage mirrors the repo layout.
+# PlugY.nsi takes the binaries and game files from its own directory and reaches
+# ..\src\launcher, ..\src\common, ..\LICENSE and ..\CHANGELOG.md, so the stage puts them there.
 $nsisRoot = Join-Path $StageRoot 'installer'
-$nsisDir = Join-Path $nsisRoot 'PlugYInstaller'
+$nsisDir = Join-Path $nsisRoot 'installer'
 Copy-Into $nsisDir (@((Join-Path $InstallerSrc 'PlugY.nsi'), (Join-Path $InstallerSrc 'PlugYInstallerHeader.bmp'), $Ini) +
                     $Readmes + @($Binaries | ForEach-Object { Bin $_ }))
 Copy-Into (Join-Path $nsisDir 'PlugY') $DataFiles
-Copy-Into (Join-Path $nsisRoot 'PlugYRun') @((Join-Path $RepoRoot 'PlugYRun\PlugY.ico'))
-Copy-Into (Join-Path $nsisRoot 'Commons') @($VersionHeader)
+Copy-Into (Join-Path $nsisRoot 'src\launcher') @((Join-Path $RepoRoot 'src\launcher\PlugY.ico'))
+Copy-Into (Join-Path $nsisRoot 'src\common') @($VersionHeader)
 Copy-Into $nsisRoot @($License, $Changelog)
 # /WX: a warning (a missing optional file, a stale define) fails the release
 # instead of shipping a quietly different installer.

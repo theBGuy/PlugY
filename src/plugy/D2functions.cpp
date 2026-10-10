@@ -21,7 +21,7 @@ s_shifting shifting;
 #define A8(X, Z, A,B,C,D,E,F,G,H,I, R, N, P) T##N N;
 #define C8(Z, A,B,C,D,E,F,G,H,I, T, N)       T* pt##N;
 
-#include "../Commons/D2Funcs.h"
+#include "d2/D2Funcs.h"
 DataTables* SgptDataTables;
 //E2F(D2Client,0,	DWORD,		D2isLODGame, ());//6FAAC080
 //E2F(D2Client,0,	BYTE,		D2GetDifficultyLevel, ());//6FAAC090
@@ -863,7 +863,7 @@ void initD2functions()
 	#define A8(X, Z, A,B,C,D,E,F,G,H,I, R, N, P) N = (T##N)R8(Z,A,B,C,D,E,F,G,H,I);
 	#define C8(Z, A,B,C,D,E,F,G,H,I, T, N)       pt##N = (T*)R8(Z,A,B,C,D,E,F,G,H,I);
 
-	#include "../Commons/D2Funcs.h"
+	#include "d2/D2Funcs.h"
 	SgptDataTables = *(DataTables**) R8(D2Common, 0000, 0000, 96A20, 9B74C, 9EE8C, 9B500, 99E1C, A33F0, 344304);
 	if (version_D2Common < V110)
 	{

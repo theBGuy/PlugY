@@ -12,13 +12,13 @@
 
 	Every path is handled as UTF-16: release files have non-ANSI names.
 	Only the work folder (%TEMP%, or %ProgramData%\PlugY4Kolbot for an
-	elevated run) reaches the ANSI Commons API and tar.exe, so it is kept
+	elevated run) reaches the ANSI src/common API and tar.exe, so it is kept
 	ANSI-representable.
 =================================================================*/
 
 #include "UpdaterLogic.h"
-#include "../Commons/UpdateCheck.h"
-#include "../Commons/UpdateDownload.h"
+#include "../common/UpdateCheck.h"
+#include "../common/UpdateDownload.h"
 #include <shellapi.h>
 #include <shlobj.h>
 #include <aclapi.h>

@@ -1,6 +1,6 @@
 /*=================================================================
-	Unit tests for Commons/UpdateCheck and Commons/UpdateDownload.
-	Built and run by build/build.ps1 -Test; exits 1 on any failure.
+	Unit tests for src/common/UpdateCheck and src/common/UpdateDownload.
+	Built and run by scripts/build.ps1 -Test; exits 1 on any failure.
 
 	UpdateCheckTests.exe [--fixtures DIR] [--scratch DIR] [--live]
 
@@ -10,8 +10,8 @@
 	the real GitHub API.
 =================================================================*/
 
-#include "../Commons/UpdateCheck.h"
-#include "../Commons/UpdateDownload.h"
+#include "../src/common/UpdateCheck.h"
+#include "../src/common/UpdateDownload.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

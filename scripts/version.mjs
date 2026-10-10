@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Reads PlugY's version from Commons/PlugYVersion.h. Usage:
+// Reads PlugY's version from src/common/PlugYVersion.h. Usage:
 //   node scripts/version.mjs                    prints PLUGY_VERSION
 //   node scripts/version.mjs --check-tag <tag>  exits 0 only when <tag> is
 //       v<PLUGY_VERSION>, the version is valid semver, and the header's five
@@ -37,10 +37,10 @@ if (checkIdx === -1) {
 const tag = process.argv[checkIdx + 1];
 if (!tag) fail("usage: node scripts/version.mjs --check-tag <tag>");
 const problem = headerProblem(header);
-if (problem) fail(`Commons/PlugYVersion.h: ${problem}`);
+if (problem) fail(`src/common/PlugYVersion.h: ${problem}`);
 if (tag !== `v${header.version}`) {
   fail(
-    `tag '${tag}' does not match Commons/PlugYVersion.h (expected v${header.version})`,
+    `tag '${tag}' does not match src/common/PlugYVersion.h (expected v${header.version})`,
   );
 }
 process.stdout.write(

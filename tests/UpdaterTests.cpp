@@ -1,10 +1,10 @@
 /*=================================================================
-	Unit tests for PlugYUpdate/UpdaterLogic: the updater's decisions
-	that need no I/O. Built and run by build/build.ps1 -Test; exits 1
+	Unit tests for src/updater/UpdaterLogic: the updater's decisions
+	that need no I/O. Built and run by scripts/build.ps1 -Test; exits 1
 	on any failure. Touches no file, registry key or network.
 =================================================================*/
 
-#include "../PlugYUpdate/UpdaterLogic.h"
+#include "../src/updater/UpdaterLogic.h"
 #include <sddl.h>
 #include <stdio.h>
 #include <string.h>

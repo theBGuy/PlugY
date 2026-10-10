@@ -8,13 +8,13 @@
 //#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #include <windows.h>
 
-#include "../Commons/d2Constants.h"
-#include "../Commons/d2BinFile.h"
-#include "../Commons/d2Struct.h"
-#include "../Commons/d2StringTblStruct.h"
-#include "../Commons/D2UnitStruct.h"
-#include "../Commons/updatingConst.h"
-#include "../Commons/VersionInfo.h"
+#include "d2/d2Constants.h"
+#include "d2/d2BinFile.h"
+#include "d2/d2Struct.h"
+#include "d2/d2StringTblStruct.h"
+#include "d2/D2UnitStruct.h"
+#include "d2/updatingConst.h"
+#include "../common/VersionInfo.h"
 
 #include "error.h"
 #include "modifMemory.h"

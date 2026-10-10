@@ -13,10 +13,11 @@ Unicode True
     !define DISPLAY_VERSION "${VERSION}"
   !endif
 !else
-  !searchparse /file "..\Commons\PlugYVersion.h" '#define PLUGY_VERSION "' PLUGY_VERSION '"'
+  !searchparse /file "..\src\common\PlugYVersion.h" '#define PLUGY_VERSION "' PLUGY_VERSION '"'
   !define VERSION "v${PLUGY_VERSION}"
   !define DISPLAY_VERSION "${PLUGY_VERSION}"
 !endif
+; package.ps1 stages the binaries and the contents of game-files\ beside this script.
 !define D2FILES "."
 !define NAME "PlugY4Kolbot"
 ; The pre-rename name keeps keying the registry, so installing over an upstream
@@ -47,7 +48,7 @@ Unicode True
 !define UPDATER_LNK "Check for ${NAME} updates.lnk"
 
 !define MUI_COMPONENTSPAGE_SMALLDESC
-!define MUI_ICON "..\PlugYRun\PlugY.ico"
+!define MUI_ICON "..\src\launcher\PlugY.ico"
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_BITMAP "PlugYInstallerHeader.bmp"
 !define MUI_LANGDLL_REGISTRY_ROOT HKLM

@@ -58,11 +58,11 @@ jobs:
       # no --live, so the job never depends on the GitHub API.
       - name: Build and test (Release, x86)
         shell: pwsh
-        run: pwsh -NoProfile -File build/build.ps1 -Config Release -Test
+        run: pwsh -NoProfile -File scripts/build.ps1 -Config Release -Test
 
       - name: Package release assets
         shell: pwsh
-        run: pwsh -NoProfile -File build/package.ps1
+        run: pwsh -NoProfile -File scripts/package.ps1
 
       - name: Upload packaged build
         uses: actions/upload-artifact@v7 # floating major; v7.0.2 was current on 2026-10-08

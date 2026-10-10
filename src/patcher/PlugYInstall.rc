@@ -1,7 +1,7 @@
 //Script de ressources généré par Microsoft Visual C++.
 //
 #include "resource.h"
-#include "../Commons/PlugYVersion.h"
+#include "../common/PlugYVersion.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////

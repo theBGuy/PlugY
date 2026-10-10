@@ -9,7 +9,7 @@ const verdict = (changedFiles, presentFiles = [], prTitle = "feat: x") =>
   fragmentVerdict({ changedFiles, presentFiles, prTitle });
 
 test("changes outside the shipped directories need no fragment", () => {
-  for (const changed of [[], ["README.md"], ["scripts/release.mjs"], [".github/workflows/x.yml"], ["PlugYish/x.cpp"]]) {
+  for (const changed of [[], ["README.md"], ["scripts/release.mjs"], [".github/workflows/x.yml"], ["tests/UpdaterTests.cpp"], ["srcish/x.cpp"]]) {
     const v = verdict(changed);
     assert.equal(v.required, false, JSON.stringify(changed));
     assert.equal(v.satisfied, true);
@@ -17,7 +17,7 @@ test("changes outside the shipped directories need no fragment", () => {
 });
 
 test("each shipped directory requires a fragment", () => {
-  for (const dir of ["PlugY", "Commons", "PlugYRun", "PlugYInstall", "PlugYUpdate", "PlugYInstaller"]) {
+  for (const dir of ["src/plugy", "src/common", "src/launcher", "src/patcher", "src/updater", "game-files", "installer"]) {
     const v = verdict([`${dir}/file.cpp`]);
     assert.equal(v.required, true, dir);
     assert.equal(v.satisfied, false, dir);
@@ -29,7 +29,7 @@ test("each shipped directory requires a fragment", () => {
 });
 
 test("a top-level fragment on the head commit satisfies it", () => {
-  assert.equal(verdict(["PlugY/a.cpp"], ["changelog.d/fixed-thing.md"]).satisfied, true);
+  assert.equal(verdict(["src/plugy/a.cpp"], ["changelog.d/fixed-thing.md"]).satisfied, true);
   // Nested, misnamed, README and wrong-case directory entries don't count.
   for (const present of [
     "changelog.d/sub/fixed-thing.md",
@@ -37,12 +37,12 @@ test("a top-level fragment on the head commit satisfies it", () => {
     "changelog.d/README.md",
     "Changelog.d/fixed-thing.md",
   ]) {
-    assert.equal(verdict(["PlugY/a.cpp"], [present]).satisfied, false, present);
+    assert.equal(verdict(["src/plugy/a.cpp"], [present]).satisfied, false, present);
   }
 });
 
 test("skip-changelog in the title exempts", () => {
-  const v = verdict(["Commons/x.h"], [], "refactor: tidy (skip-changelog)");
+  const v = verdict(["src/common/x.h"], [], "refactor: tidy (skip-changelog)");
   assert.equal(v.required, false);
   assert.equal(v.satisfied, true);
 });

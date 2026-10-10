@@ -14,7 +14,7 @@ changelog, so write for players and bot operators. Build scripts, CI, and repo
 tooling get **no fragment**.
 
 CI keys on paths, not user impact: the PR check fires on any change under
-`PlugY/`, `Commons/`, `PlugYRun/`, `PlugYInstall/`, `PlugYUpdate/` or `PlugYInstaller/`, so a
+`src/`, `game-files/` or `installer/`, so a
 change there that genuinely needs no fragment (an internal refactor, say) takes
 the `no-changelog` label or `skip-changelog` in the PR title.
 
@@ -70,7 +70,7 @@ quoted game text can keep its own.
   creates the annotated tag, and pushes master and the tag together. Rehearse
   with `--dry-run`; `--help` lists the options.
 - `node scripts/changelog-release.mjs <version>` (maintainers) stamps the version
-  into `Commons/PlugYVersion.h` and the installer files; for a stable version it
+  into `src/common/PlugYVersion.h` and the installer files; for a stable version it
   also assembles the fragments into `CHANGELOG.md` as `## [<version>] - <date>`
   and deletes them.
 - `node scripts/changelog-extract.mjs <tag>` prints the release notes for a tag

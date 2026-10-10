@@ -1,7 +1,7 @@
 name: release
 
 # Cut a PlugY4Kolbot release with the interactive driver:
-#   node scripts/release.mjs       (bumps Commons/PlugYVersion.h, assembles changelog.d/
+#   node scripts/release.mjs       (bumps src/common/PlugYVersion.h, assembles changelog.d/
 #                                   into CHANGELOG.md for a stable release, commits,
 #                                   creates the annotated tag vX.Y.Z or vX.Y.Z-rc.N /
 #                                   -beta.N / -alpha.N, and pushes master + the tag
@@ -48,7 +48,7 @@ jobs:
         with:
           node-version: 24
 
-      # Fails before any build when the tag and Commons/PlugYVersion.h disagree,
+      # Fails before any build when the tag and src/common/PlugYVersion.h disagree,
       # so a mistagged commit can never publish binaries under the wrong version.
       - name: Check the tag matches the version header
         id: tag
@@ -58,7 +58,7 @@ jobs:
         run: |
           $out = @(node scripts/version.mjs --check-tag $env:TAG)
           if ($LASTEXITCODE -ne 0) {
-            Write-Output "::error::Tag $env:TAG is not valid semver or does not equal v<PLUGY_VERSION> from Commons/PlugYVersion.h."
+            Write-Output "::error::Tag $env:TAG is not valid semver or does not equal v<PLUGY_VERSION> from src/common/PlugYVersion.h."
             exit 1
           }
           # The draft step reads prerelease; an unexpected shape must fail here, not publish as stable.
@@ -125,11 +125,11 @@ jobs:
       # A release ships only binaries whose native test suites pass.
       - name: Build and test (Release, x86)
         shell: pwsh
-        run: pwsh -NoProfile -File build/build.ps1 -Config Release -Test
+        run: pwsh -NoProfile -File scripts/build.ps1 -Config Release -Test
 
       - name: Package release assets
         shell: pwsh
-        run: pwsh -NoProfile -File build/package.ps1
+        run: pwsh -NoProfile -File scripts/package.ps1
 
       - name: Attest build provenance
         uses: actions/attest@v4 # floating major; v4.2.2 was current on 2026-10-08

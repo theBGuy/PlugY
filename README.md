@@ -85,8 +85,21 @@ The in-game update check asks api.github.com for the newest release at most once
 ## Contribute
 Bug reports and pull requests are welcome in [this repository](https://github.com/theBGuy/PlugY4Kolbot).
 * **Bugs and ideas:** open an issue with your game version, your `PlugY.ini` settings and the steps that trigger the problem.
-* **Translations:** send a pull request that edits `PlugYInstaller/PlugY/LocalizedStrings.ini`. The file must stay UTF-16LE with its byte-order mark; many editors save as UTF-8 by default, so check the encoding before you commit.
+* **Translations:** send a pull request that edits `game-files/PlugY/LocalizedStrings.ini`. The file must stay UTF-16LE with its byte-order mark; many editors save as UTF-8 by default, so check the encoding before you commit.
 * **Changelog:** give every user-facing change a fragment in `changelog.d/` (see [changelog.d/README.md](changelog.d/README.md)), so it reaches the release notes.
+
+## Repository layout
+* `src/plugy/`: the plugin, `PlugY.dll`. Its `d2/` folder holds the Diablo II structures and function addresses.
+* `src/launcher/`: the `PlugY.exe` launcher.
+* `src/patcher/`: `PatchD2File.exe` and `RestoreD2File.exe`, which make `Game.exe` load PlugY and undo that.
+* `src/updater/`: `PlugY4KolbotUpdater.exe`.
+* `src/common/`: code these programs share, including the version number (`PlugYVersion.h`) and the update check.
+* `game-files/`: the files installed beside the programs: `PlugY.ini`, the `PlugY\` folder and the readmes.
+* `installer/`: the NSIS installer script.
+* `scripts/`: the build, package and release scripts.
+* `tests/`: the native tests.
+* `docs/`: the stash protocol reference.
+* `changelog.d/`: the changelog fragments of the next release.
 
 ## Building from source
 Prerequisites (Windows):
@@ -97,12 +110,12 @@ Prerequisites (Windows):
 
 Build the plugin, the launcher, the updater and the D2 file patcher, then package them:
 ```
-pwsh -NoProfile -File build/build.ps1 -Config Release
-pwsh -NoProfile -File build/package.ps1
+pwsh -NoProfile -File scripts/build.ps1 -Config Release
+pwsh -NoProfile -File scripts/package.ps1
 ```
 Add `-Test` to the build command to also build and run the native test suites (about 30-40 seconds more); it exits non-zero when a test fails, and CI always runs it.
-With only Windows PowerShell 5.1, run the same scripts as `powershell -NoProfile -ExecutionPolicy Bypass -File build/build.ps1` (and likewise for `package.ps1`).
-The first command finds Visual Studio on its own and writes `PlugY.dll`, `PlugY.exe`, `PlugY4KolbotUpdater.exe`, `PatchD2File.exe` and `RestoreD2File.exe` to `build/out/Release/`. The second writes the release assets to `dist/`, named after the version in `Commons/PlugYVersion.h`:
+With only Windows PowerShell 5.1, run the same scripts as `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1` (and likewise for `package.ps1`).
+The first command finds Visual Studio on its own and writes `PlugY.dll`, `PlugY.exe`, `PlugY4KolbotUpdater.exe`, `PatchD2File.exe` and `RestoreD2File.exe` to `build/out/Release/`. The second writes the release assets to `dist/`, named after the version in `src/common/PlugYVersion.h`:
 * `PlugY4Kolbot_v<version>.zip` (the files for a manual or D2Bot/kolbot install, including `PlugY4KolbotUpdater.exe`)
 * `PlugY4Kolbot_v<version>_D2FilePatcher.zip`
 * `PlugY4Kolbot_v<version>_Installer.exe`
@@ -114,6 +127,6 @@ Every push to `master` and every pull request runs the same build in CI, and the
 ## Releasing (maintainers)
 1. Give every user-facing change a changelog fragment in `changelog.d/` (see [changelog.d/README.md](changelog.d/README.md)). Pull requests that change code are checked for one; the `no-changelog` label or `skip-changelog` in the PR title exempts changes users never see.
 2. Run `node scripts/release.mjs` from an up-to-date `master` (add `--dry-run` to rehearse a release first). It bumps the version and, for a stable release, assembles the fragments into `CHANGELOG.md` (a pre-release leaves them pending for the next stable release). Then it commits, creates the tag `vX.Y.Z` (or a pre-release tag such as `vX.Y.Z-rc.N` / `-beta.N`) and pushes `master` and the tag together.
-3. The tag push runs the release workflow, which checks the tag against `Commons/PlugYVersion.h` and that the tagged commit is on `master`, builds every binary and runs the native tests, packages every asset, attests their provenance and creates a **draft** GitHub release with the changelog section as its notes.
+3. The tag push runs the release workflow, which checks the tag against `src/common/PlugYVersion.h` and that the tagged commit is on `master`, builds every binary and runs the native tests, packages every asset, attests their provenance and creates a **draft** GitHub release with the changelog section as its notes.
 4. Review the draft and smoke-test its downloads.
 5. Publish it: `gh release edit vX.Y.Z --draft=false --latest` for a stable release, or `gh release edit vX.Y.Z-rc.N --draft=false` for a pre-release.

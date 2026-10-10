@@ -6,7 +6,7 @@
 =================================================================*/
 #pragma once
 
-#include "../Commons/PlugYVersion.h"
+#include "../common/PlugYVersion.h"
 
 enum TargetMod
 {
@@ -22,7 +22,7 @@ extern char* dllFilenames;
 extern bool active_D2Mod;
 extern TargetMod selectModParam;
 extern bool active_CheckForUpdates;
-extern int updateChannel;	// eUpdateChannel (Commons/UpdateCheck.h)
+extern int updateChannel;	// eUpdateChannel (src/common/UpdateCheck.h)
 
 void loadParameters();
 

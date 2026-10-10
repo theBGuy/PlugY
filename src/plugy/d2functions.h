@@ -60,7 +60,7 @@ extern s_shifting shifting;
 #define A8(X, Z, A,B,C,D,E,F,G,H,I, R, N, P) typedef R (X##CALL  *T##N) P; extern T##N N;
 #define C8(Z, A,B,C,D,E,F,G,H,I, T, N)       extern T* pt##N;
 
-#include "../Commons/D2Funcs.h"
+#include "d2/D2Funcs.h"
 extern DataTables* SgptDataTables;
 //ONLY UNTIL 1.10 :
 //E2F(D2Client,0,	DWORD,		D2isLODGame, ());

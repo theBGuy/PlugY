@@ -7,9 +7,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FRAGMENT_RE } from "./changelog-lib.mjs";
 
-// The directories whose changes reach players: the DLL, its shared headers,
-// the launcher, the patcher, the updater, and the installer's files.
-export const SHIPPED_DIR_RE = /^(PlugY|Commons|PlugYRun|PlugYInstall|PlugYUpdate|PlugYInstaller)\//;
+// The directories whose changes reach players: every program's source (src/),
+// the files installed beside them (game-files/) and the installer (installer/).
+export const SHIPPED_DIR_RE = /^(src|game-files|installer)\//;
 
 export function fragmentVerdict({ changedFiles, presentFiles, prTitle }) {
   if (
@@ -27,7 +27,7 @@ export function fragmentVerdict({ changedFiles, presentFiles, prTitle }) {
       required: false,
       satisfied: true,
       reason:
-        "No PlugY/, Commons/, PlugYRun/, PlugYInstall/, PlugYUpdate/ or PlugYInstaller/ changes; fragment not required.",
+        "No src/, game-files/ or installer/ changes; fragment not required.",
     };
   }
   // Stay in sync with changelog-draft.mjs through its shared FRAGMENT_RE.
@@ -57,7 +57,7 @@ export function fragmentVerdict({ changedFiles, presentFiles, prTitle }) {
     required: true,
     satisfied: false,
     reason: [
-      "::error::This PR changes PlugY/, Commons/, PlugYRun/, PlugYInstall/, PlugYUpdate/ or PlugYInstaller/ but adds no changelog.d/ fragment.",
+      "::error::This PR changes src/, game-files/ or installer/ but adds no changelog.d/ fragment.",
       "A fragment DELETED by this PR doesn't count; only fragments present on the head commit do.",
       "Add changelog.d/<added|changed|fixed>-<slug>.md (see changelog.d/README.md),",
       "or add the 'no-changelog' label / put 'skip-changelog' in the PR title.",

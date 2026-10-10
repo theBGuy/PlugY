@@ -10,7 +10,7 @@
 #include "extraOptions.h"
 #include "windowed.h"
 #include "common.h"
-#include "../Commons/UpdateCheck.h"
+#include "../common/UpdateCheck.h"
 #include <stdio.h>
 #include <string.h>
 

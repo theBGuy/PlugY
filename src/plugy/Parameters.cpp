@@ -38,7 +38,7 @@ const char* PARAM_DEFAULT_FILENAME = "PlugY\\PlugYDefault.ini";
 #include "language.h"
 #include "windowed.h"
 #include "savePlayerData.h"
-#include "../Commons/UpdateCheck.h"
+#include "../common/UpdateCheck.h"
 
 
 char* modDataDirectory = "PlugY";

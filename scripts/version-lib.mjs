@@ -1,4 +1,4 @@
-// PlugY's version model and the files that carry it. Commons/PlugYVersion.h is
+// PlugY's version model and the files that carry it. src/common/PlugYVersion.h is
 // the single source for the binaries; the 8 installer text files repeat the
 // version in their `;...;` banner box. changelog-release.mjs stamps both, and
 // release.mjs commits exactly STAMPED_FILES (+ the changelog on a stable
@@ -15,7 +15,7 @@ export const SEMVER_RE =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc)\.(0|[1-9]\d*))?$/;
 
 // The main menu prints the version on its own line of a fixed-width text box, under
-// "PlugY4Kolbot", and a static_assert in PlugY/MainScreen.cpp enforces the same bound at build time.
+// "PlugY4Kolbot", and a static_assert in src/plugy/MainScreen.cpp enforces the same bound at build time.
 export const MAX_VERSION_LENGTH = 13;
 
 /** Why `v` can't be a release version, or null when it can. */
@@ -24,7 +24,7 @@ export function versionProblem(v) {
     return `'${v}' is not a valid version: use X.Y.Z or X.Y.Z-alpha.N, -beta.N, -rc.N`;
   }
   if (v.length > MAX_VERSION_LENGTH) {
-    return `'${v}' is ${v.length} characters, over the ${MAX_VERSION_LENGTH}-character limit: the main menu prints the version on its own line of a fixed-width text box, and a static_assert in PlugY/MainScreen.cpp enforces the same limit`;
+    return `'${v}' is ${v.length} characters, over the ${MAX_VERSION_LENGTH}-character limit: the main menu prints the version on its own line of a fixed-width text box, and a static_assert in src/plugy/MainScreen.cpp enforces the same limit`;
   }
   return null;
 }
@@ -279,9 +279,9 @@ export function latestSemverTag(tagListOutput, { stableOnly = false } = {}) {
 export const commitBase = ({ tagListOutput, describeTag }) =>
   latestSemverTag(tagListOutput, { stableOnly: true }) ?? describeTag ?? null;
 
-// --- Commons/PlugYVersion.h ---------------------------------------------------
+// --- src/common/PlugYVersion.h ------------------------------------------------
 
-export const HEADER_PATH = "Commons/PlugYVersion.h";
+export const HEADER_PATH = "src/common/PlugYVersion.h";
 
 // Line-anchored (m flag), so `$` stops before the CRLF's \r and it survives.
 const HEADER_LINES = {
@@ -369,14 +369,14 @@ export function writeHeaderFile(root, text) {
 
 // latin1 keeps the cp1252/ASCII files byte-exact; utf16le files open with FF FE.
 export const BANNER_FILES = [
-  { path: "PlugYInstaller/PlugY.ini", encoding: "latin1" },
-  { path: "PlugYInstaller/PlugY/PlugYDefault.ini", encoding: "latin1" },
-  { path: "PlugYInstaller/PlugY/PlugYFixed.ini", encoding: "latin1" },
-  { path: "PlugYInstaller/PlugY_The_Survival_Kit_-_Readme.txt", encoding: "latin1" },
-  { path: "PlugYInstaller/PlugY_The_Survival_Kit_-_LisezMoi.txt", encoding: "latin1" },
-  { path: "PlugYInstaller/PlugY_The_Survival_Kit_-_Liesmich.txt", encoding: "latin1" },
-  { path: "PlugYInstaller/PlugY/LocalizedStrings.ini", encoding: "utf16le" },
-  { path: "PlugYInstaller/PlugY_The_Survival_Kit_-_讀我檔案.txt", encoding: "utf16le" },
+  { path: "game-files/PlugY.ini", encoding: "latin1" },
+  { path: "game-files/PlugY/PlugYDefault.ini", encoding: "latin1" },
+  { path: "game-files/PlugY/PlugYFixed.ini", encoding: "latin1" },
+  { path: "game-files/PlugY_The_Survival_Kit_-_Readme.txt", encoding: "latin1" },
+  { path: "game-files/PlugY_The_Survival_Kit_-_LisezMoi.txt", encoding: "latin1" },
+  { path: "game-files/PlugY_The_Survival_Kit_-_Liesmich.txt", encoding: "latin1" },
+  { path: "game-files/PlugY/LocalizedStrings.ini", encoding: "utf16le" },
+  { path: "game-files/PlugY_The_Survival_Kit_-_讀我檔案.txt", encoding: "utf16le" },
 ];
 
 /** Every file a release stamps: changelog-release.mjs writes these, release.mjs commits them. */

@@ -6,7 +6,7 @@
     Downloads nsis-<version>.zip from SourceForge, refuses it unless its SHA256
     matches the pin below, extracts it and checks that its makensis reports the
     pinned version. Under GitHub Actions the folder holding makensis.exe goes to
-    the front of PATH for the later steps, where build/package.ps1 finds it;
+    the front of PATH for the later steps, where scripts/package.ps1 finds it;
     elsewhere the folder is only printed.
 
 .PARAMETER Destination

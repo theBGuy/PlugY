@@ -378,11 +378,11 @@ async function main() {
   }
   const currentVersion = header.version;
   if (versionProblem(currentVersion)) {
-    abort(`Commons/PlugYVersion.h: ${versionProblem(currentVersion)}`);
+    abort(`src/common/PlugYVersion.h: ${versionProblem(currentVersion)}`);
   }
   const headerIssue = headerProblem(header);
   if (headerIssue) {
-    warn(`Commons/PlugYVersion.h: ${headerIssue} (the release rewrites all five lines)`);
+    warn(`src/common/PlugYVersion.h: ${headerIssue} (the release rewrites all five lines)`);
   }
 
   const latestTag = latestSemverTag(git("tag", "--list", "v*"));
@@ -392,7 +392,7 @@ async function main() {
   );
   if (latestTag && `v${currentVersion}` !== latestTag) {
     warn(
-      `Commons/PlugYVersion.h (v${currentVersion}) and the latest tag (${latestTag}) disagree; suggestions use the header version`,
+      `src/common/PlugYVersion.h (v${currentVersion}) and the latest tag (${latestTag}) disagree; suggestions use the header version`,
     );
   }
 

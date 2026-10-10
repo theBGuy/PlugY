@@ -71,59 +71,59 @@ Get-ChildItem Env: | ForEach-Object { $SavedEnv[$_.Name] = $_.Value }
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $OutName = $Config
 if ($Define.Count) { $OutName += '-' + (($Define | ForEach-Object { $_.Replace('=', '_') }) -join '-') }
-$OutDir = Join-Path (Join-Path $PSScriptRoot 'out') $OutName
+$OutDir = Join-Path (Join-Path $RepoRoot 'build\out') $OutName
 $ObjRoot = Join-Path $OutDir 'obj'
 $LogFile = Join-Path $OutDir 'build.log'
 
 # Every source of PlugY.dll. An explicit list (not a glob), so a stray .cpp in
-# PlugY/ never joins the build and the order, which sets the link order, is stable.
+# src/plugy/ never joins the build and the order, which sets the link order, is stable.
 $DllSources = @(
-    'PlugY\BigStash.cpp'
-    'PlugY\ClientSaveFile.cpp'
-    'PlugY\Commands.cpp'
-    'PlugY\Common.cpp'
-    'PlugY\CustomLibraries.cpp'
-    'PlugY\D2functions.cpp'
-    'PlugY\D2wrapper.cpp'
-    'PlugY\Error.cpp'
-    'PlugY\ExtendedSaveFile.cpp'
-    'PlugY\ExtraOptions.cpp'
-    'PlugY\GlobalVariable.cpp'
-    'PlugY\InfinityStash.cpp'
-    'PlugY\INIfile.cpp'
-    'PlugY\Interface_Skills.cpp'
-    'PlugY\Interface_Stash.cpp'
-    'PlugY\Interface_Stats.cpp'
-    'PlugY\Language.cpp'
-    'PlugY\LoadPlayerData.cpp'
-    'PlugY\LocalizedStrings.cpp'
-    'PlugY\MainScreen.cpp'
-    'PlugY\ModifMemory.cpp'
-    'PlugY\NewInterface_CubeListing.cpp'
-    'PlugY\NewInterface_Runewords.cpp'
-    'PlugY\NewInterface_Stats.cpp'
-    'PlugY\NewInterface_StatsPageTwo.cpp'
-    'PlugY\NewInterfaces.cpp'
-    'PlugY\OthersFeatures.cpp'
-    'PlugY\Parameters.cpp'
-    'PlugY\PlayerCustomData.cpp'
-    'PlugY\PlugY.cpp'
-    'PlugY\PlugYFiles.cpp'
-    'PlugY\SavePath.cpp'
-    'PlugY\SavePlayerData.cpp'
-    'PlugY\SharedSaveFile.cpp'
-    'PlugY\SkillPerLevelUp.cpp'
-    'PlugY\SkillsPoints.cpp'
-    'PlugY\StashProtocol.cpp'
-    'PlugY\StatPerLevelUp.cpp'
-    'PlugY\StatsPoints.cpp'
-    'PlugY\UberQuest.cpp'
-    'PlugY\UpdateClient.cpp'
-    'PlugY\UpdateServer.cpp'
-    'PlugY\Windowed.cpp'
-    'PlugY\WorldEvent.cpp'
-    'Commons\VersionInfo.cpp'
-    'Commons\UpdateCheck.cpp'
+    'src\plugy\BigStash.cpp'
+    'src\plugy\ClientSaveFile.cpp'
+    'src\plugy\Commands.cpp'
+    'src\plugy\Common.cpp'
+    'src\plugy\CustomLibraries.cpp'
+    'src\plugy\D2functions.cpp'
+    'src\plugy\D2wrapper.cpp'
+    'src\plugy\Error.cpp'
+    'src\plugy\ExtendedSaveFile.cpp'
+    'src\plugy\ExtraOptions.cpp'
+    'src\plugy\GlobalVariable.cpp'
+    'src\plugy\InfinityStash.cpp'
+    'src\plugy\INIfile.cpp'
+    'src\plugy\Interface_Skills.cpp'
+    'src\plugy\Interface_Stash.cpp'
+    'src\plugy\Interface_Stats.cpp'
+    'src\plugy\Language.cpp'
+    'src\plugy\LoadPlayerData.cpp'
+    'src\plugy\LocalizedStrings.cpp'
+    'src\plugy\MainScreen.cpp'
+    'src\plugy\ModifMemory.cpp'
+    'src\plugy\NewInterface_CubeListing.cpp'
+    'src\plugy\NewInterface_Runewords.cpp'
+    'src\plugy\NewInterface_Stats.cpp'
+    'src\plugy\NewInterface_StatsPageTwo.cpp'
+    'src\plugy\NewInterfaces.cpp'
+    'src\plugy\OthersFeatures.cpp'
+    'src\plugy\Parameters.cpp'
+    'src\plugy\PlayerCustomData.cpp'
+    'src\plugy\PlugY.cpp'
+    'src\plugy\PlugYFiles.cpp'
+    'src\plugy\SavePath.cpp'
+    'src\plugy\SavePlayerData.cpp'
+    'src\plugy\SharedSaveFile.cpp'
+    'src\plugy\SkillPerLevelUp.cpp'
+    'src\plugy\SkillsPoints.cpp'
+    'src\plugy\StashProtocol.cpp'
+    'src\plugy\StatPerLevelUp.cpp'
+    'src\plugy\StatsPoints.cpp'
+    'src\plugy\UberQuest.cpp'
+    'src\plugy\UpdateClient.cpp'
+    'src\plugy\UpdateServer.cpp'
+    'src\plugy\Windowed.cpp'
+    'src\plugy\WorldEvent.cpp'
+    'src\common\VersionInfo.cpp'
+    'src\common\UpdateCheck.cpp'
 )
 
 function Write-Log([string]$Text) {
@@ -280,7 +280,7 @@ try {
     $OptFlags = if ($Release) { @('/O2', '/Oi', '/GL', '/Gy', '/Zi', $CrtFlag) } else { @('/Od', '/RTC1', '/ZI', $CrtFlag) }
     $OptLink = if ($Release) { @('/INCREMENTAL:NO', '/OPT:REF', '/OPT:ICF', '/LTCG') } else { @('/INCREMENTAL') }
 
-    # The VS2008 default library set; one that nothing uses adds no import. The Commons
+    # The VS2008 default library set; one that nothing uses adds no import. The src/common
     # sources also pull their own via #pragma comment (Version, winhttp, bcrypt).
     $Libs = @('kernel32.lib', 'user32.lib', 'gdi32.lib', 'winspool.lib', 'comdlg32.lib',
               'advapi32.lib', 'shell32.lib', 'ole32.lib', 'oleaut32.lib', 'uuid.lib',
@@ -294,13 +294,13 @@ try {
     $Dll = @{
         Key       = 'dll'
         Sources   = $DllSources
-        Rc        = 'PlugY\PlugY.rc'
+        Rc        = 'src\plugy\PlugY.rc'
         Out       = 'PlugY.dll'
         Pdb       = 'PlugY.pdb'
         ClFlags   = @('/nologo', '/c', '/W3', '/EHsc', '/Gd', '/arch:IA32', '/Zc:threadSafeInit-') + $OptFlags
         Defines   = @($NDebug, 'WIN32', '_WINDOWS', '_CRT_NON_CONFORMING_SWPRINTFS', '_CRT_SECURE_NO_WARNINGS',
                       '_USRDLL', 'PLUGY_EXPORTS', '_WINDLL', '_MBCS') + $Define
-        RcFlags   = @('/d', '_MBCS', '/l', '0x409', '/i', (Join-Path $RepoRoot 'PlugY'))
+        RcFlags   = @('/d', '_MBCS', '/l', '0x409', '/i', (Join-Path $RepoRoot 'src\plugy'))
         LinkFlags = @('/NOLOGO', '/DLL', '/SUBSYSTEM:WINDOWS', '/MACHINE:X86', '/DEBUG',
                       '/DYNAMICBASE', '/NXCOMPAT', '/MANIFEST:EMBED') + $OptLink
         LinkExtra = @(('/MAP:' + (Join-Path $OutDir 'PlugY.map')),
@@ -309,15 +309,15 @@ try {
     }
 
     # The three EXEs keep the compiler's default /arch and thread-safe statics: none of
-    # their compiled code runs inside Game.exe (PlugYRun injects hand-assembled bytes).
+    # their compiled code runs inside Game.exe (the launcher injects hand-assembled bytes).
     $ExeCl = @('/nologo', '/c', '/W3', '/EHsc') + $OptFlags
     $ExeLink = @('/NOLOGO', '/SUBSYSTEM:WINDOWS', '/MACHINE:X86', '/DEBUG') + $OptLink +
                @('/DYNAMICBASE', '/NXCOMPAT', '/MANIFEST:EMBED', "/MANIFESTUAC:level='asInvoker'")
     $ExeRc = @('/d', '_MBCS', '/d', $NDebug, '/l', '0x409')
     $Run = @{
         Key       = 'run'
-        Sources   = @('PlugYRun\PlugYRun.cpp', 'Commons\VersionInfo.cpp')
-        Rc        = 'PlugYRun\PlugYRun.rc'
+        Sources   = @('src\launcher\PlugYRun.cpp', 'src\common\VersionInfo.cpp')
+        Rc        = 'src\launcher\PlugYRun.rc'
         Out       = 'PlugY.exe'
         Pdb       = 'PlugYRun.pdb'
         ClFlags   = $ExeCl
@@ -332,8 +332,8 @@ try {
     # System32, and 0x800 (LOAD_LIBRARY_SEARCH_SYSTEM32) covers the static imports.
     $Patch = @{
         Key       = 'patch'
-        Sources   = @('PlugYInstall\PlugYInstall.cpp', 'Commons\VersionInfo.cpp')
-        Rc        = 'PlugYInstall\PlugYInstall.rc'
+        Sources   = @('src\patcher\PlugYInstall.cpp', 'src\common\VersionInfo.cpp')
+        Rc        = 'src\patcher\PlugYInstall.rc'
         Out       = 'PatchD2File.exe'
         Pdb       = 'PatchD2File.pdb'
         ClFlags   = $ExeCl
@@ -358,9 +358,9 @@ try {
     # Windows from virtualizing its writes to Program Files; it elevates itself when needed.
     $Update = @{
         Key       = 'update'
-        Sources   = @('PlugYUpdate\PlugYUpdate.cpp', 'PlugYUpdate\UpdaterLogic.cpp',
-                      'Commons\UpdateCheck.cpp', 'Commons\UpdateDownload.cpp')
-        Rc        = 'PlugYUpdate\PlugYUpdate.rc'
+        Sources   = @('src\updater\PlugYUpdate.cpp', 'src\updater\UpdaterLogic.cpp',
+                      'src\common\UpdateCheck.cpp', 'src\common\UpdateDownload.cpp')
+        Rc        = 'src\updater\PlugYUpdate.rc'
         Out       = 'PlugY4KolbotUpdater.exe'
         Pdb       = 'PlugY4KolbotUpdater.pdb'
         ClFlags   = @('/nologo', '/c', '/W3', '/EHsc') + $StaticOpt
@@ -382,7 +382,7 @@ try {
         New-Item -ItemType Directory -Force -Path (Join-Path $OutDir 'tests') | Out-Null
         $Tests = @{
             Key       = 'tests'
-            Sources   = @('tests\UpdateCheckTests.cpp', 'Commons\UpdateCheck.cpp', 'Commons\UpdateDownload.cpp')
+            Sources   = @('tests\UpdateCheckTests.cpp', 'src\common\UpdateCheck.cpp', 'src\common\UpdateDownload.cpp')
             Rc        = $null
             Out       = 'tests\UpdateCheckTests.exe'
             Pdb       = 'tests\UpdateCheckTests.pdb'
@@ -395,7 +395,7 @@ try {
         Build-Target $Tests
         $UpdaterTests = @{
             Key       = 'updtests'
-            Sources   = @('tests\UpdaterTests.cpp', 'PlugYUpdate\UpdaterLogic.cpp')
+            Sources   = @('tests\UpdaterTests.cpp', 'src\updater\UpdaterLogic.cpp')
             Rc        = $null
             Out       = 'tests\UpdaterTests.exe'
             Pdb       = 'tests\UpdaterTests.pdb'
