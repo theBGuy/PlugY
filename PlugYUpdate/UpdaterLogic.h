@@ -67,6 +67,56 @@ int UpdaterElevationAction(DWORD probeError, bool elevated);
 int UpdaterRelaunchFailedOutcome(DWORD error);
 
 
+/*-------------------------------- Layout -------------------------------*/
+enum eUpdaterLayout
+{
+	UPDATER_LAYOUT_NONE = 0,	// no install found
+	UPDATER_LAYOUT_ZIP,			// the updater's folder holds PlugY.dll: files are replaced one by one
+	UPDATER_LAYOUT_INSTALLER	// an install the installer made: the new installer runs for it
+};
+
+/* listed: the installer's Installs list (install folder -> Diablo II folder) names the updater's
+   folder, and that Diablo II folder holds PlugY.dll. registered: the installer's single older record
+   (InstallPath, PlugYDllPath) does, which names only the install that ran last. An install the
+   installer made goes through the installer even with PlugY.dll beside the updater, which also
+   brings its uninstaller and Add/Remove Programs entry up to date. */
+int UpdaterChooseLayout(bool listed, bool dllBeside, bool registered);
+
+/* The installer's command line for a silent update of one install:
+   /S /D2="<d2Dir>" /D=<installDir>. NSIS wants /D= last and unquoted, and reads no option after it.
+   Both strings are the installer's registry values as stored, since they key its other records. False
+   (out "") when a string is empty, holds a quote or a control character, d2Dir holds " /" (NSIS would
+   read an option inside it), or out is too small. */
+bool UpdaterBuildInstallerArgs(const wchar_t* d2Dir, const wchar_t* installDir, wchar_t* out, DWORD maxChars);
+
+
+/*--------------------------- Installed version -------------------------*/
+/* Which file's version is the install's. Two installs of one Diablo II folder share its PlugY.dll,
+   and updating either replaces it under the other, whose own PlugY.exe still tells its version: the
+   older of the two decides. exeVsDll is UpdateCompareVersions(exe, dll), read only when both are
+   semver. A version that is not semver (upstream PlugY's, or none) is never up to date. */
+enum eUpdaterInstalled
+{
+	UPDATER_INSTALLED_DLL = 0,		// PlugY.dll's: no PlugY.exe, or one as new or newer
+	UPDATER_INSTALLED_EXE,			// PlugY.exe's, older than PlugY.dll's
+	UPDATER_INSTALLED_DLL_UNKNOWN,	// PlugY.dll's is not semver
+	UPDATER_INSTALLED_EXE_UNKNOWN	// PlugY.exe's is not semver, or could not be read
+};
+int UpdaterInstalledVersion(bool dllSemver, bool exePresent, bool exeSemver, int exeVsDll);
+
+/* What to do once the newest release is known. latestVsInstalled and latestVsDll are
+   UpdateCompareVersions(latest, installed) and (latest, PlugY.dll), read only when that version is
+   semver. A release older than the shared PlugY.dll (another install of the folder, on another update
+   channel) is refused: installing it would put the older DLL back under that install. */
+enum eUpdaterOffer
+{
+	UPDATER_OFFER_UP_TO_DATE = 0,
+	UPDATER_OFFER_SHARED_DLL_NEWER,
+	UPDATER_OFFER_UPDATE
+};
+int UpdaterOffer(bool installedSemver, int latestVsInstalled, bool dllSemver, int latestVsDll);
+
+
 /*-------------------------------- Paths --------------------------------*/
 /* True when rel (separators '\' or '/') names something inside its base: not
    empty, not rooted (\x, /x, \\server), no ':' (drive letters and alternate
@@ -152,9 +202,11 @@ typedef struct
 	bool yes;
 	bool prerelease;
 	bool registryOff;
+	const wchar_t* registryBase;
 	const wchar_t* workBase;
 	const wchar_t* target;
 	const wchar_t* fromZip;
+	const wchar_t* fromInstaller;
 	const wchar_t* sums;
 	const char* version;		// --version (offline), ASCII
 	const char* expectVersion;	// the release the user confirmed (online), ASCII

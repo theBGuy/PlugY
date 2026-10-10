@@ -5,8 +5,10 @@
 	release. Zip layout (PlugY.dll beside the updater): verifies the
 	release zip, extracts it with Windows' tar.exe and replaces the
 	files one by one, keeping the user's PlugY.ini and backing up
-	everything it replaces. Installer layout (the NSIS install folder):
-	verifies and runs the release installer. printUsage has the options.
+	everything it replaces. Installer layout (an install the NSIS
+	installer made, found by its folder in the installer's records):
+	verifies the release installer and runs it silently for that
+	install. printUsage has the options.
 
 	Every path is handled as UTF-16: release files have non-ANSI names.
 	Only the work folder (%TEMP%, or %ProgramData%\PlugY4Kolbot for an
@@ -30,7 +32,12 @@
 #pragma comment(lib, "version.lib")
 #pragma comment(lib, "bcrypt.lib")
 
-#define INSTALLER_REGKEY L"SOFTWARE\\PlugY, The Survival Kit"
+/* The installer's records, under HKEY_LOCAL_MACHINE\SOFTWARE in the 32-bit view (or the test-only
+   --registry-base). REGKEY names only the install that ran last; INSTALLS lists every install by its
+   folder, with its Diablo II folder. */
+#define INSTALLER_REGKEY L"PlugY, The Survival Kit"
+#define INSTALLER_INSTALLS_KEY L"PlugY4Kolbot\\Installs"
+#define REGISTRY_BASE_MAX 256
 #define RELEASES_URL "https://github.com/" PLUGY_UPDATE_REPO "/releases"
 #define BACKUP_FOLDER L"PlugY4Kolbot-backup"
 #define BACKUPS_KEPT 3
@@ -56,9 +63,11 @@ typedef struct
 	bool prerelease;
 	bool registryOff;
 	bool elevated;
+	wchar_t registryBase[REGISTRY_BASE_MAX];	// test-only: the installer's records under HKCU\<this> instead
 	wchar_t workBase[MAX_PATH];	// test-only: the elevated work folder's code path, rooted here instead of %ProgramData%
 	wchar_t target[MAX_PATH];
 	wchar_t fromZip[MAX_PATH];
+	wchar_t fromInstaller[MAX_PATH];
 	wchar_t sums[MAX_PATH];
 	char version[UPDATE_TAG_MAX];
 	char expectVersion[UPDATE_TAG_MAX];	// internal (--expect-version): set by the copy that asked for elevation
@@ -67,11 +76,12 @@ typedef struct
 typedef struct
 {
 	bool installerLayout;
-	wchar_t dir[MAX_PATH];		// zip layout: everything; installer layout: InstallPath (PlugY.exe, PlugY.ini)
+	wchar_t dir[MAX_PATH];		// zip layout: everything; installer layout: the install folder (PlugY.exe, PlugY.ini)
 	wchar_t dllDir[MAX_PATH];	// the folder of PlugY.dll; the same as dir for the zip layout
 	wchar_t dll[MAX_PATH];
 	wchar_t exe[MAX_PATH];
 	wchar_t ini[MAX_PATH];
+	wchar_t installArgs[2 * MAX_PATH + 32];	// installer layout: the installer's command line for this install
 } Target;
 
 typedef struct
@@ -104,6 +114,12 @@ static HANDLE heldWorkDir = INVALID_HANDLE_VALUE;	// the work folder, open witho
 static wchar_t createdDirs[MAX_CREATED_DIRS][MAX_PATH];	// folders the apply step created in the target
 static DWORD nbCreatedDirs = 0;
 static bool relaunched = false;
+
+// --from-zip or --from-installer: the package is a local file, "" for a download.
+static const wchar_t* localPackage(const Options* o)
+{
+	return o->fromZip[0] ? o->fromZip : o->fromInstaller;
+}
 
 
 /*============================= Output ============================*/
@@ -170,10 +186,11 @@ static void printUsage()
 {
 	say(L"PlugY4Kolbot updater %hs\n"
 		L"\n"
-		L"Updates the PlugY4Kolbot files in the folder this program is in (the folder\n"
-		L"that holds PlugY.dll) to the newest release on GitHub. Your PlugY.ini is kept,\n"
-		L"and every file it replaces is first backed up under PlugY4Kolbot-backup\\.\n"
-		L"For an installer install, it downloads and runs the new installer instead.\n"
+		L"Updates the PlugY4Kolbot install this program is in to the newest release on\n"
+		L"GitHub, keeping your PlugY.ini. For an install the installer made, it downloads\n"
+		L"the new installer and runs it for that install, without its pages. Otherwise it\n"
+		L"replaces the files in its own folder (the one that holds PlugY.dll), backing up\n"
+		L"each one under PlugY4Kolbot-backup\\ first.\n"
 		L"\n"
 		L"Usage: PlugY4KolbotUpdater.exe [--check] [--yes] [--prerelease]\n"
 		L"\n"
@@ -185,9 +202,13 @@ static void printUsage()
 		L"\n"
 		L"Test options:\n"
 		L"  --target <dir>   Update <dir> (a folder that holds PlugY.dll) instead.\n"
-		L"  --registry-off   Ignore the installer's registry entry.\n"
+		L"  --registry-off   Ignore the installer's registry entries.\n"
+		L"  --registry-base <key>  Read the installer's registry entries under\n"
+		L"                   HKEY_CURRENT_USER\\<key> instead of HKEY_LOCAL_MACHINE\\SOFTWARE.\n"
 		L"  --from-zip <zip> --sums <SHA256SUMS.txt> --version <V>\n"
 		L"                   Install a local release zip instead of downloading one.\n"
+		L"  --from-installer <exe> --sums <SHA256SUMS.txt> --version <V>\n"
+		L"                   Run a local release installer instead (installer installs).\n"
 		L"  --work-base <dir>  Make the work folder as an elevated run does, but in\n"
 		L"                   <dir>\\PlugY4Kolbot instead of %%ProgramData%%\\PlugY4Kolbot.\n"
 		L"\n"
@@ -531,17 +552,59 @@ static bool readRegString(HKEY key, const wchar_t* name, wchar_t* out, DWORD max
 	return out[0] != 0;
 }
 
-// The NSIS installer's InstallPath and PlugYDllPath (32-bit view, where it writes them).
-static bool readInstallerRegistry(wchar_t* installPath, wchar_t* dllPath)
+// sub is INSTALLER_REGKEY or INSTALLER_INSTALLS_KEY.
+static bool openInstallerKey(const Options* o, const wchar_t* sub, HKEY* key)
+{
+	wchar_t path[REGISTRY_BASE_MAX + 64];
+	int n = o->registryBase[0] ? _snwprintf(path, REGISTRY_BASE_MAX + 64, L"%ls\\%ls", o->registryBase, sub)
+		: _snwprintf(path, REGISTRY_BASE_MAX + 64, L"SOFTWARE\\%ls", sub);
+	if (n < 0 || n >= REGISTRY_BASE_MAX + 64)
+		return false;
+	if (o->registryBase[0])
+		return RegOpenKeyExW(HKEY_CURRENT_USER, path, 0, KEY_QUERY_VALUE, key) == ERROR_SUCCESS;
+	return RegOpenKeyExW(HKEY_LOCAL_MACHINE, path, 0, KEY_QUERY_VALUE | KEY_WOW64_32KEY, key) == ERROR_SUCCESS;
+}
+
+/* The install that ran last (InstallPath) and its Diablo II folder (PlugYDllPath), as stored (raw*)
+   and in canonical form. */
+static bool readInstallerRegistry(const Options* o, wchar_t* rawInstall, wchar_t* rawD2, wchar_t* installPath, wchar_t* dllPath)
 {
 	HKEY key;
-	if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, INSTALLER_REGKEY, 0, KEY_QUERY_VALUE | KEY_WOW64_32KEY, &key) != ERROR_SUCCESS)
+	if (!openInstallerKey(o, INSTALLER_REGKEY, &key))
 		return false;
-	wchar_t raw[MAX_PATH];
-	bool ok = readRegString(key, L"InstallPath", raw, MAX_PATH) && canonicalPath(raw, installPath)
-		&& readRegString(key, L"PlugYDllPath", raw, MAX_PATH) && canonicalPath(raw, dllPath);
+	bool ok = readRegString(key, L"InstallPath", rawInstall, MAX_PATH) && canonicalPath(rawInstall, installPath)
+		&& readRegString(key, L"PlugYDllPath", rawD2, MAX_PATH) && canonicalPath(rawD2, dllPath);
 	RegCloseKey(key);
 	return ok;
+}
+
+/* The Installs entry of the install in selfDir whose Diablo II folder holds PlugY.dll: both folders
+   as stored (raw*), and the Diablo II folder in canonical form. */
+static bool findListedInstall(const Options* o, const wchar_t* selfDir, wchar_t* rawInstall, wchar_t* rawD2, wchar_t* d2Dir)
+{
+	HKEY key;
+	if (!openInstallerKey(o, INSTALLER_INSTALLS_KEY, &key))
+		return false;
+	bool found = false;
+	for (DWORD i = 0; !found; i++)
+	{
+		DWORD nameChars = MAX_PATH;
+		DWORD type = 0;
+		DWORD bytes = (MAX_PATH - 1) * sizeof(wchar_t);
+		LONG res = RegEnumValueW(key, i, rawInstall, &nameChars, NULL, &type, (BYTE*)rawD2, &bytes);
+		// ERROR_MORE_DATA: a name or folder too long to be a usable path.
+		if (res == ERROR_MORE_DATA || (res == ERROR_SUCCESS && type != REG_SZ))
+			continue;
+		if (res != ERROR_SUCCESS)
+			break;
+		rawD2[bytes / sizeof(wchar_t)] = 0;
+		wchar_t installDir[MAX_PATH];
+		wchar_t dll[MAX_PATH];
+		found = canonicalPath(rawInstall, installDir) && UpdaterSamePath(installDir, selfDir)
+			&& canonicalPath(rawD2, d2Dir) && pathJoin(dll, d2Dir, L"PlugY.dll") && fileExists(dll);
+	}
+	RegCloseKey(key);
+	return found;
 }
 
 static bool fillTargetFiles(Target* t)
@@ -573,17 +636,39 @@ static bool detectTarget(const Options* o, Target* t)
 		fail(L"The path %ls is too long.\n", selfDir);
 		return false;
 	}
-	if (fileExists(t->dll))
-		return true;
 
-	wchar_t installPath[MAX_PATH];
-	wchar_t dllPath[MAX_PATH];
-	if (!o->registryOff && readInstallerRegistry(installPath, dllPath) && UpdaterSamePath(installPath, selfDir))
+	wchar_t rawInstall[MAX_PATH];
+	wchar_t rawD2[MAX_PATH];
+	wchar_t d2Dir[MAX_PATH];
+	bool listed = !o->registryOff && findListedInstall(o, selfDir, rawInstall, rawD2, d2Dir);
+	bool beside = fileExists(t->dll);
+	bool registered = false;
+	if (!listed && !beside && !o->registryOff)
+	{
+		wchar_t installPath[MAX_PATH];
+		wchar_t dll[MAX_PATH];
+		registered = readInstallerRegistry(o, rawInstall, rawD2, installPath, d2Dir) && UpdaterSamePath(installPath, selfDir)
+			&& pathJoin(dll, d2Dir, L"PlugY.dll") && fileExists(dll);
+	}
+	int layout = UpdaterChooseLayout(listed, beside, registered);
+	if (layout == UPDATER_LAYOUT_ZIP)
+		return true;
+	if (layout == UPDATER_LAYOUT_INSTALLER)
 	{
 		t->installerLayout = true;
-		wcscpy(t->dllDir, dllPath);
-		if (fillTargetFiles(t) && fileExists(t->dll))
-			return true;
+		wcscpy(t->dllDir, d2Dir);
+		if (!fillTargetFiles(t))
+		{
+			fail(L"The path %ls is too long.\n", d2Dir);
+			return false;
+		}
+		if (!UpdaterBuildInstallerArgs(rawD2, rawInstall, t->installArgs, sizeof(t->installArgs) / sizeof(wchar_t)))
+		{
+			fail(L"The installer's record of this install (%ls, with Diablo II in %ls) cannot be passed back to\n"
+				L"the installer. Run the new installer yourself.\n", rawInstall, rawD2);
+			return false;
+		}
+		return true;
 	}
 	fail(L"PlugY.dll was not found next to the updater, in %ls.\n"
 		L"Put PlugY4KolbotUpdater.exe in the folder that holds PlugY.dll (your Diablo II\n"
@@ -622,12 +707,14 @@ static int relaunchElevated(const Options* o, const char* confirmedVersion)
 	args.yes = o->yes;
 	args.prerelease = o->prerelease;
 	args.registryOff = o->registryOff;
+	args.registryBase = o->registryBase;
 	args.workBase = o->workBase;
 	args.target = o->target;
 	args.fromZip = o->fromZip;
+	args.fromInstaller = o->fromInstaller;
 	args.sums = o->sums;
 	args.version = o->version;
-	args.expectVersion = o->fromZip[0] ? NULL : confirmedVersion;
+	args.expectVersion = localPackage(o)[0] ? NULL : confirmedVersion;
 	if (!UpdaterBuildRelaunchArgs(&args, params, 4096))
 	{
 		fail(L"The command line is too long to restart the updater as administrator.\n");
@@ -979,8 +1066,9 @@ static bool download(const UpdateAsset* asset, const char* pathA, DWORD maxBytes
 }
 
 /* Puts the package and SHA256SUMS.txt into the work folder (downloaded, or
-   copied for --from-zip), then requires the package's SHA-256 to match
-   SHA256SUMS.txt and the digest GitHub reported, when it reported one. */
+   copied for --from-zip / --from-installer), then requires the package's
+   SHA-256 to match SHA256SUMS.txt and the digest GitHub reported, when it
+   reported one. */
 static bool fetchAndVerify(const Options* o, const char* packageName, wchar_t* packagePath)
 {
 	char packageA[MAX_PATH];
@@ -992,11 +1080,11 @@ static bool fetchAndVerify(const Options* o, const char* packageName, wchar_t* p
 		return false;
 	}
 	const char* expectedDigest = "";
-	if (o->fromZip[0])
+	if (localPackage(o)[0])
 	{
-		if (!CopyFileW(o->fromZip, packagePath, FALSE) || !CopyFileW(o->sums, sumsPath, FALSE))
+		if (!CopyFileW(localPackage(o), packagePath, FALSE) || !CopyFileW(o->sums, sumsPath, FALSE))
 		{
-			fail(L"Could not copy --from-zip/--sums into the work folder: %ls.\n", errorText(GetLastError()));
+			fail(L"Could not copy %ls and --sums into the work folder: %ls.\n", localPackage(o), errorText(GetLastError()));
 			return false;
 		}
 	}
@@ -1580,16 +1668,17 @@ static int applyStaged(const Target* t, const wchar_t* staging, const char* inst
 
 /*============================ Installer ===========================*/
 
-// Returns an eUpdaterOutcome.
-static int runInstaller(const wchar_t* installer, const char* version)
+// Returns an eUpdaterOutcome. The installer runs without its pages, for t's install only.
+static int runInstaller(const Target* t, const wchar_t* installer, const char* version)
 {
-	say(L"Starting the PlugY4Kolbot %hs installer; finish its steps, this window waits for it.\n", version);
+	say(L"Running the PlugY4Kolbot %hs installer for %ls; this window waits for it.\n", version, t->dir);
 	SHELLEXECUTEINFOW sei;
 	memset(&sei, 0, sizeof(sei));
 	sei.cbSize = sizeof(sei);
 	sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
 	sei.lpVerb = L"open";	// the installer asks for administrator rights itself (requireAdministrator)
 	sei.lpFile = installer;
+	sei.lpParameters = t->installArgs;
 	sei.lpDirectory = workDir;
 	sei.nShow = SW_SHOWNORMAL;
 	if (!ShellExecuteExW(&sei))
@@ -1614,25 +1703,29 @@ static int runInstaller(const wchar_t* installer, const char* version)
 	int outcome = UpdaterInstallerOutcome(code);
 	if (outcome == UPDATER_INSTALLER_CANCELLED)
 		fail(L"The installer was cancelled.\n");
+	else if (code == 2)
+		fail(L"The installer stopped (exit code 2). It does when the Diablo II folder, %ls,\n"
+			L"no longer holds Game.exe.\n", t->dllDir);
 	else if (outcome != UPDATER_UPDATED)
 		fail(L"The installer failed (exit code %lu).\n", code);
 	return outcome;
 }
 
-static int finishInstaller(const char* version)
+// Both of t's own files must report the new version, or the installer did not update this install.
+static int finishInstaller(const Target* t, const char* version)
 {
-	// The installer may have been pointed at another Diablo II folder: read where it put PlugY.dll.
-	wchar_t installPath[MAX_PATH];
-	wchar_t dllDir[MAX_PATH];
-	wchar_t dll[MAX_PATH];
-	char now[UPDATE_TAG_MAX] = "";
-	if (!readInstallerRegistry(installPath, dllDir) || !pathJoin(dll, dllDir, L"PlugY.dll")
-		|| readProductVersion(dll, now, UPDATE_TAG_MAX) != VERSION_READ_OK || strcmp(now, version))
+	const wchar_t* files[] = { t->dll, t->exe };
+	for (int i = 0; i < 2; i++)
 	{
-		fail(L"The installer finished, but PlugY.dll does not report version %hs (found \"%hs\").\n", version, now);
-		return UPDATER_EXIT_ERROR;
+		char now[UPDATE_TAG_MAX] = "";
+		if (readProductVersion(files[i], now, UPDATE_TAG_MAX) != VERSION_READ_OK || strcmp(now, version))
+		{
+			fail(L"The installer finished, but %ls does not report version %hs (found \"%hs\").\n"
+				L"Run the new installer yourself, and choose this install's folders.\n", files[i], version, now);
+			return UPDATER_EXIT_ERROR;
+		}
 	}
-	say(L"\nPlugY4Kolbot %hs is installed (PlugY.dll in %ls, PlugY.exe in %ls).\n", version, dllDir, installPath);
+	say(L"\nPlugY4Kolbot %hs is installed (PlugY.dll in %ls, PlugY.exe in %ls).\n", version, t->dllDir, t->dir);
 	return UPDATER_EXIT_OK;
 }
 
@@ -1647,8 +1740,8 @@ static BOOL WINAPI restoreSelfOnCtrl(DWORD ctrlType)
 	return FALSE;
 }
 
-// NSIS cannot overwrite the running updater in InstallPath, so it waits as .old while the installer runs.
-static int updateWithInstaller(const wchar_t* installer, const char* version)
+// NSIS cannot overwrite the running updater in the install folder, so it waits as .old while the installer runs.
+static int updateWithInstaller(const Target* t, const wchar_t* installer, const char* version)
 {
 	if (!pathAppend(selfOldPath, selfPath, OLD_SUFFIX))
 	{
@@ -1664,7 +1757,7 @@ static int updateWithInstaller(const wchar_t* installer, const char* version)
 		return UPDATER_EXIT_ERROR;
 	}
 	InterlockedExchange(&selfAside, 1);
-	int outcome = runInstaller(installer, version);
+	int outcome = runInstaller(t, installer, version);
 	// Whoever clears the flag first (this thread or the Ctrl handler) decides about the old copy.
 	if (InterlockedExchange(&selfAside, 0)
 		&& UpdaterSelfAfterInstaller(outcome, fileExists(selfPath)) == UPDATER_SELF_RESTORE_OLD
@@ -1673,7 +1766,7 @@ static int updateWithInstaller(const wchar_t* installer, const char* version)
 	SetConsoleCtrlHandler(restoreSelfOnCtrl, FALSE);
 	if (outcome != UPDATER_UPDATED)
 		return UpdaterExitCode(outcome);
-	return finishInstaller(version);
+	return finishInstaller(t, version);
 }
 
 
@@ -1759,16 +1852,33 @@ static int updateTarget(const Options* o, const Target t, HANDLE* mutex)
 		fail(L"Could not read %ls.\n", t.dll);
 		return UPDATER_EXIT_ERROR;
 	}
-	UpdateVersion installedVersion;
-	bool installedSemver = read == VERSION_READ_OK && UpdateParseVersion(installed, &installedVersion);
+	UpdateVersion dllVersion = { 0 };
+	bool dllSemver = read == VERSION_READ_OK && UpdateParseVersion(installed, &dllVersion);
 	if (read != VERSION_READ_OK)
 		strcpy(installed, "unknown");
+	char dllInstalled[UPDATE_TAG_MAX];
+	strcpy(dllInstalled, installed);
+	char exeVersion[UPDATE_TAG_MAX];
+	int exeRead = readProductVersion(t.exe, exeVersion, UPDATE_TAG_MAX);
+	if (exeRead == VERSION_READ_IN_USE)
+		return reportInUse(&t);
+	if (exeRead != VERSION_READ_OK)
+		strcpy(exeVersion, "unknown");
+	UpdateVersion exeParsed = { 0 };
+	bool exeSemver = exeRead == VERSION_READ_OK && UpdateParseVersion(exeVersion, &exeParsed);
+	int source = UpdaterInstalledVersion(dllSemver, exeRead != VERSION_READ_MISSING, exeSemver,
+		dllSemver && exeSemver ? UpdateCompareVersions(&exeParsed, &dllVersion) : 0);
+	bool fromExe = source == UPDATER_INSTALLED_EXE || source == UPDATER_INSTALLED_EXE_UNKNOWN;
+	bool installedSemver = source == UPDATER_INSTALLED_DLL || source == UPDATER_INSTALLED_EXE;
+	UpdateVersion installedVersion = fromExe ? exeParsed : dllVersion;
+	if (fromExe)
+		strcpy(installed, exeVersion);
 
 	bool prerelease = o->prerelease || readChannelPrerelease(&t);
 	char version[UPDATE_TAG_MAX];
 	char pageUrl[UPDATE_URL_MAX];
 	UpdateVersion latest;
-	if (o->fromZip[0])
+	if (localPackage(o)[0])
 	{
 		strcpy(version, o->version);
 		strcpy(pageUrl, RELEASES_URL);
@@ -1806,10 +1916,20 @@ static int updateTarget(const Options* o, const Target t, HANDLE* mutex)
 		}
 	}
 
-	if (installedSemver && UpdateCompareVersions(&latest, &installedVersion) <= 0)
+	int offer = UpdaterOffer(installedSemver, installedSemver ? UpdateCompareVersions(&latest, &installedVersion) : 0,
+		dllSemver, dllSemver ? UpdateCompareVersions(&latest, &dllVersion) : 0);
+	if (offer == UPDATER_OFFER_UP_TO_DATE)
 	{
 		say(L"PlugY4Kolbot %hs is up to date.\n", installed);
 		return UpdaterExitCode(UPDATER_UP_TO_DATE);
+	}
+	if (offer == UPDATER_OFFER_SHARED_DLL_NEWER)
+	{
+		fail(L"PlugY.dll in %ls is PlugY4Kolbot %hs, newer than %hs: another install in that folder\n"
+			L"updated it. Updating this install would put the older PlugY.dll back, so nothing was changed.\n"
+			L"Give this install the other one's UpdateChannel (in the [GENERAL] section of its PlugY.ini),\n"
+			L"or wait for a newer release.\n", t.dllDir, dllInstalled, version);
+		return UPDATER_EXIT_ERROR;
 	}
 	if (o->check)
 	{
@@ -1823,8 +1943,8 @@ static int updateTarget(const Options* o, const Target t, HANDLE* mutex)
 	else
 		say(L"Installed: PlugY %hs in %ls\nThis switches it from upstream PlugY to PlugY4Kolbot.\n", installed, t.dir);
 	say(L"New:       PlugY4Kolbot %hs\n", version);
-	if (o->fromZip[0])
-		say(L"From:      %ls\n", o->fromZip);
+	if (localPackage(o)[0])
+		say(L"From:      %ls\n", localPackage(o));
 	else
 	{
 		printNotes();
@@ -1865,7 +1985,7 @@ static int updateTarget(const Options* o, const Target t, HANDLE* mutex)
 		return UPDATER_EXIT_ERROR;
 
 	if (t.installerLayout)
-		return updateWithInstaller(packagePath, version);
+		return updateWithInstaller(&t, packagePath, version);
 	wchar_t staging[MAX_PATH];
 	if (!extractAndValidate(packagePath, version, pageUrl, &t, staging))
 		return UPDATER_EXIT_ERROR;
@@ -1879,7 +1999,12 @@ static int update(const Options* o)
 		return UPDATER_EXIT_ERROR;
 	if (o->fromZip[0] && t.installerLayout)
 	{
-		fail(L"--from-zip needs the zip layout (PlugY.dll next to the updater).\n");
+		fail(L"--from-zip needs a zip-style install; this one is updated by the installer (--from-installer).\n");
+		return UPDATER_EXIT_ERROR;
+	}
+	if (o->fromInstaller[0] && !t.installerLayout)
+	{
+		fail(L"--from-installer needs an install the installer made; this one is updated from the zip (--from-zip).\n");
 		return UPDATER_EXIT_ERROR;
 	}
 	HANDLE mutex = NULL;
@@ -1919,16 +2044,26 @@ static bool parseArgs(int argc, wchar_t** argv, Options* o)
 			o->registryOff = true;
 		else if (!wcscmp(a, L"--elevated"))
 			o->elevated = true;
-		else if (hasValue && (!wcscmp(a, L"--target") || !wcscmp(a, L"--from-zip") || !wcscmp(a, L"--sums")
-			|| !wcscmp(a, L"--work-base")))
+		else if (hasValue && (!wcscmp(a, L"--target") || !wcscmp(a, L"--from-zip") || !wcscmp(a, L"--from-installer")
+			|| !wcscmp(a, L"--sums") || !wcscmp(a, L"--work-base")))
 		{
 			wchar_t* field = !wcscmp(a, L"--target") ? o->target : !wcscmp(a, L"--from-zip") ? o->fromZip
-				: !wcscmp(a, L"--sums") ? o->sums : o->workBase;
+				: !wcscmp(a, L"--from-installer") ? o->fromInstaller : !wcscmp(a, L"--sums") ? o->sums : o->workBase;
 			if (!canonicalPath(argv[++i], field))
 			{
 				fail(L"%ls: the path %ls is not usable.\n", a, argv[i]);
 				return false;
 			}
+		}
+		else if (hasValue && !wcscmp(a, L"--registry-base"))
+		{
+			const wchar_t* key = argv[++i];
+			if (!key[0] || wcslen(key) >= REGISTRY_BASE_MAX)
+			{
+				fail(L"--registry-base: the key %ls is not usable.\n", key);
+				return false;
+			}
+			wcscpy(o->registryBase, key);
 		}
 		else if (hasValue && (!wcscmp(a, L"--version") || !wcscmp(a, L"--expect-version")))
 		{
@@ -1948,9 +2083,10 @@ static bool parseArgs(int argc, wchar_t** argv, Options* o)
 			return false;
 		}
 	}
-	if ((o->fromZip[0] != 0) != (o->sums[0] != 0) || (o->fromZip[0] != 0) != (o->version[0] != 0))
+	bool local = o->fromZip[0] || o->fromInstaller[0];
+	if ((o->fromZip[0] && o->fromInstaller[0]) || local != (o->sums[0] != 0) || local != (o->version[0] != 0))
 	{
-		fail(L"--from-zip, --sums and --version go together.\n");
+		fail(L"--from-zip or --from-installer, --sums and --version go together.\n");
 		return false;
 	}
 	return true;

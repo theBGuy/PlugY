@@ -288,6 +288,74 @@ static void testAppendArg()
 }
 
 
+static void testLayout()
+{
+	printf("layout, installer command line\n");
+	// An install the installer listed goes through the installer, PlugY.dll beside the updater or not.
+	CHECK_EQ(UpdaterChooseLayout(true, true, false), UPDATER_LAYOUT_INSTALLER);
+	CHECK_EQ(UpdaterChooseLayout(true, false, false), UPDATER_LAYOUT_INSTALLER);
+	CHECK_EQ(UpdaterChooseLayout(true, true, true), UPDATER_LAYOUT_INSTALLER);
+	CHECK_EQ(UpdaterChooseLayout(false, true, false), UPDATER_LAYOUT_ZIP);
+	CHECK_EQ(UpdaterChooseLayout(false, true, true), UPDATER_LAYOUT_ZIP);
+	CHECK_EQ(UpdaterChooseLayout(false, false, true), UPDATER_LAYOUT_INSTALLER);
+	CHECK_EQ(UpdaterChooseLayout(false, false, false), UPDATER_LAYOUT_NONE);
+
+	wchar_t out[600];
+	CHECK(UpdaterBuildInstallerArgs(L"C:\\Program Files (x86)\\Diablo II", L"C:\\Program Files (x86)\\Diablo II\\Mod PlugY", out, 600));
+	CHECK_WSTR(out, L"/S /D2=\"C:\\Program Files (x86)\\Diablo II\" /D=C:\\Program Files (x86)\\Diablo II\\Mod PlugY");
+	// As stored, a drive root included: NSIS does not read backslashes as escapes.
+	CHECK(UpdaterBuildInstallerArgs(L"D:\\", L"D:\\", out, 600));
+	CHECK_WSTR(out, L"/S /D2=\"D:\\\" /D=D:\\");
+	CHECK(UpdaterBuildInstallerArgs(L"C:/Games/Diablo II", L"c:\\games\\diablo ii", out, 600));
+	CHECK_WSTR(out, L"/S /D2=\"C:/Games/Diablo II\" /D=c:\\games\\diablo ii");
+
+	wcscpy(out, L"x");
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\a\"b", L"C:\\x", out, 600));
+	CHECK_WSTR(out, L"");
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\x", L"C:\\a\"b", out, 600));
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\a\nb", L"C:\\x", out, 600));
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\x", L"C:\\a\tb", out, 600));
+	// NSIS would take " /D=..." inside the Diablo II folder as its own option.
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\a /D=C:\\b", L"C:\\x", out, 600));
+	CHECK(UpdaterBuildInstallerArgs(L"C:\\x", L"C:\\a /D=b", out, 600));
+	CHECK(!UpdaterBuildInstallerArgs(L"", L"C:\\x", out, 600));
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\x", L"", out, 600));
+	CHECK(!UpdaterBuildInstallerArgs(NULL, L"C:\\x", out, 600));
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\x", NULL, out, 600));
+	// Exactly fitting, then one short: refused, out empty.
+	CHECK(UpdaterBuildInstallerArgs(L"C:\\d", L"C:\\i", out, 22));
+	CHECK_WSTR(out, L"/S /D2=\"C:\\d\" /D=C:\\i");
+	CHECK(!UpdaterBuildInstallerArgs(L"C:\\d", L"C:\\i", out, 21));
+	CHECK_WSTR(out, L"");
+}
+
+static void testInstalledVersion()
+{
+	printf("installed version, update offer\n");
+	// Which file decides: the older of PlugY.dll and the install's own PlugY.exe.
+	CHECK_EQ(UpdaterInstalledVersion(true, true, true, -1), UPDATER_INSTALLED_EXE);
+	CHECK_EQ(UpdaterInstalledVersion(true, true, true, 0), UPDATER_INSTALLED_DLL);
+	CHECK_EQ(UpdaterInstalledVersion(true, true, true, 1), UPDATER_INSTALLED_DLL);
+	CHECK_EQ(UpdaterInstalledVersion(true, false, false, 0), UPDATER_INSTALLED_DLL);
+	// A PlugY.exe without a semver version (upstream's, or unreadable) gets the update.
+	CHECK_EQ(UpdaterInstalledVersion(true, true, false, 0), UPDATER_INSTALLED_EXE_UNKNOWN);
+	CHECK_EQ(UpdaterInstalledVersion(false, true, true, -1), UPDATER_INSTALLED_DLL_UNKNOWN);
+	CHECK_EQ(UpdaterInstalledVersion(false, false, false, 0), UPDATER_INSTALLED_DLL_UNKNOWN);
+
+	// Up to date when the release is not newer than the installed version, a newer shared DLL or not.
+	CHECK_EQ(UpdaterOffer(true, 0, true, -1), UPDATER_OFFER_UP_TO_DATE);
+	CHECK_EQ(UpdaterOffer(true, -1, true, -1), UPDATER_OFFER_UP_TO_DATE);
+	// Older PlugY.exe (14.4.0), shared PlugY.dll 14.6.0-rc.1: stable 14.5.0 is refused, 14.6.0-rc.1 is offered.
+	CHECK_EQ(UpdaterOffer(true, 1, true, -1), UPDATER_OFFER_SHARED_DLL_NEWER);
+	CHECK_EQ(UpdaterOffer(true, 1, true, 0), UPDATER_OFFER_UPDATE);
+	CHECK_EQ(UpdaterOffer(true, 1, true, 1), UPDATER_OFFER_UPDATE);
+	// Not semver: always offered, unless the shared PlugY.dll is newer than the release.
+	CHECK_EQ(UpdaterOffer(false, 0, true, 0), UPDATER_OFFER_UPDATE);
+	CHECK_EQ(UpdaterOffer(false, 0, true, -1), UPDATER_OFFER_SHARED_DLL_NEWER);
+	CHECK_EQ(UpdaterOffer(false, 0, false, 0), UPDATER_OFFER_UPDATE);
+}
+
+
 /*========================== Release notes =========================*/
 
 static void testNotesHead()
@@ -455,6 +523,12 @@ static void testRelaunchArgs()
 	a.expectVersion = "";
 	CHECK(UpdaterBuildRelaunchArgs(&a, out, 1024));
 	CHECK_WSTR(out, L"--prerelease --work-base C:\\wb --from-zip C:\\z\\PlugY4Kolbot_v14.4.0.zip --sums C:\\z\\SHA256SUMS.txt --version 14.4.0-rc.1 --elevated");
+	// The installer-layout test options are carried too.
+	a.fromZip = NULL;
+	a.fromInstaller = L"C:\\z\\PlugY4Kolbot_v14.4.0_Installer.exe";
+	a.registryBase = L"SOFTWARE\\PlugY4Kolbot-test";
+	CHECK(UpdaterBuildRelaunchArgs(&a, out, 1024));
+	CHECK_WSTR(out, L"--prerelease --registry-base SOFTWARE\\PlugY4Kolbot-test --work-base C:\\wb --from-installer C:\\z\\PlugY4Kolbot_v14.4.0_Installer.exe --sums C:\\z\\SHA256SUMS.txt --version 14.4.0-rc.1 --elevated");
 	// Too small: refused, out empty.
 	CHECK(!UpdaterBuildRelaunchArgs(&a, out, 40));
 	CHECK_WSTR(out, L"");
@@ -582,6 +656,8 @@ int main(int argc, char** argv)
 	testBackupName();
 	testFilePlan();
 	testAppendArg();
+	testLayout();
+	testInstalledVersion();
 	testNotesHead();
 	testChildAndInstaller();
 	testApplyOrder();

@@ -70,6 +70,65 @@ int UpdaterRelaunchFailedOutcome(DWORD error)
 }
 
 
+/*-------------------------------- Layout -------------------------------*/
+int UpdaterChooseLayout(bool listed, bool dllBeside, bool registered)
+{
+	if (listed)
+		return UPDATER_LAYOUT_INSTALLER;
+	if (dllBeside)
+		return UPDATER_LAYOUT_ZIP;
+	return registered ? UPDATER_LAYOUT_INSTALLER : UPDATER_LAYOUT_NONE;
+}
+
+static bool isInstallerArgUsable(const wchar_t* s)
+{
+	if (!s || !s[0])
+		return false;
+	for (; *s; s++)
+		if (*s == L'"' || *s < 0x20)
+			return false;
+	return true;
+}
+
+bool UpdaterBuildInstallerArgs(const wchar_t* d2Dir, const wchar_t* installDir, wchar_t* out, DWORD maxChars)
+{
+	if (!out || !maxChars)
+		return false;
+	out[0] = 0;
+	if (!isInstallerArgUsable(d2Dir) || !isInstallerArgUsable(installDir) || wcsstr(d2Dir, L" /"))
+		return false;
+	int n = _snwprintf(out, maxChars, L"/S /D2=\"%ls\" /D=%ls", d2Dir, installDir);
+	if (n < 0 || (DWORD)n >= maxChars)
+	{
+		out[0] = 0;
+		return false;
+	}
+	return true;
+}
+
+
+/*--------------------------- Installed version -------------------------*/
+int UpdaterInstalledVersion(bool dllSemver, bool exePresent, bool exeSemver, int exeVsDll)
+{
+	if (!dllSemver)
+		return UPDATER_INSTALLED_DLL_UNKNOWN;
+	if (!exePresent)
+		return UPDATER_INSTALLED_DLL;
+	if (!exeSemver)
+		return UPDATER_INSTALLED_EXE_UNKNOWN;
+	return exeVsDll < 0 ? UPDATER_INSTALLED_EXE : UPDATER_INSTALLED_DLL;
+}
+
+int UpdaterOffer(bool installedSemver, int latestVsInstalled, bool dllSemver, int latestVsDll)
+{
+	if (installedSemver && latestVsInstalled <= 0)
+		return UPDATER_OFFER_UP_TO_DATE;
+	if (dllSemver && latestVsDll < 0)
+		return UPDATER_OFFER_SHARED_DLL_NEWER;
+	return UPDATER_OFFER_UPDATE;
+}
+
+
 /*-------------------------------- Paths --------------------------------*/
 static bool isSeparator(wchar_t ch)
 {
@@ -399,9 +458,11 @@ bool UpdaterBuildRelaunchArgs(const UpdaterRelaunchArgs* a, wchar_t* out, DWORD 
 	bool ok = (!a->yes || UpdaterAppendArg(out, maxChars, L"--yes"))
 		&& (!a->prerelease || UpdaterAppendArg(out, maxChars, L"--prerelease"))
 		&& (!a->registryOff || UpdaterAppendArg(out, maxChars, L"--registry-off"))
+		&& (!a->registryBase || !a->registryBase[0] || appendNamed(out, maxChars, L"--registry-base", a->registryBase))
 		&& (!a->workBase || !a->workBase[0] || appendNamed(out, maxChars, L"--work-base", a->workBase))
 		&& (!a->target || !a->target[0] || appendNamed(out, maxChars, L"--target", a->target))
 		&& (!a->fromZip || !a->fromZip[0] || appendNamed(out, maxChars, L"--from-zip", a->fromZip))
+		&& (!a->fromInstaller || !a->fromInstaller[0] || appendNamed(out, maxChars, L"--from-installer", a->fromInstaller))
 		&& (!a->sums || !a->sums[0] || appendNamed(out, maxChars, L"--sums", a->sums))
 		&& (!a->version || !a->version[0] || appendNamedAscii(out, maxChars, L"--version", a->version))
 		&& (!a->expectVersion || !a->expectVersion[0] || appendNamedAscii(out, maxChars, L"--expect-version", a->expectVersion))

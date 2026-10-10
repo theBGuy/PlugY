@@ -3,6 +3,7 @@ Unicode True
 
 !include "MUI2.nsh"
 !include "Sections.nsh"
+!include "FileFunc.nsh"
 
 ; VERSION ("v14.3.0") names the installer; DISPLAY_VERSION is the bare version for
 ; Add/Remove Programs. A /DVERSION=... override wins, minus a leading "v".
@@ -30,7 +31,7 @@ Unicode True
 ; One Add/Remove entry per install, under this key and named after its folder ($UninstKey).
 !define UNINSTALL_ROOT "Software\Microsoft\Windows\CurrentVersion\Uninstall"
 ; REGKEY names only the install that ran last. Every install's Diablo II folder, by its own
-; folder: its uninstaller must find it after another install took over REGKEY.
+; folder: its uninstaller and its updater must find it after another install took over REGKEY.
 !define INSTALLS_KEY "SOFTWARE\${NAME}\Installs"
 ; By Diablo II folder, the install that set out to patch that Game.exe: only it restores the file,
 ; never a patch that was already there.
@@ -40,8 +41,8 @@ Unicode True
 !define SHORTCUTS_KEY "SOFTWARE\${NAME}\Shortcuts"
 !define REPO_URL "https://github.com/theBGuy/PlugY4Kolbot"
 !define UNINSTALL_FILE "PlugY Uninstaller.exe"
-; The updater updates its own folder in place when PlugY.dll is beside it; otherwise it finds an
-; installer-layout install through REGKEY (InstallPath == its own folder), so it must sit in $INSTDIR.
+; The updater finds its install by its own folder in INSTALLS_KEY and runs the new installer for it
+; with /D2= and /D=, so it must sit in $INSTDIR.
 !define UPDATER_FILE "PlugY4KolbotUpdater.exe"
 !define UPDATER_LNK "Check for ${NAME} updates.lnk"
 
@@ -73,6 +74,7 @@ Var RegDllPath
 Var BlizzardD2Path	; Diablo II's own InstallPath, where PlugY.exe finds Game.exe otherwise
 Var SharedD2		; uninstall: 1 when another install also uses $D2Path
 Var UninstKey		; this install's Add/Remove key
+Var PatchOption		; 1 with /PATCH on the command line
 
 ;--------------------------------
 ; Pages
@@ -279,6 +281,29 @@ LangString UNPATCH_FAILED ${LANG_TRADCHINESE} "無法還原 Game.exe (結束代�
   ${EndIf}
 !macroend
 
+; SECTION is ticked only when $INSTDIR owns the shortcut (VALUE in SHORTCUTS_KEY, or the REGKEY
+; install when there is no record, as SeedShortcutOwner assumes) and it still exists: LNK, or
+; upstream PlugY's LEGACY_LNK, which Core deletes, so the section must replace it. Clobbers $0-$1.
+!macro KeepShortcut SECTION VALUE LNK LEGACY_LNK
+  ClearErrors
+  ReadRegStr $0 HKLM "${SHORTCUTS_KEY}" "${VALUE}"
+  ${If} ${Errors}
+    StrCpy $0 $RegInstallPath
+  ${EndIf}
+  StrCpy $1 0
+  ${If} $0 == $INSTDIR
+    ${If} ${FileExists} "${LNK}"
+    ${OrIf} ${FileExists} "${LEGACY_LNK}"
+      StrCpy $1 1
+    ${EndIf}
+  ${EndIf}
+  ${If} $1 == 1
+    !insertmacro SelectSection ${SECTION}
+  ${Else}
+    !insertmacro UnselectSection ${SECTION}
+  ${EndIf}
+!macroend
+
 ;--------------------------------
 ; Initialisation
 Function .onInit
@@ -313,7 +338,33 @@ Function .onInit
   ${Else}
     StrCpy $D2Path "$PROGRAMFILES32\Diablo II"
   ${EndIf}
+  ; /D2=<absolute folder>: the Diablo II folder, for a silent install, or for the updater, which also
+  ; passes /D=. A silent run never falls back to another folder.
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/D2=" $R1
+  ${IfNot} ${Errors}
+    StrCpy $R2 $R1 2 1
+    StrCpy $R3 $R1 2
+    ${If} $R2 == ":\"
+    ${OrIf} $R2 == ":/"
+    ${OrIf} $R3 == "\\"
+      StrCpy $D2Path $R1
+      !insertmacro TrimSlash $D2Path
+    ${ElseIf} ${Silent}
+      SetErrorLevel 2
+      Abort
+    ${EndIf}
+  ${EndIf}
+  ; /PATCH ticks "Patch Game.exe" (InitLayout applies it), so a silent install can patch for D2Bot.
+  ClearErrors
+  ${GetOptions} $R0 "/PATCH" $R1
+  ${IfNot} ${Errors}
+  ${AndIf} $R1 == ""
+    StrCpy $PatchOption 1
+  ${EndIf}
   Call InitLayout
+  Call KeepShortcuts
 FunctionEnd
 
 Function un.onInit
@@ -448,6 +499,11 @@ Section /o "$(SECTION_PATCH_GAME)" PatchGame
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(PATCH_IN_USE)" /SD IDCANCEL IDRETRY retry
     ${EndIf}
     MessageBox MB_OK|MB_ICONEXCLAMATION "$(PATCH_FAILED)" /SD IDOK
+    ; A script that asked for the patch learns it failed: exit 3, the files installed but Game.exe as
+    ; it was. Not for the patch preselected for an update, so the updater still sees exit 0.
+    ${If} $PatchOption == 1
+      SetErrorLevel 3
+    ${EndIf}
   ${EndIf}
   ; This install owns the patch unless Game.exe was patched already (1), holds unexpected bytes (2)
   ; or is no supported game (3); the patcher reads it before asking for write access, so a locked or
@@ -521,12 +577,31 @@ Function InitLayout
     SetErrorLevel 2
     Abort
   ${EndIf}
-  ; Updating the install that patched this Game.exe: offer the same again.
-  ReadRegStr $0 HKLM "${PATCHED_KEY}" "$RegDllPath"
-  ${If} $RegDllPath != ""
-  ${AndIf} $D2Path == $RegDllPath
-  ${AndIf} $0 == $RegInstallPath
+  ${If} $PatchOption == 1
     !insertmacro SelectSection ${PatchGame}
+  ${EndIf}
+  ; Updating the install that patched this Game.exe: offer the same again.
+  ReadRegStr $0 HKLM "${PATCHED_KEY}" "$D2Path"
+  ${If} $0 != ""
+  ${AndIf} $0 == $INSTDIR
+    !insertmacro SelectSection ${PatchGame}
+  ${EndIf}
+  ; A silent run that names an existing install of this Diablo II folder (in INSTALLS_KEY, or REGKEY's
+  ; pair for one made before that list), as the updater does with /D2= and /D=, updates it where it
+  ; is, even where these rules would now choose another folder. The patch still puts everything
+  ; beside Game.exe, where the patched game reads PlugY.ini.
+  ReadRegStr $1 HKLM "${INSTALLS_KEY}" "$INSTDIR"
+  ${If} $INSTDIR != ""
+  ${AndIf} $INSTDIR == $RegInstallPath
+  ${AndIf} $D2Path == $RegDllPath
+    StrCpy $1 $D2Path
+  ${EndIf}
+  ${If} ${Silent}
+  ${AndIf} $1 != ""
+  ${AndIf} $1 == $D2Path
+  ${AndIfNot} ${SectionIsSelected} ${PatchGame}
+    StrCpy $LastD2Path $D2Path
+    Return
   ${EndIf}
   ${If} ${SectionIsSelected} ${PatchGame}
   ${OrIf} $D2Path != $BlizzardD2Path
@@ -538,6 +613,24 @@ Function InitLayout
     StrCpy $INSTDIR "$D2Path\${MOD_DIR}"
   ${EndIf}
   StrCpy $LastD2Path $D2Path
+FunctionEnd
+
+; The shortcut sections for the install .onInit settles on: an update of it keeps its shortcuts as
+; they are and never takes over another install's (the updater runs it silently); a new one keeps the
+; default choice. An interactive run judges it before the folder pages; the components page shows the
+; result, and the user can change it.
+Function KeepShortcuts
+  ${If} $INSTDIR == ""
+    Return
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $0 HKLM "${INSTALLS_KEY}" "$INSTDIR"
+  ${If} ${Errors}
+  ${AndIf} $INSTDIR != $RegInstallPath
+    Return
+  ${EndIf}
+  !insertmacro KeepShortcut ${DesktopShortcuts} Desktop "$DESKTOP\${NAME}.lnk" "$DESKTOP\${LEGACY_NAME}.lnk"
+  !insertmacro KeepShortcut ${MenuShortcuts} StartMenu "$SMPROGRAMS\${NAME}\${NAME}.lnk" "$SMPROGRAMS\${LEGACY_NAME}\${LEGACY_NAME}.lnk"
 FunctionEnd
 
 ; When PlugYDirPre will skip the PlugY folder page, this page's button installs; NSIS set its label
