@@ -40,13 +40,19 @@ jobs:
         run: node scripts/changelog-draft.mjs --check
 
   windows:
-    # windows-2022 is the only hosted Windows image that ships NSIS (needed by
-    # the installer) alongside VS2022 with the x86 C++ tools.
+    # windows-2022 has VS2022 with the x86 C++ tools; NSIS comes from the pinned
+    # download below, not the image.
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v7 # floating major; v7.0.1 was current on 2026-10-08
         with:
           persist-credentials: false
+
+      # Puts the NSIS version the script pins first on PATH, so the installer
+      # never depends on the one the image ships.
+      - name: Install pinned NSIS
+        shell: pwsh
+        run: pwsh -NoProfile -File .github/scripts/install-nsis.ps1
 
       # -Test also builds and runs the native update-check and updater suites;
       # no --live, so the job never depends on the GitHub API.

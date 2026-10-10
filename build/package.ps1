@@ -11,7 +11,8 @@
       PlugY4Kolbot_v<V>_symbols.zip         PDBs (updater included) and PlugY.map
       SHA256SUMS.txt                        sha256sum -c format, LF endings
     Inputs are staged under build/out/package/, so nothing is written inside the
-    source tree. Run build/build.ps1 first. Needs 7-Zip and NSIS (makensis).
+    source tree. Run build/build.ps1 first. Needs 7-Zip and NSIS 3.11 or later
+    (makensis).
 
 .PARAMETER Config
     Release (default) or Debug: which build/out/<Config>/ to package.
@@ -65,6 +66,19 @@ function Find-Tool([string]$Name, [string]$Fallback) {
     if ($cmd) { return $cmd.Source }
     if (Test-Path -LiteralPath $Fallback) { return $Fallback }
     Fail "$Name not found on PATH or at $Fallback"
+}
+
+# Returns makensis's version text, or fails when it is older than $Minimum or unreadable.
+# NSIS numbers its minors 01, 02 ... 13, so they compare as integers.
+function Assert-NsisVersion([string]$Exe, [version]$Minimum) {
+    $ErrorActionPreference = 'Continue'
+    $text = ((& $Exe /VERSION 2>&1 | ForEach-Object { "$_" }) -join '').Trim()
+    $code = $LASTEXITCODE
+    $m = [regex]::Match($text, '\Av(\d{1,5})\.(\d{1,5})(?!\d)')
+    if ($code -ne 0 -or -not $m.Success) { Fail "could not read the NSIS version from `"$Exe`" /VERSION (exit $code, output '$text')" }
+    $found = [version]::new([int]$m.Groups[1].Value, [int]$m.Groups[2].Value)
+    if ($found -lt $Minimum) { Fail "$Exe is NSIS $text; NSIS $Minimum or later is required" }
+    return $text
 }
 
 function Test-UnderPath([string]$Path, [string]$Root) {
@@ -152,9 +166,12 @@ foreach ($name in $Binaries) {
 
 $SevenZip = Find-Tool '7z' 'C:\Program Files\7-Zip\7z.exe'
 $MakeNsis = Find-Tool 'makensis' 'C:\Program Files (x86)\NSIS\makensis.exe'
+# NSIS 3.11 retries creating a restricted $PLUGINSDIR (NSIS bug #1315); the installer
+# and uninstaller run PatchD2File.exe from that folder.
+$MakeNsisVersion = Assert-NsisVersion $MakeNsis '3.11'
 Write-Host "Packaging PlugY4Kolbot $Version ($Config)"
 Write-Host "7-Zip:    $SevenZip"
-Write-Host "makensis: $MakeNsis"
+Write-Host "makensis: $MakeNsis ($MakeNsisVersion)"
 
 # --- Output directory ---------------------------------------------------------------
 # Only a previous run's assets are ever deleted, including those named before the

@@ -30,8 +30,8 @@ concurrency:
 
 jobs:
   release:
-    # windows-2022 is the only hosted Windows image that ships NSIS (needed by
-    # the installer) alongside VS2022 with the x86 C++ tools.
+    # windows-2022 has VS2022 with the x86 C++ tools; NSIS comes from the pinned
+    # download below, not the image.
     runs-on: windows-2022
     permissions:
       contents: write # create the draft release and upload its assets
@@ -115,6 +115,12 @@ jobs:
           $existing = $(if ($state.Count -eq 1) { 'true' } else { 'false' })
           "existing-draft=$existing" >> $env:GITHUB_OUTPUT
           Write-Output "existing-draft=$existing"
+
+      # Puts the NSIS version the script pins first on PATH, so the installer
+      # never depends on the one the image ships.
+      - name: Install pinned NSIS
+        shell: pwsh
+        run: pwsh -NoProfile -File .github/scripts/install-nsis.ps1
 
       # A release ships only binaries whose native test suites pass.
       - name: Build and test (Release, x86)

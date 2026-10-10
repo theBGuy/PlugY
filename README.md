@@ -91,7 +91,7 @@ Bug reports and pull requests are welcome in [this repository](https://github.co
 ## Building from source
 Prerequisites (Windows):
 * Visual Studio 2022 with the "Desktop development with C++" workload, including the x86 build tools.
-* NSIS 3.x, for the installer.
+* NSIS 3.11 or later, for the installer.
 * 7-Zip, for the release zips.
 * PowerShell 7 (`pwsh`) or Windows PowerShell 5.1, which run the build scripts.
 
