@@ -418,7 +418,7 @@ A8(FAST, D2Game,00000,00000,00000,7F200,7FE60,D6250,A39D0,2C3F0,1E9DF0,	void,		D
 A8(STD,  D2Game,00000,00000, 89C0,E2390,E66D0,A8090,2C830,BE660,12CA10,	void,		D2SaveGame, (Game* ptGame) );
 A8(FAST, D2Game,00000,00000,00000,EF580,F0F70,F0D70,F2540,F1800,1DEB60,	void,		D2MonsterMove, (Game* ptGame, Unit* ptMonster, Unit* target, DWORD two, DWORD x, DWORD y, DWORD one, DWORD zero) );
 A8(FAST, D2Game,00000,00000,00000,FF1B0,F0DB0,F0BB0,F2380,F1430,1DEAD0,	void,		D2MonsterUseSkill, (Game* ptGame, Unit* ptMonster, DWORD arg, DWORD skill, Unit* target, DWORD x, DWORD y) );
-A8(FAST, D2Game,00000,00000,00000,B9340,25450,44140,53F10,39810,132240,	void,		D2SaveSPChar, (Game* ptGame, Unit* ptChar, char* name, DWORD arg, DWORD secondPass) );
+A8(FAST, D2Game,00000,00000,00000,B9340,25450,44140,53F10,39810,132240,	void,		D2SaveSPChar, (Game* ptGame, Unit* ptChar, char* name, DWORD interaction, DWORD leaving) );//1.14d: name by EBX; leaving set only on the save made when the player leaves the game
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -602,6 +602,7 @@ C8(D2Client,125AD8,124958,11A74C,11BD28,11BEFC,11BD2C,11B9A4,11D358,3A285C,	DWOR
 C8(D2Client,125AD4,124954,11A748,11BD24,11BEF8,11BD28,11B9A0,11D354,3A2858,	DWORD,		WindowStartX);//0x50 = 80
 //C8(D2Launch, 55818, 56088, 2CD5C,000000, 2CD5C,000000,000000,00000,000000,	DWORD,		GameTypeMode);//0x50 = 80 //6FA3CD5C-6FA10000
 C8(D2Game,   F2A80, F2918,113FB8,111718,1115E0,1105E0,1107B8,1105E0,4842A8,	NetClient*,	ClientTable);
+C8(D2Game,  000000,000000,000000,000000,000000,000000,000000,000000,3310CC,	DWORD,		SPCharSaveEnabled);//1.14d only. Starts at 1; once the game clears it D2SaveSPChar writes no .d2s
 //C8(D2Client,000000,000000,000000,000000,104225,000000,000000,00000,000000,	DWORD,		CurrentNPCNum);
 C8(D2Client,000000,000000,000000, FB3F4,11A2F4,10330C,119854,1087B4,3A04F4,	DWORD,		IsLodGame);
 C8(D2Client,000000,000000,10795C,11BFB8,11C2A8,11BFF4,000000,000000,000000,	BYTE,		DifficultyLevel);

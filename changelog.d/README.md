@@ -48,11 +48,11 @@ quoted game text can keep its own.
   reported without a message box waiting for a click.
 ```
 
-### Example: `fixed-save-command-stash-files.md`
+### Example: `fixed-autosave-stash-files.md`
 
 ```md
-- On Diablo II 1.14d, `/save` also saves the PlugY stash (`.d2x`) and the shared
-  stash along with the character.
+- In single-player games on Diablo II 1.14d, the PlugY stash (`.d2x`) and the
+  shared stash are saved with the character every time the game saves it.
 ```
 
 ## Commands

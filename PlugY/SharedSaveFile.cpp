@@ -24,7 +24,9 @@ static bool getSharedSaveFilePath(char* path, bool isHardcore)
 
 
 // The mutex is named after the file so every process sharing that file serializes on it.
-static HANDLE lockSharedSaveFile(const char* path)
+// A holder can keep the lock about 15 s (read retries, replace retries, then its conflict file), so the default waits
+// longer; a save that can give up and retry later passes a short wait instead of stalling the game.
+static HANDLE lockSharedSaveFile(const char* path, DWORD waitMs = 20000)
 {
 	char fullPath[MAX_PATH];
 	DWORD len = GetFullPathNameA(path, MAX_PATH, fullPath, NULL);
@@ -48,8 +50,7 @@ static HANDLE lockSharedSaveFile(const char* path)
 		log_msg("Can't create mutex %s (error %u), continue without lock\n", mutexName, GetLastError());
 		return NULL;
 	}
-	// A holder can keep the lock about 15 s (read retries, replace retries, then its conflict file), so this waits longer.
-	DWORD wait = WaitForSingleObject(hMutex, 20000);
+	DWORD wait = WaitForSingleObject(hMutex, waitMs);
 	if (wait == WAIT_OBJECT_0 || wait == WAIT_ABANDONED)
 		return hMutex;
 	log_msg("Can't lock %s for %s (wait result %u, error %u), continue without lock\n", mutexName, fullPath, wait, GetLastError());
@@ -267,8 +268,11 @@ static const char* conflictTail(bool saved, const char* szConflictName, char* ta
 }
 
 
-// Never overwrites a shared file that another process saved after this game loaded it.
-void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isHardcore)
+// Never overwrites a shared file that another process saved after this game loaded it. A save other than the leaving one
+// writes only when that is safe, and otherwise leaves the file to a later save with no conflict file and no box: a box
+// would stall a bot mid-game, and a conflict found then would turn shared moves off for the rest of the game.
+// Returns true when the file holds this game's shared items (written, unchanged, or only moved while loading).
+bool writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isHardcore, bool isLeaving)
 {
 	DWORD newHash = fnv1a(data, size);
 	DWORD canonicalHash;
@@ -283,6 +287,8 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 	char szSaveName[MAX_PATH];
 	char message[1024];
 	message[0] = NULL;
+	// an unchanged stash already matches the file item for item: items moved while loading only changed places
+	bool saved = onlyMovedOnLoad;
 	if (!getSharedSaveFilePath(szSaveName, isHardcore))
 	{
 		_snprintf(message, sizeof(message), "PlugY could not save the shared stash: the save path is too long.\nThe shared stash file on disk was not changed.");
@@ -290,11 +296,11 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 	else if (unchanged && !onlyMovedOnLoad && !isSaveFileMissing(szSaveName))
 	{
 		log_msg("shared stash unchanged since load; not rewritten\n");
-		return;
+		return true;
 	}
 	else
 	{
-		HANDLE hLock = lockSharedSaveFile(szSaveName);
+		HANDLE hLock = lockSharedSaveFile(szSaveName, isLeaving ? 20000 : 1000);
 		char szConflictName[MAX_PATH];
 		char tail[MAX_PATH + 64];
 		const char* conflictResult;
@@ -302,6 +308,10 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 		if (!hLock && onlyMovedOnLoad)
 		{
 			log_msg("shared stash busy; the items moved while loading are saved by a later save\n");
+		}
+		else if (!hLock && !isLeaving)
+		{
+			log_msg("shared stash busy; left for a later save\n");
 		}
 		else if (!hLock)
 		{
@@ -325,6 +335,7 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 				log_msg("Shared file for saving : %s\n", szSaveName);
 				if (writeFileAtomic(szSaveName, data, size))
 				{
+					saved = true;
 					PCPY->sharedDiskHash = newHash;
 					PCPY->sharedDiskExisted = 1;
 					PCPY->sharedBaselineHash = canonicalValid ? canonicalHash : 0;
@@ -332,6 +343,8 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 					PCPY->sharedMovedOnLoad = 0;
 				} else if (onlyMovedOnLoad) {
 					log_msg("can't save the items moved while loading; the shared stash file is unchanged\n");
+				} else if (!isLeaving) {
+					log_msg("can't save the shared stash %s now; left for a later save\n", szSaveName);
 				} else {
 					conflictResult = conflictTail(writeSharedConflictFile(ptChar, data, size, isHardcore, szConflictName), szConflictName, tail);
 					_snprintf(message, sizeof(message), "PlugY could not save the shared stash %s (read-only, locked by another program, or disk full); it was not changed.\n%s", szSaveName, conflictResult);
@@ -340,6 +353,8 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 				// this game changed nothing itself, and the newer file already has the move or other games' changes
 				log_msg("another game saved the shared stash; this game only moved items while loading, nothing to save\n");
 				PCPY->sharedMovedOnLoad = 0;
+			} else if (!isLeaving) {
+				log_msg("another game saved the shared stash after this game loaded it, or it can't be read; left to the save made when leaving\n");
 			} else {
 				conflictResult = conflictTail(writeSharedConflictFile(ptChar, data, size, isHardcore, szConflictName), szConflictName, tail);
 				_snprintf(message, sizeof(message), "Another game saved the shared stash %s after this game loaded it (or it can no longer be read), so it was not overwritten.\n%s", szSaveName, conflictResult);
@@ -348,17 +363,19 @@ void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 		unlockSharedSaveFile(hLock);
 	}
 
-	// One box per game: bots saving every few seconds would otherwise stack them. Raised after unlocking, so it never blocks other games.
+	// Only the leaving save shows a box, once per game, since a box stalls the game until it is answered. Raised after
+	// unlocking, so it never blocks other games.
 	if (!message[0])
-		return;
+		return saved;
 	message[sizeof(message)-1] = NULL;
-	if (PCPY->sharedInConflict)
+	if (PCPY->sharedInConflict || !isLeaving)
 		log_msg("%s\n", message);
 	else
 	{
 		PCPY->sharedInConflict = 1;
 		log_box("%s", message);
 	}
+	return saved;
 }
 
 void saveSharedSaveFile(Unit* ptChar, BYTE** data, DWORD* maxSize, DWORD* curSize)

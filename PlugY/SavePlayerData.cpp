@@ -16,7 +16,6 @@
 
 bool active_AutoBackup = false;
 int maxBackupPerCharacter = 20;
-bool plugyForcedSave = false;
 
 /*backup
 Save SP :
@@ -154,22 +153,44 @@ void backupSaveFiles(char* name, int isHardCoreGame)
 	}
 }
 
-void STDCALL SaveSPPlayerCustomData(Unit* ptChar)
+// isLeaving: the save made as the player leaves the game. The other saves report failures to the log only, since a box
+// would stall a bot mid-game, and are all or nothing: false tells the game to skip its .d2s too, so a game stopped at
+// any moment reloads a character, stash and shared stash that match. The leaving save always lets the .d2s through.
+static bool saveSPPlayerFiles(Unit* ptChar, bool isLeaving)
 {
-	if (!D2isLODGame()) return;//D2Game but in SP so np
+	if (!D2isLODGame()) return true;//D2Game but in SP so np
 
-	log_msg("\n--- Start SaveSPPlayerCustomData ---\n");
+	log_msg("\n--- Start SaveSPPlayerCustomData (leaving:%d) ---\n", isLeaving);
 
 	NetClient* ptClient = D2GetClient(ptChar,__FILE__,__LINE__);
-	// The first save of a game is always backed up; later /save calls are not, so they don't rotate the backups away.
-	if (!plugyForcedSave || !PCPY->backupDoneThisGame)
+	// One backup per game, at its first save: it holds the files as the game loaded them, and autosaves don't rotate
+	// older games' backups away. PYPlayerData exists only with the multi-page stash, so backup-only installs keep
+	// backing up when leaving.
+	if (active_PlayerCustomData ? !PCPY->backupDoneThisGame : isLeaving)
 	{
 		backupSaveFiles(PCPlayerData->name, ptClient->isHardCoreGame);
-		PCPY->backupDoneThisGame = 1;
+		if (active_PlayerCustomData)
+			PCPY->backupDoneThisGame = 1;
 	}
 
 	if (active_PlayerCustomData)
 	{
+		// Mid-game the .d2x is saved first, keeping a copy of the previous one to put back when the shared stash, which
+		// another game can hold, can't be saved after it: the skipped save then leaves every file as it was.
+		BYTE* previousExt = NULL;
+		DWORD previousExtSize = 0;
+		int previousExtState = 0;
+		if (!isLeaving && active_sharedStash && PCPY->sharedStashIsOpened && PCPY->selfStashIsOpened)
+		{
+			previousExtState = readExtendedSaveFileCopy(PCPlayerData->name, &previousExt, &previousExtSize);
+			if (previousExtState < 0)
+			{
+				log_msg("Stash file not readable: the character and the shared stash wait for the next save too.\n\n");
+				return false;
+			}
+		}
+
+		bool extendedSaved = false;
 		if (PCPY->selfStashIsOpened)
 		{
 			DWORD curSizeExt = 0;
@@ -180,13 +201,22 @@ void STDCALL SaveSPPlayerCustomData(Unit* ptChar)
 			else
 			{
 				saveExtendedSaveFile(ptChar, &dataExt, &maxSizeExt, &curSizeExt);
-				writeExtendedSaveFile(PCPlayerData->name, dataExt, curSizeExt);
+				extendedSaved = writeExtendedSaveFile(PCPlayerData->name, dataExt, curSizeExt, isLeaving);
 				D2FreeMem(PCGame->memoryPool, dataExt,__FILE__,__LINE__,0);
+			}
+			if (!extendedSaved && !isLeaving)
+			{
+				if (previousExt)
+					D2FogMemDeAlloc(previousExt,__FILE__,__LINE__,0);
+				log_msg("Stash not saved: the character and the shared stash wait for the next save too.\n\n");
+				return false;
 			}
 		}
 
+		bool skipSave = false;
 		if (active_sharedStash && PCPY->sharedStashIsOpened)
 		{
+			bool sharedSaved = false;
 			DWORD curSizeShr = 0;
 			DWORD maxSizeShr = 0x4000;
 			BYTE* dataShr = (BYTE *)D2AllocMem(PCGame->memoryPool, maxSizeShr,__FILE__,__LINE__,0);
@@ -195,32 +225,65 @@ void STDCALL SaveSPPlayerCustomData(Unit* ptChar)
 			else
 			{
 				saveSharedSaveFile(ptChar, &dataShr, &maxSizeShr, &curSizeShr);
-				writeSharedSaveFileIfChanged(ptChar, dataShr, curSizeShr, ptClient->isHardCoreGame != 0);
+				sharedSaved = writeSharedSaveFileIfChanged(ptChar, dataShr, curSizeShr, ptClient->isHardCoreGame != 0, isLeaving);
 				D2FreeMem(PCGame->memoryPool, dataShr,__FILE__,__LINE__,0);
 			}
+			skipSave = !sharedSaved && !isLeaving;
+			// A .d2x that can't be put back stays, and the character is saved with it: only moves to or from the shared
+			// stash since the last save can then differ, where skipping would also undo moves between it and the inventory.
+			if (skipSave && extendedSaved && !restoreExtendedSaveFile(PCPlayerData->name, previousExtState, previousExt, previousExtSize))
+			{
+				log_msg("Shared stash not saved and the stash file can't be put back: the character is saved with the new stash.\n");
+				skipSave = false;
+			}
+		}
+		if (previousExt)
+			D2FogMemDeAlloc(previousExt,__FILE__,__LINE__,0);
+		if (skipSave)
+		{
+			log_msg("Shared stash not saved: the character and its stash wait for the next save too.\n\n");
+			return false;
 		}
 	}
 	log_msg("End saving.\n\n");
+	return true;
 }
 
+void STDCALL SaveSPPlayerCustomData(Unit* ptChar)
+{
+	saveSPPlayerFiles(ptChar, true);
+}
 
-// PlugY files are saved on the second save pass, but PlugY's /save only runs the first one, so it forces them.
+// 1.14d calls D2SaveSPChar for every .d2s save: the autosave every 8192 frames (about 5.5 min), death, /save, leaving
+// the game and closing it. Loading takes every stash page from the .d2x, so each .d2s write needs the PlugY files
+// written with it. Returns 0 when the game must skip this .d2s write.
+DWORD STDCALL SaveSPPlayerCustomData_114(Unit* ptChar, DWORD isLeaving)
+{
+	// Once the game clears this flag D2SaveSPChar writes no .d2s, and a newer stash would no longer match the character.
+	if (!SPCharSaveEnabled)
+	{
+		log_msg("SaveSPPlayerCustomData : the game saves no character file now, so neither does PlugY\n");
+		return 1;
+	}
+	return saveSPPlayerFiles(ptChar, isLeaving != 0) ? 1 : 0;
+}
+
+// D2SaveSPChar(ECX game, EDX player, EBX name; stack: interaction flag, leaving flag), so at entry [ESP+8] is the
+// leaving flag, set only on the save made when the player leaves the game. A skipped save returns as D2SaveSPChar
+// would, popping its two stack arguments.
 FCT_ASM ( caller_SaveSPPlayerCustomData_114 )
-	MOV EAX,DWORD PTR SS:[ESP+8]
-	TEST EAX,EAX
-	JNZ doSave
-	MOVZX EAX,BYTE PTR DS:[plugyForcedSave]
-	TEST EAX,EAX
-	JE next
-doSave:
 	PUSH ECX
 	PUSH EDX
+	PUSH DWORD PTR SS:[ESP+0x10]
 	PUSH EDX
-	CALL SaveSPPlayerCustomData
+	CALL SaveSPPlayerCustomData_114
 	POP EDX
 	POP ECX
-next:
+	TEST EAX,EAX
+	JE skipSave
 	JMP D2SaveSPChar
+skipSave:
+	RETN 8
 }}
 
 FCT_ASM ( caller_SaveSPPlayerCustomData_111 )

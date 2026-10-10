@@ -106,6 +106,7 @@ void __inline fillRect(DWORD x, DWORD y, DWORD Width, DWORD Height, DWORD color,
 #define WindowStartX (*ptWindowStartX)
 #define GameTypeMode (*ptGameTypeMode)
 #define ClientTable (*ptClientTable)
+#define SPCharSaveEnabled (*ptSPCharSaveEnabled)
 //#define CurrentNPCNum (*ptCurrentNPCNum)
 #define IsLodGame (*ptIsLodGame)
 #define DifficultyLevel (*ptDifficultyLevel)

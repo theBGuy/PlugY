@@ -16,7 +16,9 @@ int loadSharedSaveFile(Unit* ptChar, BYTE* data, DWORD maxSize);
 void saveSharedSaveFile(Unit* ptChar, BYTE** data, DWORD* maxSize, DWORD* curSize);
 
 void initSharedStashBaseline(Unit* ptChar, DWORD diskHash, bool diskExisted);
-void writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isHardcore);
+// isLeaving: the save made when the player leaves the game, the only one that writes a conflict file or shows a box.
+// Returns true when the file holds this game's shared items.
+bool writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isHardcore, bool isLeaving);
 
 void backupSharedSaveFile();
 

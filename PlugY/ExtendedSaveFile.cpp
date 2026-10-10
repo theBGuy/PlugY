@@ -107,27 +107,56 @@ int loadExtendedSaveFile(Unit* ptChar, BYTE data[], DWORD maxSize)
 }
 
 
-void writeExtendedSaveFile(char* name, BYTE* data, DWORD size)
+bool writeExtendedSaveFile(char* name, BYTE* data, DWORD size, bool reportFailure)
 {
 	char szSaveName[MAX_PATH];
 	if (!getSaveFilePath(szSaveName, MAX_PATH, name, ".d2x"))
 	{
-		log_box("PlugY could not save the stash of %s: the save path is too long.\nThe previous .d2x file was left unchanged.", name);
-		return;
+		if (reportFailure)
+			log_box("PlugY could not save the stash of %s: the save path is too long.\nThe previous .d2x file was left unchanged.", name);
+		else
+			log_msg("Could not save the stash of %s: the save path is too long.\n", name);
+		return false;
 	}
 	log_msg("Extended file for saving : %s\n",szSaveName);
 
 	// one box per character: a .d2x frozen read-only on purpose would otherwise interrupt every save
 	static char lastBoxedName[64] = "";
-	if (!writeFileAtomic(szSaveName, data, size))
+	bool saved = writeFileAtomic(szSaveName, data, size);
+	if (!saved)
 	{
-		if (_stricmp(lastBoxedName, name))
+		if (!reportFailure)
+			log_msg("Could not save %s.\n", szSaveName);
+		else if (_stricmp(lastBoxedName, name))
 		{
 			strncpy(lastBoxedName, name, sizeof(lastBoxedName)-1);
 			log_box("PlugY could not save %s (read-only, locked by another program, or disk full).\nThe file on disk was not changed. An unsaved copy may be kept next to it as a .tmp file.", szSaveName);
 		} else
 			log_msg("Could not save %s (already reported to the player).\n", szSaveName);
 	}
+	return saved;
+}
+
+
+int readExtendedSaveFileCopy(char* name, BYTE** data, DWORD* size)
+{
+	char szSaveName[MAX_PATH];
+	*data = NULL;
+	*size = 0;
+	if (!getSaveFilePath(szSaveName, MAX_PATH, name, ".d2x"))
+		return -1;
+	return readSaveFileData(szSaveName, data, size, 1);
+}
+
+
+bool restoreExtendedSaveFile(char* name, int state, BYTE* data, DWORD size)
+{
+	char szSaveName[MAX_PATH];
+	if (!getSaveFilePath(szSaveName, MAX_PATH, name, ".d2x"))
+		return false;
+	bool restored = state > 0 ? writeFileAtomic(szSaveName, data, size) : DeleteFileA(szSaveName) != 0;
+	log_msg(restored ? "%s put back as it was before this save\n" : "Could not put %s back as it was before this save\n", szSaveName);
+	return restored;
 }
 
 

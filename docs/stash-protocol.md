@@ -104,7 +104,7 @@ drops it) or has no PlugY data, so always use a timeout.
 | 10 | CROSS_LIST | A personal <-> shared move without CROSS. |
 | 11 | INTERNAL | Should not happen. The item stays where it was or where a page switch would put it; PlugY.log says why. |
 | 12 | CLIENT_MISMATCH | The client hasn't confirmed the protocol, or its grid differs. Send HELLO again, then retry. |
-| 13 | SHARED_CONFLICT | The shared stash is in conflict this game; shared moves are refused. |
+| 13 | SHARED_CONFLICT | Shared moves are refused because the shared stash is in conflict. A running game doesn't send it: PlugY reports a conflict only in the save made when the player leaves. |
 
 | Feature bit | Meaning |
 |---|---|
@@ -114,7 +114,7 @@ drops it) or has no PlugY data, so always use a timeout.
 | `0x08` | This game loaded the personal stash |
 | `0x10` | Packet `0x55` is installed: requests may be sent |
 | `0x20` | Swaps keep pinned items on their page |
-| `0x40` | The shared stash is in conflict this game |
+| `0x40` | The shared stash is in conflict (set only by the save made when the player leaves, so a running game doesn't see it) |
 | `0x80` | Page insert/delete keeps this client's pages in step |
 
 ### `UC_ITEM_MOVED` (+01 = `0x20`, 36 bytes)
@@ -165,6 +165,7 @@ Both are for the client's own PlugY. `UC_PROTO` carries the version, the stash g
   server, which then tells the client, so the pages a script sees always match the pages saved.
 - With `PinnedItems` (`box` by default), swapping pages leaves pinned items where they are on both pages, and a
   swap that would put a pinned item and another item on the same cells is refused.
-- Known limit: a MOVE that takes an item off or onto the shared stash checks the shared stash's conflict state
-  only when it runs. If another game saves the shared stash later in the same game, that move can end up in the
-  conflict file instead of the main file. Shared moves therefore need explicit flags, and kolbot never makes them.
+- Known limit: PlugY reports a shared stash conflict only when the player leaves the game. Once another game has
+  saved the shared stash after this one loaded it, a shared move this game makes ends up in the conflict file written
+  when leaving, not in the main file, and once this game has changed the shared stash its character saves wait until
+  then. Shared moves therefore need explicit flags, and kolbot never makes them.

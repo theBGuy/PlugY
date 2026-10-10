@@ -209,11 +209,7 @@ void gambleReload(Unit* ptChar)
 void savePlayers(Unit* ptChar)
 {
 	if (active_savegame)
-	{
-		plugyForcedSave = true;
 		D2SaveGame(PCGame);
-		plugyForcedSave = false;
-	}
 }
 
 void maxGold(Unit* ptChar)
