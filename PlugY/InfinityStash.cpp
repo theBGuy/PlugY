@@ -1160,6 +1160,9 @@ void setSelectedStashClient(DWORD stashId, DWORD stashFlags, DWORD flags, bool b
 {
 	log_msg("setSelectedStashClient ID:%d, stashFlags:%d, flags:%08X\n", stashId, stashFlags, flags);
 	Unit* ptChar = D2GetClientPlayer();
+	// A server update can arrive after the client player is gone (leaving a game).
+	if (!hasStashData(ptChar))
+		return;
 	Stash* newStash = getStash(ptChar, (stashFlags & 1) == 1, stashId);
 	if (!newStash) do
 		newStash = addStash(ptChar, (stashFlags & 1) == 1, false, newStash);

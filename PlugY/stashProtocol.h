@@ -165,6 +165,8 @@ C_ASSERT(FIELD_OFFSET(PYStashPage, items) == 0x28);
 C_ASSERT(sizeof(PYStashPage) == 0xF8);
 
 void Install_StashProtocol();
+// PYPlayerData exists only while PlayerCustomData is installed: PCPY is an offset past PlayerData.
+bool hasStashData(Unit* ptChar);
 DWORD FASTCALL handleStashPacket(Game* ptGame, Unit* ptChar, BYTE* packet, DWORD size);
 void sendStashAck(Unit* ptChar, BYTE op, BYTE seq, BYTE status, DWORD gid, BYTE x, BYTE y, Stash* page, DWORD extraPageFlags = 0);
 void sendProto(Unit* ptChar);

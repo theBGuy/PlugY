@@ -30,8 +30,7 @@ static bool isStashPacketInstalled()
 		&& *(DWORD*)(offset_D2Game + STASH_PACKET_HANDLER_SLOT) == (DWORD)handleStashPacket;
 }
 
-// PYPlayerData exists only while PlayerCustomData is installed: PCPY is an offset past PlayerData.
-static bool hasStashData(Unit* ptChar)
+bool hasStashData(Unit* ptChar)
 {
 	return active_PlayerCustomData && ptChar && PCPlayerData;
 }

@@ -11,6 +11,7 @@
 #include "infinityStash.h"
 #include "extendedSaveFile.h"
 #include "sharedSaveFile.h"
+#include "loadPlayerData.h"
 #include "common.h"
 
 bool active_AutoBackup = false;
@@ -283,6 +284,14 @@ struct s_MPSaveFile
 };
 static s_MPSaveFile receivedSaveFiles;
 static BYTE customPackID = 0xB2;
+
+// Drops the PlugY save data received so far: a later save must never use data left over from this one.
+static void discardReceivedSaveFiles()
+{
+	D2FogMemDeAlloc(receivedSaveFiles.dataExtended,__FILE__,__LINE__,0);
+	D2FogMemDeAlloc(receivedSaveFiles.dataShared,__FILE__,__LINE__,0);
+	ZeroMemory(&receivedSaveFiles, sizeof(receivedSaveFiles));
+}
 //static s_MPSaveFile* receivedSaveFiles = NULL;
 
 
@@ -478,11 +487,7 @@ DWORD STDCALL ReceiveSaveFilesToSave(t_rcvMsg* msg)
 
 
 	if (msg->init)
-	{
-		D2FogMemDeAlloc(receivedSaveFiles.dataExtended,__FILE__,__LINE__,0);
-		D2FogMemDeAlloc(receivedSaveFiles.dataShared,__FILE__,__LINE__,0);
-		ZeroMemory(&receivedSaveFiles, sizeof(receivedSaveFiles));
-	}
+		discardReceivedSaveFiles();
 
 	log_msg("ReceiveSaveFilesToSave : sizeExtended=%d\t curExtended=%d\t dataExtended=%08X\t sizeShared=%d\t curShared=%d\t dataShared=%08X\n", receivedSaveFiles.sizeExtended, receivedSaveFiles.curExtended, receivedSaveFiles.dataExtended, receivedSaveFiles.sizeShared, receivedSaveFiles.curShared, receivedSaveFiles.dataShared);
 
@@ -516,38 +521,75 @@ DWORD STDCALL ReceiveSaveFilesToSave(t_rcvMsg* msg)
 }
 
 
+// The name becomes a file path, so only character-name characters pass: letters, '-' and '_' (renameCharacter accepts
+// a leading '_'), 2 to 15 of them.
+static bool isValidCharName(const char* name)
+{
+	int len = 0;
+	for (; name[len]; len++)
+	{
+		char c = name[len];
+		if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_'))
+			return false;
+	}
+	return len >= 2 && len <= 15;
+}
+
 void STDCALL SaveMPPlayerCustomData(BYTE* dataD2Savefile )
 {
 	log_msg("SaveMPPlayerCustomData - Start.\n");
 
+	// Runs before vanilla's magic/version/length checks: only 8 bytes are length-checked, the name read assumes a full image.
+	if (*(DWORD*)dataD2Savefile != 0xAA55AA55)
+	{
+		log_msg("SaveMPPlayerCustomData - not a .d2s image, nothing saved\n");
+		discardReceivedSaveFiles();
+		log_msg("--- SaveMPPlayerCustomData End ---\n\n");
+		return;
+	}
+	// Saved under the character this client joined with, the name vanilla gives the .d2s: the host supplies the image,
+	// and the client player is already gone when a leaving client receives its save.
 	Unit* ptChar = D2GetClientPlayer();
-	backupSaveFiles(PCPlayerData->name, (dataD2Savefile[0x24] & 4) == 4);
+	char name[sizeof(joinedCharName)];
+	CopyMemory(name, joinedCharName, sizeof(name));
+	// A backup-only install (ActiveAutoBackup without custom data) never runs SendSaveFiles: it names the backup after
+	// the player, as before, and skips it once the player is gone.
+	if (!name[0] && ptChar)
+	{
+		strncpy(name, PCPlayerData->name, sizeof(name) - 1);
+		name[sizeof(name) - 1] = '\0';
+	}
+	if (!isValidCharName(name))
+	{
+		log_msg("SaveMPPlayerCustomData - no character name to save under, nothing saved\n");
+		discardReceivedSaveFiles();
+		log_msg("--- SaveMPPlayerCustomData End ---\n\n");
+		return;
+	}
+	if (strncmp(name, (char*)dataD2Savefile + 0x14, 16))
+		log_msg("SaveMPPlayerCustomData - the save image names %.16s, saved as %s\n", (char*)dataD2Savefile + 0x14, name);
+	bool isHardcore = (dataD2Savefile[0x24] & 4) == 4;
+
+	backupSaveFiles(name, isHardcore);
 
 	if (active_PlayerCustomData)
 	{
 		if( receivedSaveFiles.sizeExtended && (receivedSaveFiles.sizeExtended == receivedSaveFiles.curExtended) && (!active_sharedStash || receivedSaveFiles.sizeShared && (receivedSaveFiles.sizeShared == receivedSaveFiles.curShared)) )
 		{
 			log_msg("SaveMPPlayerCustomData - Saving can start\n");
-			if (ptChar)
-			{
-				writeExtendedSaveFile(PCPlayerData->name, receivedSaveFiles.dataExtended, receivedSaveFiles.sizeExtended);
-				D2FogMemDeAlloc(receivedSaveFiles.dataExtended,__FILE__,__LINE__,0);
-				if (active_sharedStash)
-				{
-					writeSharedSaveFile(PCPlayerData->name, receivedSaveFiles.dataShared, receivedSaveFiles.sizeShared, (dataD2Savefile[0x24] & 4) == 4);//6FBAB9A4-6FAA0000
-					D2FogMemDeAlloc(receivedSaveFiles.dataShared,__FILE__,__LINE__,0);
-				}
-				ZeroMemory(&receivedSaveFiles,sizeof(receivedSaveFiles));
-			}
+			writeExtendedSaveFile(name, receivedSaveFiles.dataExtended, receivedSaveFiles.sizeExtended);
+			if (active_sharedStash)
+				writeSharedSaveFile(name, receivedSaveFiles.dataShared, receivedSaveFiles.sizeShared, isHardcore);//6FBAB9A4-6FAA0000
 			log_msg("SaveMPPlayerCustomData - Receive Savefiles completed\n\n");
+		} else if (ptChar && !strcmp(PCPlayerData->name, name)) {
+			log_box("Connection error : save with client data.");
+			SaveSPPlayerCustomData(ptChar);
 		} else {
-			if (ptChar)
-			{
-				log_box("Connection error : save with client data.");
-				SaveSPPlayerCustomData(ptChar);
-			}
+			// Nothing to save from a player that is gone.
+			log_msg("SaveMPPlayerCustomData - PlugY data for %s did not arrive, .d2x not saved\n", name);
 		}
 	}
+	discardReceivedSaveFiles();
 	log_msg("--- SaveMPPlayerCustomData End ---\n\n");
 }
 
@@ -800,6 +842,13 @@ void Install_SavePlayerData()
 		{
 			MEMC_REF4( D2ReceivePacket, caller_ReceivedSaveFilesToSave_114);
 			//0044C70C  |. E8 3F010100    |CALL Game.0045C850
+			// Two other client receive sites call the same dispatcher; a leaving client gets its save through one of them.
+			mem_seek R8(D2Client, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 4BB4F);
+			MEMC_REF4( D2ReceivePacket, caller_ReceivedSaveFilesToSave_114);
+			//0044BB4E  |. E8 FD0C0100    |CALL Game.0045C850
+			mem_seek R8(D2Client, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 4BD5B);
+			MEMC_REF4( D2ReceivePacket, caller_ReceivedSaveFilesToSave_114);
+			//0044BD5A  |. E8 F10A0100    |CALL Game.0045C850
 		}
 		else if ( version_D2Game >= V111 )
 		{

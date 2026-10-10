@@ -10,6 +10,7 @@
 #include "infinityStash.h"
 #include "extendedSaveFile.h"
 #include "sharedSaveFile.h"
+#include "loadPlayerData.h"
 #include "common.h"
 
 
@@ -227,9 +228,14 @@ void sendData(BYTE* data, DWORD size, bool isShared)
 }
 
 
+char joinedCharName[17] = "";
+
 void FASTCALL SendSaveFiles (char* ptPath, DWORD maxsize, char* name)
 {
 	D2FogGetSavePath(ptPath,maxsize);
+	// The client's own pick, kept for the save the server sends back when it leaves (SaveMPPlayerCustomData).
+	strncpy(joinedCharName, name, sizeof(joinedCharName) - 1);
+	joinedCharName[sizeof(joinedCharName) - 1] = '\0';
 
 	log_msg("\n--- Start SendSaveFiles ---\n");
 	active_sharedStash = active_SharedStashInMultiPlayer == 2;

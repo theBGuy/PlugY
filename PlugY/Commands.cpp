@@ -16,6 +16,7 @@
 #include "windowed.h"
 #include "common.h"
 #include "savePlayerData.h"
+#include "loadPlayerData.h"
 #include "stashProtocol.h"
 #include <stdio.h>
 
@@ -271,6 +272,9 @@ void takeGold(Unit* ptChar, DWORD amount)
 void updateSharedGold(DWORD goldAmount)
 {
 	Unit* ptChar = D2GetClientPlayer();
+	// A server update can arrive after the client player is gone (leaving a game).
+	if (!hasStashData(ptChar))
+		return;
 	log_msg("SharedGold = %d\n",goldAmount);
 	PCPY->sharedGold = goldAmount;
 }
@@ -381,6 +385,13 @@ bool renameCharacter(Unit* ptChar, char* newName)
 		strcpy(&szCurrentFile[curLen], "map");
 		strcpy(&szNewFile[newLen], "map");
 		MoveFile(szCurrentFile, szNewFile);
+	}
+
+	// Multiplayer saves are named after the joined character (SaveMPPlayerCustomData), so it follows the rename.
+	if (!strcmp(joinedCharName, PCPlayerData->name))
+	{
+		strncpy(joinedCharName, newName, sizeof(joinedCharName) - 1);
+		joinedCharName[sizeof(joinedCharName) - 1] = '\0';
 	}
 
 	// Update server
