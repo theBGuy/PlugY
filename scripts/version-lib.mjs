@@ -1,5 +1,5 @@
 // PlugY's version model and the files that carry it. src/common/PlugYVersion.h is
-// the single source for the binaries; the 8 installer text files repeat the
+// the single source for the binaries; the 8 shipped text files repeat the
 // version in their `;...;` banner box. changelog-release.mjs stamps both, and
 // release.mjs commits exactly STAMPED_FILES (+ the changelog on a stable
 // release), so the two can never drift. Node built-ins only (no deps).

@@ -70,7 +70,8 @@ quoted game text can keep its own.
   creates the annotated tag, and pushes master and the tag together. Rehearse
   with `--dry-run`; `--help` lists the options.
 - `node scripts/changelog-release.mjs <version>` (maintainers) stamps the version
-  into `src/common/PlugYVersion.h` and the installer files; for a stable version it
+  into `src/common/PlugYVersion.h` and the version banners of the INIs,
+  `LocalizedStrings.ini` and readmes in `game-files/`; for a stable version it
   also assembles the fragments into `CHANGELOG.md` as `## [<version>] - <date>`
   and deletes them.
 - `node scripts/changelog-extract.mjs <tag>` prints the release notes for a tag
