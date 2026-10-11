@@ -611,12 +611,12 @@ Following are default values, between {} are some examples values with descripti
 Enable or disable BattleNet Access.
 - DisableBattleNet=1		{0:Battle.net access enable; 1:Battle.net access disable}
 
-Create a log file "PlugY.log" in the current directory.
-This feature can slow down your game.
-- ActiveLogFile=0 		{0:No information is written while playing; 1:Always enabled}
+Each launch of the game writes its own log in the PlugY\logs folder, for example PlugY_2026-10-10_20-44-47_287472.log (start date, start time, process id). Every non-empty line starts with the time.
+Logs older than 7 days are removed, and at most the newest 500 are kept. When the game folder is read-only, the logs go to %LOCALAPPDATA%\PlugY4Kolbot\logs instead.
+- ActiveLogFile=1 		{0:Only PlugY's startup is logged; 1:The whole session is logged}
 
 Open a message box when PlugY reports an error.
-With 0 there is no message box: errors are written to PlugY.log only when ActiveLogFile=1.
+With 0 there is no message box: errors are written to the session log only when ActiveLogFile=1.
 Fatal errors still close the game with 0; only their message box is not shown.
 - ShowErrorMessageBox=1	{0:No message box; 1:Errors also open a message box}
 

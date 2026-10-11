@@ -519,10 +519,10 @@ Active ou désactive l'accès à BattleNet.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - DisableBattleNet=1		{0:accès à Battle.net activé; 1:accès à Battle.net désctivé}
 
-Enregistre le log dans le fichier "The PlugY.log" dans le répertoire courant.
-Cette fonction peut ralentir le jeu.
+Chaque lancement du jeu écrit son propre log dans le dossier PlugY\logs, par exemple PlugY_2026-10-10_20-44-47_287472.log (date et heure de lancement, numéro du processus). Chaque ligne non vide commence par l'heure.
+Les logs de plus de 7 jours sont supprimés, et au plus les 500 plus récents sont gardés. Si le dossier du jeu est en lecture seule, les logs vont dans %LOCALAPPDATA%\PlugY4Kolbot\logs.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
-- ActiveLogFile=0 		{0:Désactivé, aucune information n'est écrite pendant le jeu; 1:toujours activé}
+- ActiveLogFile=1 		{0:seul le démarrage de PlugY est enregistré; 1:toute la session est enregistrée}
 
 Charge les dll supplémentaires du mod pour les utiliser en même temps que PlugY.
 Séparer chaque dll par le caractère pipe (|)

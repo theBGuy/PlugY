@@ -512,7 +512,7 @@ Ich habe einen anderen Fehler, was kann ich tun ?
 2) Wenn dir das nicht weitergeholfen hat, sende mir eine email (at ynicolas@worldonline.fr) mit "PlugY bug" im Betreff und schreib auf Englisch oder Französisch, da ich kein Deutsch spreche
 Hänge bitte folgende Dateien an:
 - PlugY.ini
-- PlugY.log (dazu muss active_logfile=1 in der plugY.ini aktiviert sein)
+- die neuesten Logs aus PlugY\logs (mit ActiveLogFile=1 in der PlugY.ini enthalten sie die ganze Sitzung)
 - D2XXYYZZ.txt log Log Datei von Diablo
 - Beantworte die Fragen: wann,wo,wie,warum,... passiert das, und evtl. mit welchem MOD ?
 Danke
@@ -611,10 +611,11 @@ Beispiel:
 - DisableBattleNet=1	(Deaktiviert Battle.net access, Standard)
 - DisableBattleNet=0	(Aktiviert Battle.net access)
 
-Erzeugen der Log-Datei "PlugY.log" im aktuellen Verzeichnis.
+Jeder Start des Spiels schreibt ein eigenes Log in den Ordner PlugY\logs, zum Beispiel PlugY_2026-10-10_20-44-47_287472.log (Startdatum, Startzeit, Prozess-ID). Jede nicht leere Zeile beginnt mit der Uhrzeit.
+Logs, die älter als 7 Tage sind, werden gelöscht, und höchstens die 500 neuesten bleiben. Ist der Spielordner schreibgeschützt, landen die Logs in %LOCALAPPDATA%\PlugY4Kolbot\logs.
 Beispiel:
-- ActiveLogFile=0 (Deaktiviert, Standard, keine Informationen werden während des Spiels geschrieben)
-- ActiveLogFile=1 (Aktiviert)
+- ActiveLogFile=1 (Standard: die ganze Sitzung wird protokolliert)
+- ActiveLogFile=0 (nur der Start von PlugY wird protokolliert)
 
 Laden von weiteren DLLs, wenn PlugY genutzt wird.
 Trenne jeden DLL-Namen durch das Zeichen Pipe (|)

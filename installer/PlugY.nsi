@@ -781,6 +781,9 @@ Section "Uninstall" Uninstall
   Delete "$INSTDIR\PlugY\TradeStash.dc6"
   Delete "$INSTDIR\PlugY\UnassignSkillsBtns.dc6"
   Delete "$INSTDIR\PlugY\UnassignStatsBtns.dc6"
+  ; Session logs of the games started from this folder (PlugY.dll writes them under the game's working
+  ; directory; PlugY.log above is the single log of older versions).
+  RMDir /r "$INSTDIR\PlugY\logs"
   RMDir "$INSTDIR\PlugY"
   Delete "$INSTDIR\${UNINSTALL_FILE}"
   ; Non-recursive: the updater's PlugY4Kolbot-backup\ holds the user's replaced files,

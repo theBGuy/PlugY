@@ -368,7 +368,7 @@ test("the release path list is one constant shared by prepare and commit", () =>
 const realHeader = () => readFileSync(join(repoRoot, HEADER_PATH), "latin1");
 
 // The checkout decides the header's line endings (LF in git and on CI's Ubuntu
-// runner, CRLF under core.autocrlf), so each header test runs on both styles,
+// runner, CRLF on Windows checkouts), so each header test runs on both styles,
 // built from the real file.
 const HEADER_EOLS = { LF: "\n", CRLF: "\r\n" };
 const headerWith = (eol) => realHeader().replace(/\r?\n/g, eol);

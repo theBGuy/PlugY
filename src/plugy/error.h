@@ -15,7 +15,6 @@
 extern int active_logFile;
 extern int active_ShowErrorMessageBox;
 
-void log_initfile();
 void log_close();
 void log_box( const char* pFormat, ... );
 void log_msg( const char* pFormat, ... );

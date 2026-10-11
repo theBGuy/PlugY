@@ -299,7 +299,7 @@ void init_General(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFi
 	active_DisableBattleNet = atoi(buffer) != 0;
 	log_msg("active_DisableBattleNet\t\t= %d\n", active_DisableBattleNet);
 
-	GET_PRIVATE_PROFILE_STRING(S_GENERAL, S_active_logFile, "0");
+	GET_PRIVATE_PROFILE_STRING(S_GENERAL, S_active_logFile, "1");
 	active_logFile = atoi(buffer) + 1;
 	log_msg("active_logFile\t\t\t\t= %d\n", active_logFile);
 

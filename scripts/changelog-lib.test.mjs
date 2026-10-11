@@ -186,7 +186,7 @@ test("first release compares against the upstream v14.03 tag verbatim", () => {
 // Release-proof: the base tag is read from the file, so this keeps passing
 // after each real release moves [Unreleased] forward.
 test("the real CHANGELOG.md assembles against its own compare base", () => {
-  // A Windows checkout with core.autocrlf=true has CRLF here; the release tools read it as LF too.
+  // A Windows checkout usually has CRLF here; the release tools read it as LF too.
   const text = readLF(join(repoRoot, "CHANGELOG.md"));
   const prevTag = text.match(/^\[Unreleased\]:.*\/compare\/(\S+?)\.\.\.HEAD$/m)[1];
   const out = assembleChangelog(text, "99.0.0", { Added: ["- A."], Changed: [], Fixed: [] }, {

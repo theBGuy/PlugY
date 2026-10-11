@@ -66,8 +66,7 @@ static DWORD WINAPI updateCheckThread(LPVOID module)
 	return 0;
 }
 
-/* Logged here rather than on the check thread: log_msg is not safe to call from two threads.
-   Only an answer from GitHub or a fresh cache clears the notice; a failed or skipped refresh keeps
+/* Only an answer from GitHub or a fresh cache clears the notice; a failed or skipped refresh keeps
    it, since a release never stops being newer than this build. */
 static void applyUpdateHint(const UpdateHint* hint)
 {

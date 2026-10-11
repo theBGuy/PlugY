@@ -184,9 +184,15 @@ DWORD FASTCALL openPandFinalPortal(Game* ptGame, Unit* ptChar)
 
 void STDCALL spawnUber(Game* ptGame, Room* ptRoom)
 {
-	log_msg("Uber Quest State : %d %d %d\n",questState.count1, questState.count2, questState.count3);
-	log_msg("Uber Quest questState spawn : %d %d %d %d %d %d\n",questState.uber1Spawned, questState.uber2Spawned, questState.uber3Spawned, questState.uber4Spawned, questState.uber5Spawned, questState.uber6Spawned);
-	switch(D2GetLevelID(ptRoom))
+	DWORD levelID = D2GetLevelID(ptRoom);
+	// Runs for every room any game loads; logging every room made up most of the log, so only the uber levels log it.
+	if (levelID == LEVEL_ACT5_PANDEMONIUM1 || levelID == LEVEL_ACT5_PANDEMONIUM2
+		|| levelID == LEVEL_ACT5_PANDEMONIUM3 || levelID == LEVEL_ACT5_PANDEMONIUM_FINAL)
+	{
+		log_msg("Uber Quest State : %d %d %d\n",questState.count1, questState.count2, questState.count3);
+		log_msg("Uber Quest questState spawn : %d %d %d %d %d %d\n",questState.uber1Spawned, questState.uber2Spawned, questState.uber3Spawned, questState.uber4Spawned, questState.uber5Spawned, questState.uber6Spawned);
+	}
+	switch(levelID)
 	{
 	case LEVEL_ACT5_PANDEMONIUM1:
 		if (!questState.uber1Spawned)

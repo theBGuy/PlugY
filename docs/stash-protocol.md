@@ -102,7 +102,7 @@ drops it) or has no PlugY data, so always use a timeout.
 | 8 | BUSY | The game holds the item for a moment; retry after about 100 ms. |
 | 9 | BAD_REQUEST | Unknown op or flag. |
 | 10 | CROSS_LIST | A personal <-> shared move without CROSS. |
-| 11 | INTERNAL | Should not happen. The item stays where it was or where a page switch would put it; PlugY.log says why. |
+| 11 | INTERNAL | Should not happen. The item stays where it was or where a page switch would put it; the session log in PlugY\logs says why. |
 | 12 | CLIENT_MISMATCH | The client hasn't confirmed the protocol, or its grid differs. Send HELLO again, then retry. |
 | 13 | SHARED_CONFLICT | Shared moves are refused because the shared stash is in conflict. A running game doesn't send it: PlugY reports a conflict only in the save made when the player leaves. |
 
