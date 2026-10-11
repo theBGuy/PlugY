@@ -19,6 +19,7 @@ import {
   localDate,
   findUnreleased,
   pendingBody,
+  prereleaseIntro,
   readFragments,
   readLF,
   validateFragments,
@@ -296,6 +297,31 @@ test("upper-case .MD fragments are validated as well as consumed", () => {
     assert.deepEqual(validateFragments(dir), []);
     assert.equal(readFragments(dir).groups.Added[0], "- Fine.");
   });
+});
+
+test("the pre-release intro announces the installer's logging change, which the installer still makes", () => {
+  const logs =
+    " Its installer also turns on full session logs (`ActiveLogFile=1`) in an existing `PlugY.ini`, including" +
+    " when the updater updates an install the installer made, so your bug reports can include the whole" +
+    " session; to log only PlugY's startup, set it back to `0` after each install or update.";
+  assert.equal(
+    prereleaseIntro("15.0.0", true, "14.3.0"),
+    "Pre-release of 15.0.0 for testing; these notes cover everything since 14.3.0." + logs,
+  );
+  assert.equal(
+    prereleaseIntro("15.0.0", false, null),
+    "Pre-release of 15.0.0 for testing; no changes are recorded since the last stable release." + logs,
+  );
+  // makensis accepts !ifdef on a symbol nothing defines, so losing the !searchparse line would
+  // silently turn the feature off: pin the define as well as the block.
+  const nsi = readLF(join(repoRoot, "installer", "PlugY.nsi"));
+  assert.ok(nsi.includes('\n!searchparse /noerrors "${DISPLAY_VERSION}" "-" PRERELEASE_ID\n'));
+  const block = nsi.slice(nsi.indexOf("!ifdef PRERELEASE_ID"));
+  assert.ok(block.startsWith("!ifdef PRERELEASE_ID\n"), "installer/PlugY.nsi lost its pre-release block");
+  const body = block.slice(0, block.indexOf("!endif"));
+  assert.ok(body.includes(String.raw`ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile"`));
+  assert.ok(body.includes('${If} $0 == "0"'));
+  assert.ok(body.includes(String.raw`WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile" "1"`));
 });
 
 test("a leading UTF-8 BOM is stripped before a fragment is read or validated", () => {

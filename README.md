@@ -70,7 +70,7 @@ Each features can be turned on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURA
 
 ## Updating
 * **In game:** when a newer release is out, the main menu shows `Update: X.Y.Z` in green (with `ActivePrintPlugYVersion=1`, the default). The answer from the last check shows at once, even while a fresh check runs.
-* **One click:** double-click `PlugY4KolbotUpdater.exe` in your PlugY folder (the one that holds `PlugY.exe`), or use the Start-menu shortcut "Check for PlugY4Kolbot updates". It updates that install to the newest release, verifies the download against `SHA256SUMS.txt` and GitHub's own SHA-256 digest first, and keeps your `PlugY.ini` (new options take their defaults from `PlugY\PlugYDefault.ini`).
+* **One click:** double-click `PlugY4KolbotUpdater.exe` in your PlugY folder (the one that holds `PlugY.exe`), or use the Start-menu shortcut "Check for PlugY4Kolbot updates". It updates that install to the newest release, verifies the download against `SHA256SUMS.txt` and GitHub's own SHA-256 digest first, and keeps your `PlugY.ini` (new options take their defaults from `PlugY\PlugYDefault.ini`; a pre-release's installer turns `ActiveLogFile=0` into `1`, see [Logs](#logs)).
   * An install the installer made, wherever it is: the updater runs the new installer for that install alone, without its pages. The install keeps its `Game.exe` patch and its shortcuts, and Apps & features shows its new version. The installer asks for administrator rights.
   * A zip-style install: the updater replaces the files one by one and backs up each to `PlugY4Kolbot-backup\<old version>-<timestamp>\`. It asks for administrator rights only when the folder needs them, such as under Program Files.
 * **D2Bot / kolbot:** close every Diablo II game and `PlugY.exe` that use the folder first. While any of them still uses the files, the updater changes nothing and asks you to close them, then run it again.
@@ -83,7 +83,7 @@ The in-game update check asks api.github.com for the newest release at most once
 * `UpdateChannel=stable` (default). `prerelease` also offers alpha, beta and rc builds.
 
 ## Logs
-Each launch of the game writes its own log to the `PlugY\logs` folder, named after its start time and process id; when the game folder is read-only, the logs go to `%LOCALAPPDATA%\PlugY4Kolbot\logs` instead. Logs older than 7 days are removed, and at most the newest 500 are kept. `ActiveLogFile=1` (the default for new installs) logs the whole session and `0` only PlugY's startup; an existing `PlugY.ini` keeps its value.
+Each launch of the game writes its own log to the `PlugY\logs` folder, named after its start time and process id; when the game folder is read-only, the logs go to `%LOCALAPPDATA%\PlugY4Kolbot\logs` instead. Logs older than 7 days are removed, and at most the newest 500 are kept. `ActiveLogFile=1` (the default for new installs) logs the whole session and `0` only PlugY's startup; an existing `PlugY.ini` keeps its value, except that a pre-release's installer turns `0` into `1`, so testers' logs cover the whole session.
 
 ## Contribute
 Bug reports and pull requests are welcome in [this repository](https://github.com/theBGuy/PlugY4Kolbot).
