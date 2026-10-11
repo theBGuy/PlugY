@@ -87,6 +87,7 @@ LPCWSTR getLocalTypeString(DWORD code)
 void loadLocalString(INIFileW *iniFile, int id, LPCWSTR section, LPCWSTR key)
 {
 	WCHAR buffer[BUFSIZE];
+	buffer[0] = NULL;	// a missing key with no default leaves it untouched
 	iniFile->GetPrivateProfileString(section, key, NULL, buffer, BUFSIZE);
 	int len = wcslen(buffer);
 	if (len == 0)
@@ -302,6 +303,7 @@ void loadLocalizedStrings(int language)
 	LOAD(STR_NEXT_PAGE);
 	LOAD(STR_ITEM_LEVEL);
 	LOAD(STR_PAGE_TYPE_CHANGE);
+	LOAD(STR_MOVED_ITEMS_PAGE);
 
 	// Cube receipt :
 	LOAD(STR_COW_PORTAL);

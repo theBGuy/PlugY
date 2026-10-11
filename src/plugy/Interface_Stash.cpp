@@ -315,7 +315,7 @@ DWORD STDCALL manageBtnUp(sWinMessage* msg)
 				WCHAR text[21];
 				getCurrentStashName(text, 21, ptChar);
 				D2TogglePage(5,0,0);// Open command window
-				_snwprintf(ptInputCommand, 25, L"/rp %s", text);
+				_snwprintf(ptInputCommand, 25, L"/rp %s", isMovedItemsPageName(PCPY->currentStash->name) ? movedItemsPagePrefill(text) : text);
 				InputCommandLen = wcslen(ptInputCommand);
 			}
 			else if (PCPY->currentStash->isMainIndex)

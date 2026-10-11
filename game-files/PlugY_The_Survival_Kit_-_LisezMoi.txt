@@ -15,6 +15,7 @@ Vous pouvez y faire un don si vous le souhaitez.
 
 ******** ATTENTION ********
 - Ce plugin fonctionne sur LoD version 1.09 à 1.13d et 1.14d et sur leurs mods.
+- PlugY4Kolbot est développé et testé uniquement sur la 1.14d. Les autres versions ne sont pas testées avec lui.
 - Ce plugin ne fonctionne pas sur sur Battle.net et les autres royaumes.
 - PlugY.ini a été modifié depuis les versions précédentes, utiliser celui fourni dans cette archive.
 - LOD 1.14 change le répertoire de sauvegarde, vous devez donc déplacer vos fichiers de sauvegardes de PlugY manuellement.
@@ -353,14 +354,17 @@ Changements apportés par la v2.03 :
 
 
 ******** CONTENU ********
-20 fichiers, 1 répertoire :
+23 fichiers, 1 répertoire :
 - PlugY_The_Survival_Kit_-_Readme.txt
 - PlugY_The_Survival_Kit_-_LisezMoi.txt
 - PlugY_The_Survival_Kit_-_Liesmich.txt
 - PlugY_The_Survival_Kit_-_讀我檔案.txt
 - PlugY.exe
+- PlugY4KolbotUpdater.exe
 - PlugY.dll (in Diablo II directory)
 - PlugY.ini
+- LICENSE.txt
+- CHANGELOG.md
 - PlugY\PlugYFixed.ini
 - PlugY\PlugYDefault.ini
 - PlugY\LocalizedStrings.ini
@@ -380,8 +384,24 @@ Changements apportés par la v2.03 :
 ******** INSTALLATION ********
 Installation normale :
 - Suivre les directives de l'installeur.
+- Choisir le répertoire de Diablo II, celui qui contient Game.exe. N'importe quelle copie de Diablo II convient.
+- Pour D2Bot / kolbot, cocher "Patcher Game.exe (D2Bot / kolbot)" : Game.exe démarre alors PlugY de lui-même,
+  et les fichiers de PlugY vont à côté de lui. La désinstallation restaure Game.exe.
 
-note : Vous pouvez choisir le répertoire de "Diablo II" comme répertoire d'installation.
+note : Avec le patch, ou avec une copie de Diablo II autre que celle que Windows a enregistrée,
+tous les fichiers vont dans le répertoire de Diablo II. Sinon, vous choisissez le répertoire de
+PlugY ("Mod PlugY" par défaut).
+
+Installation silencieuse : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
+installe sans afficher l'assistant, pour le répertoire de Diablo II indiqué par /D2= (un chemin complet,
+entre guillemets). L'installeur se termine avec le code de sortie 2, sans rien installer, si /D2= n'est
+pas un chemin complet ou si le répertoire ne contient pas Game.exe.
+/PATCH coche "Patcher Game.exe (D2Bot / kolbot)" ; si Game.exe ne peut pas être patché (par exemple
+pendant qu'il tourne), PlugY4Kolbot est quand même installé et l'installeur se termine avec le code de
+sortie 3. Sans /PATCH, une nouvelle installation suit la note ci-dessus ("Mod PlugY" pour la copie que
+Windows a enregistrée). Pour mettre à jour une installation en mode silencieux, indiquer aussi son
+répertoire PlugY avec /D=<répertoire>, en dernier et sans guillemets : elle est mise à jour là où elle se
+trouve, patch compris.
 
 Installation dans un autre mod
 - Copier PlugY.ini, PlugY.exe et le répertoire PlugY\ (+son sontenu) dans le répertoire du mod ciblé.
@@ -442,6 +462,21 @@ programmes qui lancent Game.exe directement, comme D2Bot. RestoreD2File.exe annu
 
 Les options pour les scripts (-u, --dir, --silent) et les codes de sortie sont décrits dans la
 section "D2File Patcher" du fichier anglais PlugY_The_Survival_Kit_-_Readme.txt.
+
+
+******** MISE A JOUR ********
+- En jeu : quand une version plus récente est sortie, le menu principal affiche "Update: X.Y.Z" en vert
+  (avec ActivePrintPlugYVersion=1). CheckForUpdates et UpdateChannel dans PlugY.ini règlent la vérification.
+- Fermer toutes les parties de Diablo II, puis lancer PlugY4KolbotUpdater.exe depuis le répertoire de PlugY
+  (celui qui contient PlugY.exe) ; l'installeur ajoute aussi le raccourci "Check for PlugY4Kolbot updates"
+  dans le menu démarrer. PlugY4KolbotUpdater.exe vérifie le téléchargement avec SHA256SUMS.txt et l'empreinte
+  SHA-256 fournie par GitHub, et conserve votre PlugY.ini. Pour une installation faite par l'installeur, il
+  lance le nouvel installeur pour cette seule installation ; sinon, il sauvegarde chaque fichier qu'il
+  remplace dans PlugY4Kolbot-backup\.
+- Options pour les scripts : --check ne fait qu'informer, --yes installe sans rien demander, et --prerelease
+  propose aussi les versions alpha, beta et rc (comme UpdateChannel=prerelease).
+Codes de sortie : 0 mis à jour ou déjà à jour, 1 erreur, 2 mise à jour disponible (--check), 3 fichiers en
+cours d'utilisation, 4 annulé.
 
 
 ******************** FAQ ******************
@@ -524,6 +559,11 @@ Les logs de plus de 7 jours sont supprimés, et au plus les 500 plus récents so
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveLogFile=1 		{0:seul le démarrage de PlugY est enregistré; 1:toute la session est enregistrée}
 
+Ouvre une boîte de dialogue quand PlugY signale une erreur.
+Avec 0, aucune boîte de dialogue : les erreurs vont dans le log de la session seulement si ActiveLogFile=1.
+Les erreurs fatales ferment quand même le jeu avec 0 ; seule leur boîte de dialogue n'est pas affichée.
+- ShowErrorMessageBox=1	{0:Pas de boîte de dialogue; 1:Les erreurs ouvrent aussi une boîte de dialogue}
+
 Charge les dll supplémentaires du mod pour les utiliser en même temps que PlugY.
 Séparer chaque dll par le caractère pipe (|)
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
@@ -566,6 +606,17 @@ Active les nouvelles commandes de PlugY.
 Quitte D2, si PlugY échoue à installer toutes les fonctions.
 Désactivez-le uniquement si vous savez ce que vous faites.
 - ActiveCheckMemory=1 		{0:Désactivé; 1:Activé}
+
+Affiche "Update: <version>" en vert au-dessus de la version de PlugY dans le menu principal quand une version
+plus récente de PlugY4Kolbot existe sur GitHub (nécessite ActivePrintPlugYVersion=1 dans [MAIN SCREEN]). Une
+vérification qui doit interroger GitHub s'exécute en arrière-plan, et son résultat s'affiche à la prochaine
+ouverture du menu principal.
+Confidentialité : la vérification envoie au plus une requête par jour, par utilisateur Windows et par canal de
+mise à jour (une par heure après une vérification échouée), à api.github.com avec le User-Agent
+"PlugY4Kolbot/<version>" ; rien d'autre n'est envoyé.
+Avec 0, PlugY ne contacte jamais GitHub.
+- CheckForUpdates=1		{0:Ne jamais vérifier; 1:Vérifier si une version plus récente existe}
+- UpdateChannel=stable	{stable:Versions finales uniquement; prerelease:Aussi les versions alpha, beta et rc}
 
 Active les fonctions cachés ou non finis. (ne pas utiliser)
 - ActiveAllOthersFeatures=0 	{0:Désactivé; 1:Activé}
@@ -636,6 +687,10 @@ Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs signifi
 [STASH]
 Ajuste le coffre pour avoir 10x10 cases.
 Quand bigStash est activé, vou devez redémarrer D2 pour jouer en solo/multi/ouvert après avoir jouer en fermé (et vice versa).
+Sur la 1.14d, avec ActiveMultiPageStash=1, vous pouvez désactiver bigStash à tout moment et garder tous vos
+objets : un objet qui ne tient pas dans le coffre plus petit est déplacé vers un emplacement libre de sa page, ou
+vers une nouvelle page à la fin du coffre nommée "Objets déplacés" (dans la langue du jeu). Les scripts et les
+fichiers de sauvegarde utilisent toujours le nom anglais "Moved items".
 Utilise PlugY\TradeStash.dc6 pour changer l'image de fond.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveBigStash=0			{0:Taille du coffre par défaut utilisé; 1:Activé, coffre utilise 10x10 cases}
@@ -649,6 +704,15 @@ Utilisez les boutons fléchés (et le bouton shift) pour passer d'une page à l'
 Définition : La dernière page est la dernière page qui contient un objet.
 Ces coffres à pages multiples ne fonctionne pas avec des personnages Diablo II classiques ou sur les royaumes.
 Vous pouvez changez le nom du fichier partagé.
+Plusieurs parties peuvent partager le même fichier de coffre. PlugY sauvegarde le coffre partagé d'une partie
+dans un fichier séparé au lieu du fichier principal quand une autre partie a sauvegardé le coffre partagé
+après que cette partie l'a chargé, quand le fichier du coffre partagé n'a pas pu être verrouillé, ou quand le
+fichier principal n'a pas pu être écrit. Le fichier principal n'est jamais écrasé dans ces cas-là.
+Le fichier séparé s'appelle _LOD_[HC_]<SharedStashFilename>.conflict-<YYYYMMDD-HHMMSS>-<pid>.sss
+(HC_ seulement en hardcore avec SeparateHardcoreStash=1) ; fusionnez ses objets à la main dans
+le coffre principal.
+Quand un fichier .d2x ou .sss existe mais ne peut pas être lu ou est tronqué, PlugY refuse d'entrer dans la
+partie ("Unable to enter game") au lieu de charger un coffre vide.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveMultiPageStash=0	{0:Désactivé; 1:Activé}
 - NbPagesPerIndex=10		{10: Les pages indexées sont 1,10,20,30,...,max}
@@ -661,6 +725,8 @@ Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs signifi
 - SharedNormalPageColor=4		{0:Couleur du nom des pages de coffre partagé sans index (voir * pour la liste des couleurs)}
 - SharedIndexPageColor=8		{0:Couleur du nom des pages de coffre partagé avec index (voir * pour la liste des couleurs)
 - SharedMainIndexPageColor=1	{0:Couleur du nom des pages de coffre partagé principal (voir * pour la liste des couleurs)}
+- ActiveStashProtocol=1			{0:Désactivé; 1:Activé, sur la 1.14d les bots et les scripts (comme kolbot) peuvent afficher n'importe quelle page du coffre, voir ce que contient chaque page, et déplacer un objet du coffre vers n'importe quelle page sans quitter la page affichée; chaque requête reçoit sa propre réponse; insérer ou supprimer une page (/insertpage, /deletepage, ou un script) garde les pages affichées identiques aux pages sauvegardées}
+- PinnedItems=box			{(vide):Les échanges déplacent tous les objets; box:Le Cube Horadrique reste sur sa page quand vous échangez des pages (/swappage, /togglepage), sur la 1.14d avec ActiveStashProtocol=1. Jusqu'à 5 codes d'objet, en majuscules ou en minuscules, séparés par des virgules (comme box,key). Un échange qui mettrait un objet épinglé et un autre objet sur les mêmes cases n'est pas effectué}
 
 - ActiveSharedStash=0		{0:Désactivé; 1:Activé si ActiveMultiPageStash=1}
 - ActiveSharedStashInMultiPlayer=0	{0:Désactivé; 1:Active le coffre partagé en multijoueur. A utiliser uniquement avec des répertoires de sauvegarde différent.}

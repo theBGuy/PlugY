@@ -441,7 +441,6 @@ TchangeToSelectedStash changeToSelectedStash;
 // The game's inventory loader frees every item it can't place at its saved position (e.g. a page saved with
 // ActiveBigStash=1 loaded with it off) and still reports success. While a PlugY page loads, such items are held
 // instead, then re-placed by loadStash (same page) or loadStashList (new pages at the end).
-static const char* movedItemsPageName = "Moved items";
 static bool holdUnplacedStashItems = false;
 static Unit** heldItems = NULL;
 static DWORD nbHeldItems = 0;
@@ -485,9 +484,9 @@ static bool placeInFreeSpot(Unit* ptChar, Unit* ptItem)
 static Stash* addMovedItemsPage(Unit* ptChar, Stash* lastStash)
 {
 	Stash* page = addStash(ptChar, lastStash->isShared, false, lastStash);
-	page->name = (char*)malloc(strlen(movedItemsPageName) + 1);
+	page->name = (char*)malloc(sizeof(MOVED_ITEMS_PAGE_NAME));
 	if (page->name)
-		strcpy(page->name, movedItemsPageName);
+		strcpy(page->name, MOVED_ITEMS_PAGE_NAME);
 	return page;
 }
 
@@ -566,7 +565,7 @@ static void placeUnplacedItems(Unit* ptChar, Unit* unplaced, Stash* source, DWOR
 		if (!stashFindSpot(ptChar, page, ptItem, &x, &y, false) || !attachItem(ptChar, ptItem, page, x, y))
 		{
 			Stash* last = getLastStash(source->isShared ? PCPY->sharedStash : PCPY->selfStash);
-			if (last && last != PCPY->currentStash && last != pageRefilledByDelete && last->name && !strcmp(last->name, movedItemsPageName) && stashFindSpot(ptChar, last, ptItem, &x, &y, false))
+			if (last && last != PCPY->currentStash && last != pageRefilledByDelete && isMovedItemsPageName(last->name) && stashFindSpot(ptChar, last, ptItem, &x, &y, false))
 				page = last;
 			else
 			{
@@ -753,7 +752,18 @@ void showMovedStashItemsNotice(Unit* ptChar)
 	else
 		_snprintf(where, sizeof(where), "%u at the end of your %s stash", nbSelf ? nbSelf : nbShared, nbSelf ? "personal" : "shared");
 	where[sizeof(where) - 1] = NULL;
-	log_box("Some stash items didn't fit on their page (the stash was probably saved with a different ActiveBigStash setting).\nPlugY kept them on new pages named \"%s\": %s.", movedItemsPageName, where);
+	// Names the pages as the stash shows them, in the ANSI code page MessageBoxA reads; a label that code page can't
+	// spell gives the saved name instead. A UTF-8 code page spells every label and takes no lossy flag.
+	WCHAR shown[STASH_NAME_MAX_SHOWN + 1];
+	wcsncpy(shown, getMovedItemsPageLabel(), STASH_NAME_MAX_SHOWN);
+	shown[STASH_NAME_MAX_SHOWN] = NULL;
+	UINT codePage = GetACP();
+	bool utf8 = codePage == CP_UTF8;
+	char label[4 * STASH_NAME_MAX_SHOWN + 1];
+	BOOL lossy = FALSE;
+	if (!WideCharToMultiByte(codePage, utf8 ? 0 : WC_NO_BEST_FIT_CHARS, shown, -1, label, sizeof(label), NULL, utf8 ? NULL : &lossy) || lossy)
+		strcpy(label, MOVED_ITEMS_PAGE_NAME);
+	log_box("Some stash items didn't fit on their page (the stash was probably saved with a different ActiveBigStash setting).\nPlugY kept them on new pages named \"%s\": %s.", label, where);
 }
 
 
@@ -1608,9 +1618,18 @@ WCHAR* getDefaultStashName(Unit* ptChar)
 	return getLocalString( PCPY->currentStash->isShared ? STR_SHARED_PAGE_NUMBER : STR_PERSONAL_PAGE_NUMBER);
 }
 
+LPCWSTR getMovedItemsPageLabel()
+{
+	return movedItemsPageLabel(getLocalString(STR_MOVED_ITEMS_PAGE));
+}
+
 void getCurrentStashName(WCHAR* buffer, DWORD maxSize, Unit* ptChar)
 {
-	if (PCPY->currentStash->name && PCPY->currentStash->name[0])
+	if (isMovedItemsPageName(PCPY->currentStash->name))
+	{
+		wcsncpy(buffer, getMovedItemsPageLabel(), maxSize - 1);
+	}
+	else if (PCPY->currentStash->name && PCPY->currentStash->name[0])
 	{
 		mbstowcs(buffer, PCPY->currentStash->name, maxSize - 1);
 	}

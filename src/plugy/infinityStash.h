@@ -7,6 +7,7 @@
 #pragma once
 
 #include "common.h"
+#include "movedItemsPage.h"
 
 extern DWORD maxSelfPages;
 extern DWORD maxSharedPages;
@@ -131,6 +132,7 @@ int swapStashItems(Unit* ptChar, Stash* target, DWORD bIsClient, bool keepPinned
 
 void getCurrentStashName(WCHAR* buffer, DWORD maxSize, Unit* ptChar);
 WCHAR* getDefaultStashName(Unit* ptChar);
+LPCWSTR getMovedItemsPageLabel();	// the translated name the stash shows on a "Moved items" page
 
 void Install_MultiPageStash();
 

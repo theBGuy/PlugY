@@ -15,6 +15,7 @@ Ihr dürft gerne spenden, falls ihr möchtet.
 
 ******** WARNUNG ********
 - Dieses Plug-In ist NUR für LOD 1.09 bis 1.13d und 1.14d!
+- PlugY4Kolbot wird nur unter 1.14d entwickelt und getestet; mit den anderen Versionen wurde es nicht getestet.
 - Dieses Plug-In ist NICHT das closed Battle.net!
 - Alle Dateien können sich seit der letzten Version verändert haben, benutzt keine alten Dateien!
 - Mit LOD 1.14 wurde der Speicherort der Spielstände geändert. Bitte verschiebt die Spielstände manuell.
@@ -398,14 +399,17 @@ v1.00 Funktionen (es können alle einfach ein- und ausgeschaltet werden) :
 
 
 ******** INHALT ********
-20 Dateien, 1 Ordner :
+23 Dateien, 1 Ordner :
 - PlugY_The_Survival_Kit_-_Readme.txt
 - PlugY_The_Survival_Kit_-_LisezMoi.txt
 - PlugY_The_Survival_Kit_-_Liesmich.txt
 - PlugY_The_Survival_Kit_-_讀我檔案.txt
 - PlugY.exe
+- PlugY4KolbotUpdater.exe
 - PlugY.dll (in Diablo II directory)
 - PlugY.ini
+- LICENSE.txt
+- CHANGELOG.md
 - PlugY\PlugYFixed.ini
 - PlugY\PlugYDefault.ini
 - PlugY\LocalizedStrings.ini
@@ -423,7 +427,27 @@ v1.00 Funktionen (es können alle einfach ein- und ausgeschaltet werden) :
 
 
 ******** INSTALLATION ********
-Installation :
+Normale Installation :
+- Folge den Anweisungen des Installationsprogramms.
+- Wähle das Diablo II-Verzeichnis, das Game.exe enthält. Jede Diablo II-Kopie funktioniert.
+- Für D2Bot / kolbot setze den Haken bei "Game.exe patchen (D2Bot / kolbot)": Game.exe startet PlugY
+  dann selbst, und die PlugY-Dateien kommen neben Game.exe. Die Deinstallation stellt Game.exe wieder her.
+
+Hinweis: Mit dem Patch oder mit einer anderen Diablo II-Kopie als der, die in Windows registriert ist,
+kommen alle Dateien in das Diablo II-Verzeichnis. Sonst wählst du das PlugY-Verzeichnis ("Mod PlugY"
+als Standard).
+
+Unbeaufsichtigte Installation : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
+installiert, ohne seine Seiten anzuzeigen, für das Diablo II-Verzeichnis, das /D2= angibt (ein vollständiger
+Pfad, in Anführungszeichen). Ist /D2= kein vollständiger Pfad oder enthält das Verzeichnis keine Game.exe,
+endet das Installationsprogramm mit Exitcode 2 und installiert nichts. /PATCH setzt den Haken bei
+"Game.exe patchen (D2Bot / kolbot)"; kann Game.exe nicht gepatcht werden (zum Beispiel während es läuft),
+wird PlugY4Kolbot trotzdem installiert, und das Installationsprogramm endet mit Exitcode 3. Ohne /PATCH
+folgt eine neue Installation dem Hinweis oben ("Mod PlugY" für die in Windows registrierte Kopie). Um eine
+Installation unbeaufsichtigt zu aktualisieren, gib zusätzlich ihr PlugY-Verzeichnis als /D=<folder> an,
+als letzten Parameter und ohne Anführungszeichen: sie wird dort aktualisiert, wo sie ist, samt ihrem Patch.
+
+Installation in einem anderen Mod :
 - Entpacke alle Dateien in dein Diablo Verzeichnis.
 - Kopiere die PlugY.ini und die PlugY.exe in das Verzeichnis in dem dein Mod ist.
 - Bearbeite die PlugY.ini um die gewünschten Features zu de/aktivieren (dazu weiter unten).
@@ -488,6 +512,21 @@ Optionen für Skripte (-u, --dir, --silent) und Exitcodes: siehe den Abschnitt "
 englischen Datei PlugY_The_Survival_Kit_-_Readme.txt.
 
 
+******** AKTUALISIERUNG ********
+- Im Spiel: Ist eine neuere Version erschienen, zeigt das Hauptmenü "Update: X.Y.Z" in Grün an (mit
+  ActivePrintPlugYVersion=1). CheckForUpdates und UpdateChannel in der PlugY.ini steuern die Prüfung.
+- Schließe alle Diablo II-Spiele und starte dann PlugY4KolbotUpdater.exe aus deinem PlugY-Verzeichnis
+  (dem, das PlugY.exe enthält); das Installationsprogramm legt außerdem die Startmenüverknüpfung "Check
+  for PlugY4Kolbot updates" an. Der Updater prüft den Download anhand der SHA256SUMS.txt und der
+  SHA-256-Prüfsumme von GitHub und behält deine PlugY.ini. Bei einer Installation, die das
+  Installationsprogramm angelegt hat, führt er das neue Installationsprogramm nur für diese Installation
+  aus; sonst sichert er jede Datei, die er ersetzt, unter PlugY4Kolbot-backup\.
+- Optionen für Skripte: --check meldet nur, --yes installiert ohne Rückfrage, und --prerelease bietet
+  auch Alpha-, Beta- und RC-Builds an (wie UpdateChannel=prerelease).
+Exitcodes: 0 aktualisiert oder bereits aktuell, 1 Fehler, 2 Update verfügbar (--check), 3 Dateien in
+Verwendung, 4 abgebrochen.
+
+
 ******************** FAQ ******************
 Ich kann die PlugY.ini nicht finden ?
 Öffne im Explorer Extras/Ordneroptionen/Anzeige und nimm den Haken raus bei Erweiterung bekannter Dateien ausblenden
@@ -508,8 +547,8 @@ I sehe "sUnitItemInsertItemInvGridBase failed at 1046 in C:\projects\D2\head\Dia
 Das sind nur Warnungen, die Ihr einfach ignorieren könnt
 
 Ich habe einen anderen Fehler, was kann ich tun ?
-1) Lies meinen Thread und poste eine Frage im PhrozenKeep member annoucement forum.
-2) Wenn dir das nicht weitergeholfen hat, sende mir eine email (at ynicolas@worldonline.fr) mit "PlugY bug" im Betreff und schreib auf Englisch oder Französisch, da ich kein Deutsch spreche
+1) Erstelle ein Issue unter https://github.com/theBGuy/PlugY4Kolbot/issues (wenn möglich auf Englisch).
+2) Gib darin die Spielversion an und beschreibe die Schritte, die das Problem auslösen.
 Hänge bitte folgende Dateien an:
 - PlugY.ini
 - die neuesten Logs aus PlugY\logs (mit ActiveLogFile=1 in der PlugY.ini enthalten sie die ganze Sitzung)
@@ -617,6 +656,13 @@ Beispiel:
 - ActiveLogFile=1 (Standard: die ganze Sitzung wird protokolliert)
 - ActiveLogFile=0 (nur der Start von PlugY wird protokolliert)
 
+Öffnet ein Meldungsfenster, wenn PlugY einen Fehler meldet.
+Mit 0 gibt es kein Meldungsfenster: Fehler werden nur bei ActiveLogFile=1 in das Sitzungslog geschrieben.
+Schwerwiegende Fehler beenden das Spiel auch mit 0; nur ihr Meldungsfenster wird nicht angezeigt.
+Beispiel:
+- ShowErrorMessageBox=1 (Standard: Fehler öffnen zusätzlich ein Meldungsfenster)
+- ShowErrorMessageBox=0 (kein Meldungsfenster)
+
 Laden von weiteren DLLs, wenn PlugY genutzt wird.
 Trenne jeden DLL-Namen durch das Zeichen Pipe (|)
 Alle Dateien im "DllToLoad"-Feld werden immer geladen.
@@ -663,6 +709,15 @@ Neue Kommandos in PlugY hinzugefügt, diese können während des Spiels genutzt 
 Beendet D2, wenn PlugY nicht alle Features installieren konnte.
 Nur Ausschalten wenn du weist was du machst.
 - ActiveCheckMemory=1
+
+Zeigt im Hauptmenü "Update: <version>" in Grün über der PlugY-Version an, wenn es auf GitHub ein neueres
+PlugY4Kolbot-Release gibt (benötigt ActivePrintPlugYVersion=1 in [MAIN SCREEN]). Eine Prüfung, die GitHub
+abfragen muss, läuft im Hintergrund, und ihr Ergebnis erscheint beim nächsten Öffnen des Hauptmenüs.
+Datenschutz: Die Prüfung sendet höchstens eine Anfrage pro Tag, Windows-Benutzer und Update-Kanal (nach einer
+fehlgeschlagenen Prüfung eine pro Stunde) an api.github.com, mit dem User-Agent "PlugY4Kolbot/<version>";
+sonst wird nichts gesendet. Mit 0 nimmt PlugY nie Kontakt zu GitHub auf.
+- CheckForUpdates=1		{0:Nie prüfen; 1:Nach einem neueren Release suchen}
+- UpdateChannel=stable	{stable:Nur Releases; prerelease:Auch Alpha-, Beta- und RC-Builds}
 
 Activate hidden or not finished feature. (don't use it)
 - ActiveAllOthersFeatures=0 	{0:Disabled; 1:Enabled}
@@ -733,6 +788,10 @@ Beispiele :
 [STASH]
 Größenänderung des Goldschatz auf 10x10 Felder.
 Benutze PlugY\TradeStash.dc6 um das Hintergrundbild zu ändern.
+Unter 1.14d kannst du mit ActiveMultiPageStash=1 bigStash jederzeit ausschalten und behältst alle Gegenstände:
+Ein Gegenstand, der nicht in die kleinere Kiste passt, wandert an einen freien Platz seiner Seite oder auf eine
+neue Seite namens "Verschobene Items" (in der Sprache des Spiels) am Ende der Kiste. Skripte und
+Spielstanddateien verwenden immer den englischen Namen "Moved items".
 Beispiel:
 - ActiveBigStash=0 (Deaktiviert, Standard, original Goldkistengröße aus der MPQ wird benutzt)
 - ActiveBigStash=1 (Aktiviert)
@@ -743,8 +802,15 @@ Es gibt zwei Goldschatzkisten mit Mehrfach-Seiten :
 Benutzt den "Goldschatz"-Knopf um zwischen den beiden Kisten zu wechseln (unten links).
 Benutze die Pfeiltasten am unteren Rand der Kiste (und die Shift Taste) um zwischen den Seiten umzuschalten
 Definition: Die letzte Seite, ist die letzte Seite die einen Gegenstand enthält
-Die Mehrfach-Seiten sind deaktiviert für Diablo2 Classic Charaktere.
-Startet NIEMALS mehrere Spiele auf einem PC die den gleichen Speicherort für den gemeinsamen Goldschatz benutzen und in Realm Spielen.
+Die Mehrfach-Seiten sind deaktiviert für Diablo2 Classic Charaktere und in Realm-Spielen.
+Mehrere Spiele können dieselbe Goldschatz-Datei nutzen. PlugY speichert den gemeinsamen Goldschatz eines Spiels
+in eine separate Datei statt in die Hauptdatei, wenn ein anderes Spiel den gemeinsamen Goldschatz gespeichert hat,
+nachdem dieses Spiel ihn geladen hat, wenn die Datei des gemeinsamen Goldschatzes nicht gesperrt werden konnte
+oder wenn die Hauptdatei nicht geschrieben werden konnte. Die Hauptdatei wird in diesen Fällen nie überschrieben.
+Die separate Datei heißt _LOD_[HC_]<SharedStashFilename>.conflict-<YYYYMMDD-HHMMSS>-<pid>.sss
+(HC_ nur für Hardcore mit SeparateHardcoreStash=1); übertrage ihre Gegenstände von Hand in den Haupt-Goldschatz.
+Existiert eine .d2x- oder .sss-Datei, kann aber nicht gelesen werden oder ist abgeschnitten, verweigert PlugY
+das Betreten des Spiels ("Unable to enter game"), statt einen leeren Goldschatz zu laden.
 
 Beispiele für den Mehrfachseiten-Goldschatz:
 - ActiveMultiPageStash=0 (Deaktiviert, Standard)
@@ -763,6 +829,8 @@ Beispiel Konfiguration des persönlichen Goldschatz :
 - SharedNormalPageColor=4		{0:Color of the shared stash name without index (see * for color list)}
 - SharedIndexPageColor=8		{0:Color of the shared stash name with index (see * for color list)
 - SharedMainIndexPageColor=1	{0:Color of the shared stash name with main index (see * for color list)}
+- ActiveStashProtocol=1			{0:Deaktiviert; 1:Aktiviert, unter 1.14d können Bots und Skripte (wie kolbot) jede Seite der Truhe anzeigen, sehen, was jede Seite enthält, und einen Gegenstand der Truhe auf eine beliebige Seite verschieben, ohne die angezeigte Seite zu verlassen; jede Anfrage bekommt ihre eigene Antwort; das Einfügen oder Löschen einer Seite (/insertpage, /deletepage oder per Skript) hält die angezeigten und die gespeicherten Seiten synchron}
+- PinnedItems=box			{(leer):Beim Tauschen werden alle Gegenstände verschoben; box:Der Horadrim-Würfel bleibt beim Tauschen von Seiten (/swappage, /togglepage) auf seiner Seite, unter 1.14d mit ActiveStashProtocol=1. Bis zu 5 Gegenstandscodes in beliebiger Groß-/Kleinschreibung, durch Kommas getrennt (z. B. box,key). Ein Tausch, der einen fixierten Gegenstand und einen anderen Gegenstand auf dieselben Felder legen würde, wird nicht ausgeführt}
 
 Beispiel Konfiguration des gemeinsamen Goldschatz :
 - ActiveSharedStash=0 (Deaktiviert, Standard)
