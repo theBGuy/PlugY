@@ -11,6 +11,7 @@
 #include "extendedSaveFile.h"
 #include "sharedSaveFile.h"
 #include "loadPlayerData.h"
+#include "saveTransfer.h"
 #include "common.h"
 
 
@@ -184,6 +185,8 @@ struct s_MPSaveFile
 	s_MPSaveFile* prev;
 	s_MPSaveFile* next;
 	bool completed;
+	// A refused chunk: the rest of this client's transfer is dropped, and LoadMPCustomData refuses the character.
+	bool failed;
 };
 
 static BYTE customPackID = 0x6C;
@@ -219,7 +222,7 @@ void sendData(BYTE* data, DWORD size, bool isShared)
 	while (sended < size)
 	{
 		pack.packSize = (BYTE) (size - sended > 0xFE ? 0xFF : size - sended + 1);
-		CopyMemory(pack.data, &data[sended], pack.packSize);
+		CopyMemory(pack.data, &data[sended], pack.packSize - 1);
 		log_msg("Loading Send Packet: \ttype=%X\t finalSize=%X\t packSize=%02X\t data=%08X\n", pack.type, pack.finalSize, pack.packSize, pack.data);
 		D2SendToServer(pack.packSize+7, 0, &pack);
 		sended += pack.packSize -1;
@@ -316,32 +319,51 @@ DWORD STDCALL ReceiveSaveFiles (DWORD clientID, t_rcvMsg* msg)
 
 	log_msg("curSF = %08X\tcurSF->completed = %d\n", curSF, curSF->completed);
 
-
-	DWORD size = msg->packSize - 1;
-	if (isShared)
+	// A refused chunk is still consumed (packID+10) so the game never handles it as one of its own packets.
+	if (curSF->failed)
 	{
-		if (curSF->sizeShared == 0)
-			curSF->sizeShared = msg->finalSize;
-		d2_assert(curSF->sizeShared != msg->finalSize, "Size of shared file has change", __FILE__, __LINE__);
-
-		if (!curSF->dataShared)
-			curSF->dataShared = (BYTE *)D2AllocMem(0 * PClientGame->memoryPool, curSF->sizeShared,__FILE__,__LINE__,0);//		d2_assert(!curSF->dataShared, "Can't malloc data", __FILE__, __LINE__);
-
-		CopyMemory(&curSF->dataShared[curSF->curShared], msg->data, size);
-		curSF->curShared += size;
-
-	} else {
-
-		if (curSF->sizeExtended == 0)
-			curSF->sizeExtended = msg->finalSize;
-		d2_assert(curSF->sizeExtended != msg->finalSize, "Size of extented file has change", __FILE__, __LINE__);
-
-		if (!curSF->dataExtended)
-			curSF->dataExtended = (BYTE *)D2AllocMem( 0 * PClientGame->memoryPool, curSF->sizeExtended,__FILE__,__LINE__,0);//		d2_assert(!curSF->dataExtended, "Can't malloc data", __FILE__, __LINE__);
-
-		CopyMemory(&curSF->dataExtended[curSF->curExtended], msg->data, size);
-		curSF->curExtended += size;
+		log_msg("ReceiveSaveFiles : the transfer of client %d was refused, chunk dropped\n", clientID);
+		return msg->packID+10;
 	}
+
+	int& size = isShared ? curSF->sizeShared : curSF->sizeExtended;
+	int& cur = isShared ? curSF->curShared : curSF->curExtended;
+	BYTE*& data = isShared ? curSF->dataShared : curSF->dataExtended;
+	const char* refused = NULL;
+	switch (checkSaveChunk(size, cur, msg->packSize, msg->finalSize, SAVE_TRANSFER_MAX_SIZE))
+	{
+	case SAVE_CHUNK_START:
+		size = msg->finalSize;
+		data = (BYTE *)D2AllocMem(0 * PClientGame->memoryPool, size,__FILE__,__LINE__,0);
+		if (!data)
+			refused = "memory allocation failed";
+		break;
+	case SAVE_CHUNK_APPEND:
+		break;
+	default:
+		refused = "invalid chunk header or size";
+	}
+	if (refused)
+	{
+		// The entry stays, not completed: LoadMPCustomData refuses the character (0xE) and frees it.
+		log_msg("ReceiveSaveFiles : %s file of client %d refused (%s), the rest of its transfer is dropped\n", isShared ? "shared" : "extended", clientID, refused);
+		if (curSF->dataExtended)
+			D2FreeMem(0 * PClientGame->memoryPool, curSF->dataExtended,__FILE__,__LINE__,0);
+		if (curSF->dataShared)
+			D2FreeMem(0 * PClientGame->memoryPool, curSF->dataShared,__FILE__,__LINE__,0);
+		curSF->dataExtended = NULL;
+		curSF->dataShared = NULL;
+		curSF->sizeExtended = 0;
+		curSF->curExtended = 0;
+		curSF->sizeShared = 0;
+		curSF->curShared = 0;
+		curSF->failed = true;
+		return msg->packID+10;
+	}
+
+	DWORD payload = msg->packSize - 1;
+	CopyMemory(&data[cur], msg->data, payload);
+	cur += payload;
 
 	if( curSF->sizeExtended && (curSF->sizeExtended == curSF->curExtended) && curSF->sizeShared && (curSF->sizeShared == curSF->curShared) )
 	{

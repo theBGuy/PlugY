@@ -12,6 +12,7 @@
 #include "extendedSaveFile.h"
 #include "sharedSaveFile.h"
 #include "loadPlayerData.h"
+#include "saveTransfer.h"
 #include "common.h"
 
 bool active_AutoBackup = false;
@@ -346,6 +347,9 @@ struct s_MPSaveFile
 	BYTE*	dataShared;
 };
 static s_MPSaveFile receivedSaveFiles;
+// Set once a chunk of this save is refused: its remaining chunks are dropped until this save is used or the next one
+// starts (init); discardReceivedSaveFiles clears it.
+static bool receiveFailed = false;
 static BYTE customPackID = 0xB2;
 
 // Drops the PlugY save data received so far: a later save must never use data left over from this one.
@@ -354,6 +358,7 @@ static void discardReceivedSaveFiles()
 	D2FogMemDeAlloc(receivedSaveFiles.dataExtended,__FILE__,__LINE__,0);
 	D2FogMemDeAlloc(receivedSaveFiles.dataShared,__FILE__,__LINE__,0);
 	ZeroMemory(&receivedSaveFiles, sizeof(receivedSaveFiles));
+	receiveFailed = false;
 }
 //static s_MPSaveFile* receivedSaveFiles = NULL;
 
@@ -485,7 +490,7 @@ DWORD STDCALL ManageNextPacketToSend(NetClient* ptClient)
 		msg->type = TC_SAVE_PERSONAL;
 		msg->isCustom = true;
 		msg->packSize = remainingData > 0xFE ? 0xFF : (BYTE)remainingData + 1;
-		CopyMemory(msg->data,  &dataToSend->dataExtended[dataToSend->curExtended], msg->packSize);
+		CopyMemory(msg->data,  &dataToSend->dataExtended[dataToSend->curExtended], msg->packSize - 1);
 		log_msg("ManageNextPacketToSend : type=%d\t init=%d\t finalSize=%d\t packSize=%d\t data=%08X\n", msg->type, msg->init, msg->finalSize, msg->packSize, msg->data);
 		D2SendToClient(0, dataToSend->clientID, msg, msg->packSize+7);
 		dataToSend->init = false;
@@ -512,7 +517,7 @@ DWORD STDCALL ManageNextPacketToSend(NetClient* ptClient)
 		msg->type = TC_SAVE_SHARED;
 		msg->isCustom = true;
 		msg->packSize = remainingData > 0xFE ? 0xFF : (BYTE)remainingData + 1;
-		CopyMemory(msg->data,  &dataToSend->dataShared[dataToSend->curShared], msg->packSize);
+		CopyMemory(msg->data,  &dataToSend->dataShared[dataToSend->curShared], msg->packSize - 1);
 		log_msg("ManageNextPacketToSend : type=%d\t init=%d\t finalSize=%d\t packSize=%d\t data=%08X\n", msg->type, msg->init, msg->finalSize, msg->packSize, msg->data);
 		D2SendToClient(0, dataToSend->clientID, msg, msg->packSize+7);
 		dataToSend->init = false;
@@ -554,31 +559,42 @@ DWORD STDCALL ReceiveSaveFilesToSave(t_rcvMsg* msg)
 
 	log_msg("ReceiveSaveFilesToSave : sizeExtended=%d\t curExtended=%d\t dataExtended=%08X\t sizeShared=%d\t curShared=%d\t dataShared=%08X\n", receivedSaveFiles.sizeExtended, receivedSaveFiles.curExtended, receivedSaveFiles.dataExtended, receivedSaveFiles.sizeShared, receivedSaveFiles.curShared, receivedSaveFiles.dataShared);
 
-	DWORD size = msg->packSize - 1;
-	if (isShared)
+	// A refused chunk is still consumed (return 1): it is ours, and vanilla's dispatcher must never see it.
+	if (receiveFailed)
 	{
-		if (receivedSaveFiles.sizeShared == 0)
-			receivedSaveFiles.sizeShared = msg->finalSize;
-//		d2_assert(receivedSaveFiles.sizeShared != msg->finalSize, "Size of shared file has change", __FILE__, __LINE__);
-
-		if (!receivedSaveFiles.dataShared)
-			receivedSaveFiles.dataShared = (BYTE *)D2FogMemAlloc(receivedSaveFiles.sizeShared,__FILE__,__LINE__,0);
-
-		CopyMemory(&receivedSaveFiles.dataShared[receivedSaveFiles.curShared], msg->data, size);
-		receivedSaveFiles.curShared += size;
-
-	} else {
-
-		if (receivedSaveFiles.sizeExtended == 0)
-			receivedSaveFiles.sizeExtended = msg->finalSize;
-//		d2_assert(receivedSaveFiles.sizeExtended != msg->finalSize, "Size of extented file has change", __FILE__, __LINE__);
-
-		if (!receivedSaveFiles.dataExtended)
-			receivedSaveFiles.dataExtended = (BYTE *)D2FogMemAlloc(receivedSaveFiles.sizeExtended,__FILE__,__LINE__,0);
-
-		CopyMemory(&receivedSaveFiles.dataExtended[receivedSaveFiles.curExtended], msg->data, size);
-		receivedSaveFiles.curExtended += size;
+		log_msg("ReceiveSaveFilesToSave : this save was refused, chunk dropped\n");
+		return 1;
 	}
+
+	// No per-file init rule: init marks only the first packet of the whole save, the shared file starts without it.
+	int& size = isShared ? receivedSaveFiles.sizeShared : receivedSaveFiles.sizeExtended;
+	int& cur = isShared ? receivedSaveFiles.curShared : receivedSaveFiles.curExtended;
+	BYTE*& data = isShared ? receivedSaveFiles.dataShared : receivedSaveFiles.dataExtended;
+	const char* refused = NULL;
+	switch (checkSaveChunk(size, cur, msg->packSize, msg->finalSize, SAVE_TRANSFER_MAX_SIZE))
+	{
+	case SAVE_CHUNK_START:
+		size = msg->finalSize;
+		data = (BYTE *)D2FogMemAlloc(size,__FILE__,__LINE__,0);
+		if (!data)
+			refused = "memory allocation failed";
+		break;
+	case SAVE_CHUNK_APPEND:
+		break;
+	default:
+		refused = "invalid chunk header or size";
+	}
+	if (refused)
+	{
+		log_msg("ReceiveSaveFilesToSave : %s file refused (%s), the rest of this save is dropped\n", isShared ? "shared" : "extended", refused);
+		discardReceivedSaveFiles();
+		receiveFailed = true;
+		return 1;
+	}
+
+	DWORD payload = msg->packSize - 1;
+	CopyMemory(&data[cur], msg->data, payload);
+	cur += payload;
 	log_msg("ReceiveSaveFilesToSave : End\n");
 	return 1;
 }

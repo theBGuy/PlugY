@@ -32,9 +32,9 @@
 
 .PARAMETER Test
     After the five binaries, also build tests/UpdateCheckTests.cpp,
-    tests/UpdaterTests.cpp and tests/SessionLogTests.cpp into
-    build/out/<Config>/tests/ (console, static CRT) and run them. Exits 1 when
-    a test fails.
+    tests/UpdaterTests.cpp, tests/SessionLogTests.cpp and
+    tests/SaveTransferTests.cpp into build/out/<Config>/tests/ (console, static
+    CRT) and run them. Exits 1 when a test fails.
 
 .PARAMETER TestArgs
     Extra arguments for UpdateCheckTests.exe, e.g. -TestArgs --live to add the
@@ -421,6 +421,19 @@ try {
             LinkExtra = @()
         }
         Build-Target $SessionLogTests
+        $SaveTransferTests = @{
+            Key       = 'savetests'
+            Sources   = @('tests\SaveTransferTests.cpp')
+            Rc        = $null
+            Out       = 'tests\SaveTransferTests.exe'
+            Pdb       = 'tests\SaveTransferTests.pdb'
+            ClFlags   = @('/nologo', '/c', '/W3', '/EHsc') + $StaticOpt
+            Defines   = @('WIN32', $NDebug, '_CONSOLE', '_MBCS', '_CRT_SECURE_NO_WARNINGS')
+            RcFlags   = @()
+            LinkFlags = $ConsoleLink
+            LinkExtra = @()
+        }
+        Build-Target $SaveTransferTests
 
         $testArguments = @('--fixtures', (Join-Path $RepoRoot 'tests\fixtures'),
                            '--scratch', (Join-Path (Join-Path $OutDir 'tests') 'scratch'))
@@ -434,10 +447,13 @@ try {
         Write-Log ''
         Write-Log '=== SessionLogTests.exe'
         Invoke-Tool (Join-Path $OutDir $SessionLogTests.Out) @()
+        Write-Log ''
+        Write-Log '=== SaveTransferTests.exe'
+        Invoke-Tool (Join-Path $OutDir $SaveTransferTests.Out) @()
     }
 
     $warnings = @(Get-Content -LiteralPath $LogFile | Where-Object { $_ -match ': warning [A-Z]+\d+' }).Count
-    $tested = if ($Test) { '; update-check, updater and session-log tests passed' } else { '' }
+    $tested = if ($Test) { '; update-check, updater, session-log and save-transfer tests passed' } else { '' }
     Write-Host ''
     $defined = if ($Define.Count) { ', PlugY.dll with ' + ($Define -join ' ') } else { '' }
     Write-Host "Built PlugY.dll, PlugY.exe, PatchD2File.exe, RestoreD2File.exe, PlugY4KolbotUpdater.exe ($Config, /$Crt$defined) with $warnings warning(s) in $OutDir$tested" -ForegroundColor Green
