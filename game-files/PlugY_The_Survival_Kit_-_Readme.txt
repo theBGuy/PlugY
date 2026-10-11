@@ -530,7 +530,8 @@ D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can
 - Close every Diablo II game, then run PlugY4KolbotUpdater.exe from your PlugY folder (the one
   that holds PlugY.exe); the installer also adds the Start-menu shortcut "Check for PlugY4Kolbot
   updates". It verifies the download against SHA256SUMS.txt and GitHub's SHA-256 digest, and
-  keeps your PlugY.ini. For an install the installer made, it runs the new installer for that
+  keeps your PlugY.ini (a pre-release's installer turns ActiveLogFile=0 into 1: see
+  ActiveLogFile below). For an install the installer made, it runs the new installer for that
   install alone; otherwise it backs up each file it replaces under PlugY4Kolbot-backup\.
 - Options, for scripts: --check only reports, --yes installs without asking, and --prerelease
   also offers alpha, beta and rc builds (the same as UpdateChannel=prerelease).
@@ -631,6 +632,7 @@ Enable or disable BattleNet Access.
 
 Each launch of the game writes its own log in the PlugY\logs folder, for example PlugY_2026-10-10_20-44-47_287472.log (start date, start time, process id). Every non-empty line starts with the time.
 Logs older than 7 days are removed, and at most the newest 500 are kept. When the game folder is read-only, the logs go to %LOCALAPPDATA%\PlugY4Kolbot\logs instead.
+A pre-release's installer (also when the updater updates an install the installer made) turns an existing ActiveLogFile=0 into 1 at every install or update, so testers' logs cover the whole session.
 - ActiveLogFile=1 		{0:Only PlugY's startup is logged; 1:The whole session is logged}
 
 Open a message box when PlugY reports an error.
