@@ -309,16 +309,24 @@ export function lastStableVersion(lines) {
   return null;
 }
 
+// What a pre-release installer does to an existing PlugY.ini: keep in step with
+// the PRERELEASE_ID block in installer/PlugY.nsi's Core section.
+export const PRERELEASE_LOGS =
+  "Its installer also turns on full session logs (`ActiveLogFile=1`) in an existing `PlugY.ini`, " +
+  "including when the updater updates an install the installer made, so your bug reports can include " +
+  "the whole session; to log only PlugY's startup, set it back to `0` after each install or update.";
+
 /**
- * The line a pre-release's notes open with, in its GitHub release and in its
- * packaged CHANGELOG.md alike. `base` is the version without its channel;
+ * The paragraph a pre-release's notes open with, in its GitHub release and in
+ * its packaged CHANGELOG.md alike. `base` is the version without its channel;
  * `lastStable` names the release the notes count from (null: none recorded).
  */
 export const prereleaseIntro = (base, withEntries, lastStable) => {
   const since = lastStable ?? "the last stable release";
-  return withEntries
-    ? `Pre-release of ${base} for testing; these notes cover everything since ${since}.`
-    : `Pre-release of ${base} for testing; no changes are recorded since ${since}.`;
+  const scope = withEntries
+    ? `these notes cover everything since ${since}`
+    : `no changes are recorded since ${since}`;
+  return `Pre-release of ${base} for testing; ${scope}. ${PRERELEASE_LOGS}`;
 };
 
 /**

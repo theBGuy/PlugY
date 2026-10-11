@@ -5,6 +5,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { buildReleaseNotes, MAX_BYTES, unwrapMarkdown } from "./changelog-extract.mjs";
+import { PRERELEASE_LOGS } from "./changelog-lib.mjs";
+
+const intro = (line) => `${line} ${PRERELEASE_LOGS}`;
 
 const empty = { Added: [], Changed: [], Fixed: [] };
 
@@ -49,7 +52,7 @@ test("a pre-release tag prints the intro plus Unreleased merged with fragments",
   assert.equal(
     out,
     [
-      "Pre-release of 14.5.0 for testing; these notes cover everything since 14.4.0.",
+      intro("Pre-release of 14.5.0 for testing; these notes cover everything since 14.4.0."),
       "",
       "### Added",
       "",
@@ -73,7 +76,8 @@ test("a pre-release with an empty Unreleased body renders the fragments alone", 
   });
   assert.equal(
     out,
-    "Pre-release of 14.5.0 for testing; these notes cover everything since 14.4.0.\n\n### Changed\n\n- Pending change, wrapped.\n",
+    intro("Pre-release of 14.5.0 for testing; these notes cover everything since 14.4.0.") +
+      "\n\n### Changed\n\n- Pending change, wrapped.\n",
   );
 });
 
@@ -86,16 +90,17 @@ test("the pre-release intro counts from the newest stable section", () => {
   );
   assert.match(
     buildReleaseNotes({ tag: "v14.5.0-rc.2", changelogText: withRc, groups }),
-    /^Pre-release of 14\.5\.0 for testing; these notes cover everything since 14\.4\.0\.\n/,
+    /^Pre-release of 14\.5\.0 for testing; these notes cover everything since 14\.4\.0\. Its installer /,
   );
   const noStable = "# Changelog\n\n## [Unreleased]\n";
   assert.equal(
     buildReleaseNotes({ tag: "v1.0.0-rc.1", changelogText: noStable, groups }),
-    "Pre-release of 1.0.0 for testing; these notes cover everything since the last stable release.\n\n### Fixed\n\n- A fix.\n",
+    intro("Pre-release of 1.0.0 for testing; these notes cover everything since the last stable release.") +
+      "\n\n### Fixed\n\n- A fix.\n",
   );
   assert.equal(
     buildReleaseNotes({ tag: "v1.0.0-rc.1", changelogText: noStable, groups: empty }),
-    "Pre-release of 1.0.0 for testing; no changes are recorded since the last stable release.\n",
+    intro("Pre-release of 1.0.0 for testing; no changes are recorded since the last stable release.") + "\n",
   );
 });
 
@@ -205,25 +210,20 @@ test("nothing found falls back to a pointer line", () => {
   const bare = CHANGELOG.replace("### Fixed\n\n- Hand-written fix.\n\n", "");
   // A pre-release with nothing pending prints the intro alone: the repository's
   // CHANGELOG.md never gets a section for it that a pointer could name.
-  assert.equal(
-    buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: empty }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since 14.4.0.\n",
-  );
-  assert.equal(
-    buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: null }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since 14.4.0.\n",
-  );
+  const nothingPending = intro("Pre-release of 14.5.0 for testing; no changes are recorded since 14.4.0.") + "\n";
+  assert.equal(buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: empty }), nothingPending);
+  assert.equal(buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: null }), nothingPending);
   // Bare category headings with no bullets are not notes either.
   const headingsOnly = bare.replace("## [Unreleased]\n\n", "## [Unreleased]\n\n### Added\n\n### Fixed\n\n");
   assert.notEqual(headingsOnly, bare);
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: headingsOnly, groups: empty }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since 14.4.0.\n",
+    nothingPending,
   );
   // ...while a single bullet under them is.
   assert.match(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: headingsOnly, groups: { ...empty, Fixed: ["- One fix."] } }),
-    /cover everything since 14\.4\.0\.\n\n### Added\n\n### Fixed\n\n- One fix\.\n$/,
+    /cover everything since 14\.4\.0\. Its installer [^\n]*\n\n### Added\n\n### Fixed\n\n- One fix\.\n$/,
   );
 });
 

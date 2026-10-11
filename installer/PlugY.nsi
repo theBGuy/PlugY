@@ -17,6 +17,9 @@ Unicode True
   !define VERSION "v${PLUGY_VERSION}"
   !define DISPLAY_VERSION "${PLUGY_VERSION}"
 !endif
+; Defined (as "rc.2") only for a pre-release version such as 15.0.0-rc.2: the same "-" test as
+; scripts/package.ps1.
+!searchparse /noerrors "${DISPLAY_VERSION}" "-" PRERELEASE_ID
 ; package.ps1 stages the binaries and the contents of game-files\ beside this script.
 !define D2FILES "."
 !define NAME "PlugY4Kolbot"
@@ -452,6 +455,15 @@ Section "!$(SECTION_NAME_CORE)" Core
   SetOverwrite off
   File "${D2FILES}\PlugY.ini"
   SetOverwrite on
+!ifdef PRERELEASE_ID
+  ; Testers' bug reports need whole-session logs, so every pre-release install or update turns an
+  ; existing ActiveLogFile=0 into 1 (changelog-lib.mjs announces it). Only an exact 0 changes;
+  ; WriteINIStr keeps every other byte but ends a file that has no final newline with CRLF.
+  ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile"
+  ${If} $0 == "0"
+    WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile" "1"
+  ${EndIf}
+!endif
   File "${D2FILES}\PlugY_The_Survival_Kit_-_Readme.txt"
   File "${D2FILES}\PlugY_The_Survival_Kit_-_LisezMoi.txt"
   File "${D2FILES}\PlugY_The_Survival_Kit_-_Liesmich.txt"

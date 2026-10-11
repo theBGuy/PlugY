@@ -83,7 +83,7 @@ The in-game update check asks api.github.com for the newest release at most once
 * `UpdateChannel=stable` (default). `prerelease` also offers alpha, beta and rc builds.
 
 ## Logs
-Each launch of the game writes its own log to the `PlugY\logs` folder, named after its start time and process id; when the game folder is read-only, the logs go to `%LOCALAPPDATA%\PlugY4Kolbot\logs` instead. Logs older than 7 days are removed, and at most the newest 500 are kept. `ActiveLogFile=1` (the default for new installs) logs the whole session and `0` only PlugY's startup; an existing `PlugY.ini` keeps its value.
+Each launch of the game writes its own log to the `PlugY\logs` folder, named after its start time and process id; when the game folder is read-only, the logs go to `%LOCALAPPDATA%\PlugY4Kolbot\logs` instead. Logs older than 7 days are removed, and at most the newest 500 are kept. `ActiveLogFile=1` (the default for new installs) logs the whole session and `0` only PlugY's startup; an existing `PlugY.ini` keeps its value, except that a pre-release's installer turns `0` into `1`, so testers' logs cover the whole session.
 
 ## Contribute
 Bug reports and pull requests are welcome in [this repository](https://github.com/theBGuy/PlugY4Kolbot).
