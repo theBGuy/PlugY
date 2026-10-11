@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildReleaseNotes, MAX_BYTES } from "./changelog-extract.mjs";
+import { buildReleaseNotes, MAX_BYTES, unwrapMarkdown } from "./changelog-extract.mjs";
 
 const empty = { Added: [], Changed: [], Fixed: [] };
 
@@ -49,7 +49,7 @@ test("a pre-release tag prints the intro plus Unreleased merged with fragments",
   assert.equal(
     out,
     [
-      "Pre-release of 14.5.0 for testing; these notes cover everything since the last stable release.",
+      "Pre-release of 14.5.0 for testing; these notes cover everything since 14.4.0.",
       "",
       "### Added",
       "",
@@ -73,8 +73,68 @@ test("a pre-release with an empty Unreleased body renders the fragments alone", 
   });
   assert.equal(
     out,
-    "Pre-release of 14.5.0 for testing; these notes cover everything since the last stable release.\n\n### Changed\n\n- Pending change,\n  wrapped.\n",
+    "Pre-release of 14.5.0 for testing; these notes cover everything since 14.4.0.\n\n### Changed\n\n- Pending change, wrapped.\n",
   );
+});
+
+test("the pre-release intro counts from the newest stable section", () => {
+  const groups = { Added: [], Changed: [], Fixed: ["- A fix."] };
+  // A pre-release section (only packaged files have one) and a non-semver heading are skipped.
+  const withRc = CHANGELOG.replace(
+    "## [14.4.0] - 2026-10-08",
+    "## [14.5.0-rc.1] - 2026-10-09\n\n## [Old stuff]\n\n## [14.4.0] - 2026-10-08",
+  );
+  assert.match(
+    buildReleaseNotes({ tag: "v14.5.0-rc.2", changelogText: withRc, groups }),
+    /^Pre-release of 14\.5\.0 for testing; these notes cover everything since 14\.4\.0\.\n/,
+  );
+  const noStable = "# Changelog\n\n## [Unreleased]\n";
+  assert.equal(
+    buildReleaseNotes({ tag: "v1.0.0-rc.1", changelogText: noStable, groups }),
+    "Pre-release of 1.0.0 for testing; these notes cover everything since the last stable release.\n\n### Fixed\n\n- A fix.\n",
+  );
+  assert.equal(
+    buildReleaseNotes({ tag: "v1.0.0-rc.1", changelogText: noStable, groups: empty }),
+    "Pre-release of 1.0.0 for testing; no changes are recorded since the last stable release.\n",
+  );
+});
+
+test("release bodies put each wrapped bullet and paragraph on one line", () => {
+  const text = CHANGELOG.replace(
+    "- Released feature.",
+    "- Released feature,\n  wrapped once\n  and twice.\n- Second.\n\nA paragraph\nwrapped.",
+  );
+  assert.equal(
+    buildReleaseNotes({ tag: "v14.4.0", changelogText: text, groups: null }),
+    "### Added\n\n- Released feature, wrapped once and twice.\n- Second.\n\nA paragraph wrapped.\n",
+  );
+});
+
+test("unwrapping keeps every line Markdown reads as its own block", () => {
+  const cases = [
+    // [input, expected]
+    ["### Heading\ntext\nmore", "### Heading\ntext more"],
+    ["- a\n- b\n* c\n+ d", "- a\n- b\n* c\n+ d"],
+    ["- a\n  - nested\n    more", "- a\n  - nested more"],
+    ["1. one\n   cont\n2) two", "1. one cont\n2) two"],
+    ["> quote\n> more\nlazy", "> quote\n> more lazy"],
+    ["text\n```js\nline one\nline two\n```\nafter", "text\n```js\nline one\nline two\n```\nafter"],
+    ["~~~~\na\nb\n~~~\nc\n~~~~", "~~~~\na\nb\n~~~\nc\n~~~~"],
+    ["- item\n    ```\n    a\n    b\n    ```", "- item\n    ```\n    a\n    b\n    ```"],
+    ["| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |", "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |"],
+    ["a | b\n--- | ---\n1 | 2\n3 | 4\n\nafter\nwrap", "a | b\n--- | ---\n1 | 2\n3 | 4\n\nafter wrap"],
+    ["Title\n===\ntext\n\n---\n\nmore", "Title\n===\ntext\n\n---\n\nmore"],
+    ["Sub\n---", "Sub\n---"],
+    ["two spaces  \nnext\nwrap", "two spaces  \nnext wrap"],
+    ["backslash\\\nnext", "backslash\\\nnext"],
+    ["para\n\n    code one\n    code two\n\nend", "para\n\n    code one\n    code two\n\nend"],
+    ["para\n    indented continuation", "para indented continuation"],
+    ["[x]: https://example.com\n[y]: https://example.org", "[x]: https://example.com\n[y]: https://example.org"],
+    ["<details>\n<summary>x</summary>\ntext", "<details>\n<summary>x</summary>\ntext"],
+    ["trailing space \nnext", "trailing space next"],
+    ["", ""],
+  ];
+  for (const [input, expected] of cases) assert.equal(unwrapMarkdown(input), expected, JSON.stringify(input));
 });
 
 test("nothing found falls back to a pointer line", () => {
@@ -95,23 +155,23 @@ test("nothing found falls back to a pointer line", () => {
   // CHANGELOG.md never gets a section for it that a pointer could name.
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: empty }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since the last stable release.\n",
+    "Pre-release of 14.5.0 for testing; no changes are recorded since 14.4.0.\n",
   );
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: null }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since the last stable release.\n",
+    "Pre-release of 14.5.0 for testing; no changes are recorded since 14.4.0.\n",
   );
   // Bare category headings with no bullets are not notes either.
   const headingsOnly = bare.replace("## [Unreleased]\n\n", "## [Unreleased]\n\n### Added\n\n### Fixed\n\n");
   assert.notEqual(headingsOnly, bare);
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: headingsOnly, groups: empty }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since the last stable release.\n",
+    "Pre-release of 14.5.0 for testing; no changes are recorded since 14.4.0.\n",
   );
   // ...while a single bullet under them is.
   assert.match(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: headingsOnly, groups: { ...empty, Fixed: ["- One fix."] } }),
-    /cover everything since the last stable release\.\n\n### Added\n\n### Fixed\n\n- One fix\.\n$/,
+    /cover everything since 14\.4\.0\.\n\n### Added\n\n### Fixed\n\n- One fix\.\n$/,
   );
 });
 

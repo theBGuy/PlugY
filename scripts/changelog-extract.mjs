@@ -13,11 +13,67 @@ import { fileURLToPath } from "node:url";
 import {
   findUnreleased,
   hasEntries,
+  lastStableVersion,
   pendingBody,
   prereleaseIntro,
   readFragments,
 } from "./changelog-lib.mjs";
 import { parseVersion } from "./version-lib.mjs";
+
+// GitHub renders a release body like a comment, turning every newline into a
+// line break, so CHANGELOG.md's wrapped lines would break mid-sentence there.
+// The body joins each wrapped line onto the line it continues; CHANGELOG.md
+// itself stays wrapped. Lines that open a block (heading, list item, quote,
+// table, rule, link definition, HTML), code, and hard breaks keep their own line.
+const FENCE_OPEN_RE = /^\s*(`{3,}|~{3,})/;
+const BLOCK_START_RE = /^\s*(#{1,6}(\s|$)|[-*+](\s|$)|\d{1,9}[.)](\s|$)|>|\||<|\[[^\]]+\]:)/;
+const NOT_JOINED_ONTO_RE = /^\s*(#{1,6}(\s|$)|\||<|\[[^\]]+\]:)/;
+const RULE_RE = /^ {0,3}([-*_=])(\s*\1){2,}\s*$/;
+const isTableDelimiter = (line) => /^[\s|:-]+$/.test(line) && line.includes("|") && line.includes("-");
+
+/** `text` (LF) with each wrapped continuation line joined onto the line it continues. */
+export function unwrapMarkdown(text) {
+  const out = [];
+  let fence = null; // the closing-fence pattern while inside fenced code
+  let table = false; // table rows run until a blank line
+  let prev = "blank"; // the last line: blank, text (a continuation may join it), code or other
+  for (const line of text.split("\n")) {
+    if (fence) {
+      out.push(line);
+      if (fence.test(line)) {
+        fence = null;
+        prev = "other";
+      }
+      continue;
+    }
+    const open = line.match(FENCE_OPEN_RE);
+    if (open) {
+      fence = new RegExp(`^\\s*${open[1][0] === "`" ? "`" : "~"}{${open[1].length},}\\s*$`);
+      out.push(line);
+      continue;
+    }
+    if (line.trim() === "") {
+      out.push(line);
+      table = false;
+      prev = "blank";
+      continue;
+    }
+    if (isTableDelimiter(line)) table = true;
+    const hardBreak = / {2,}$|\\$/.test(line);
+    if (prev === "text" && !table && !BLOCK_START_RE.test(line) && !RULE_RE.test(line)) {
+      const last = out[out.length - 1].trimEnd();
+      out[out.length - 1] = `${last} ${hardBreak ? line.trimStart() : line.trim()}`;
+      if (hardBreak) prev = "other";
+      continue;
+    }
+    out.push(line);
+    // Indented code only starts after a blank line; within a paragraph the same indent is a continuation.
+    if (/^( {4}|\t)/.test(line) && (prev === "blank" || prev === "code")) prev = "code";
+    else if (table || hardBreak || RULE_RE.test(line) || NOT_JOINED_ONTO_RE.test(line)) prev = "other";
+    else prev = "text";
+  }
+  return out.join("\n");
+}
 
 // GitHub rejects a release body over 125,000 characters, and Linux caps any
 // single env var (a workflow step receiving the body as an input) at 128 KiB
@@ -74,11 +130,12 @@ export function buildReleaseNotes({ tag, changelogText, groups, env = {} }) {
       .trim();
     // No pointer either way: the repo's CHANGELOG.md never gets a pre-release section.
     const withEntries = hasEntries(pending.split("\n"));
-    const intro = prereleaseIntro(parsed.base, withEntries);
+    const intro = prereleaseIntro(parsed.base, withEntries, lastStableVersion(lines));
     notes = withEntries ? `${intro}\n\n${pending}` : intro;
   } else {
     notes = stableSection(lines, version) || pointer(tag);
   }
+  notes = unwrapMarkdown(notes);
 
   if (byteLen(`${notes}\n`) <= MAX_BYTES) return `${notes}\n`;
 

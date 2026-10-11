@@ -9,6 +9,7 @@
 // keeps the checkout's line endings, like the CHANGELOG.md a stable release ships.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseVersion } from "./version-lib.mjs";
 
 // The Keep a Changelog groups we use, in the order they render.
 export const CATEGORY_ORDER = ["Added", "Changed", "Fixed"];
@@ -296,13 +297,29 @@ export function pendingBody(bodyLines, grp, { noMerge = false } = {}) {
 export const hasEntries = (lines) => lines.some((l) => /^\s*[-*+] \S/.test(l));
 
 /**
- * The line a pre-release's notes open with, in its GitHub release and in its
- * packaged CHANGELOG.md alike. `base` is the version without its channel.
+ * The version of CHANGELOG.md's newest stable section, or null when it has none.
+ * The file lists versions newest first and only a stable release writes a section
+ * into the tree, so this is the release a pre-release's notes count from.
  */
-export const prereleaseIntro = (base, withEntries) =>
-  withEntries
-    ? `Pre-release of ${base} for testing; these notes cover everything since the last stable release.`
-    : `Pre-release of ${base} for testing; no changes are recorded since the last stable release.`;
+export function lastStableVersion(lines) {
+  for (const line of lines) {
+    const m = line.match(/^##\s*\[([^\]]+)\]/);
+    if (m && parseVersion(m[1])?.channel === null) return m[1];
+  }
+  return null;
+}
+
+/**
+ * The line a pre-release's notes open with, in its GitHub release and in its
+ * packaged CHANGELOG.md alike. `base` is the version without its channel;
+ * `lastStable` names the release the notes count from (null: none recorded).
+ */
+export const prereleaseIntro = (base, withEntries, lastStable) => {
+  const since = lastStable ?? "the last stable release";
+  return withEntries
+    ? `Pre-release of ${base} for testing; these notes cover everything since ${since}.`
+    : `Pre-release of ${base} for testing; no changes are recorded since ${since}.`;
+};
 
 /**
  * Repoint [Unreleased] to compare against the new tag and insert the new

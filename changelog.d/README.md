@@ -33,9 +33,12 @@ Create a file named **`<category>-<slug>.md`**, where:
 The **file body is the finished changelog bullet, verbatim**, including the
 leading `- ` and the 2-space indent on wrapped continuation lines. Write it *for
 humans*: a clear sentence about what changed for the player, not your commit
-subject. State what the change gives the reader, not the defect it removes. The
-assembler concatenates bodies under the right `###` heading without re-wrapping,
-so what you write is exactly what ships.
+subject. State what the change gives the reader, not the defect it removes, and
+open with a short **bold lead** naming it, so the release notes can be skimmed:
+`- **Safer saves.** PlugY writes ...`. The assembler concatenates bodies under
+the right `###` heading without re-wrapping, so what you write is exactly what
+`CHANGELOG.md` gets; the GitHub release body puts each bullet on one line,
+because GitHub breaks a release body at every newline.
 
 Use at most one em dash per bullet; two read as a paired aside and fail
 `--check`. Em dashes inside backticks, **bold**, or "quotes" don't count, so
@@ -52,8 +55,9 @@ quoted game text can keep its own.
 ### Example: `fixed-autosave-stash-files.md`
 
 ```md
-- In single-player games on Diablo II 1.14d, the PlugY stash (`.d2x`) and the
-  shared stash are saved with the character every time the game saves it.
+- **Stashes save with the character.** In single-player games on Diablo II
+  1.14d, the PlugY stash (`.d2x`) and the shared stash are saved with the
+  character every time the game saves it.
 ```
 
 ## Commands
@@ -77,7 +81,9 @@ quoted game text can keep its own.
   also assembles the fragments into `CHANGELOG.md` as `## [<version>] - <date>`
   and deletes them.
 - `node scripts/changelog-extract.mjs <tag>` prints the release notes for a tag
-  (the release workflow uses it for the GitHub release body).
+  (the release workflow uses it for the GitHub release body), with each wrapped
+  line joined onto the line it continues. A pre-release's notes open with a line
+  naming the newest stable version in `CHANGELOG.md`.
 - `node scripts/changelog-package.mjs <pre-release version> <output file>`
   writes the `CHANGELOG.md` a pre-release's zip and installer ship: the
   repository's file plus a section for that version built from the pending

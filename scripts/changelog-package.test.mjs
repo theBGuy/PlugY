@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { buildReleaseNotes } from "./changelog-extract.mjs";
+import { buildReleaseNotes, unwrapMarkdown } from "./changelog-extract.mjs";
 import { localDate, readFragments, readLF } from "./changelog-lib.mjs";
 import { commitDate, prereleaseChangelog } from "./changelog-package.mjs";
 
@@ -65,7 +65,7 @@ test("a pre-release gets its own dated section with the intro and the pending en
       "",
       "## [15.0.0-rc.1] - 2026-10-11",
       "",
-      "Pre-release of 15.0.0 for testing; these notes cover everything since the last stable release.",
+      "Pre-release of 15.0.0 for testing; these notes cover everything since 14.3.0.",
       "",
       "### Added",
       "",
@@ -97,7 +97,7 @@ test("fragments merge into a hand-written Unreleased body", () => {
     [
       "## [15.0.0-rc.1] - 2026-10-11",
       "",
-      "Pre-release of 15.0.0 for testing; these notes cover everything since the last stable release.",
+      "Pre-release of 15.0.0 for testing; these notes cover everything since 14.3.0.",
       "",
       "### Added",
       "",
@@ -118,7 +118,7 @@ test("with nothing pending the section says so, and bare category headings are n
   for (const text of [CHANGELOG, CHANGELOG.replace("## [Unreleased]\n\n", "## [Unreleased]\n\n### Fixed\n\n")]) {
     const out = render({ text, groups: empty });
     const section = out.slice(out.indexOf("## [15.0.0-rc.1]"), out.indexOf("## [14.3.0]"));
-    assert.match(section, /^## \[15\.0\.0-rc\.1\] - 2026-10-11\n\nPre-release of 15\.0\.0 for testing; no changes are recorded since the last stable release\.\n/);
+    assert.match(section, /^## \[15\.0\.0-rc\.1\] - 2026-10-11\n\nPre-release of 15\.0\.0 for testing; no changes are recorded since 14\.3\.0\.\n/);
     assert.doesNotMatch(section, /^- /m);
   }
 });
@@ -155,7 +155,9 @@ test("the packaged section lists exactly what the pre-release's GitHub notes lis
   const section = out.slice(out.indexOf("## [15.0.0-rc.1]"), out.indexOf("## [14.3.0]"));
   const notes = buildReleaseNotes({ tag: "v15.0.0-rc.1", changelogText: text, groups: GROUPS });
   const body = section.split("\n").slice(2).join("\n").trim();
-  assert.equal(body, notes.trim());
+  // The notes join the file's wrapped lines, since GitHub breaks a release body at every newline.
+  assert.notEqual(body, notes.trim());
+  assert.equal(unwrapMarkdown(body), notes.trim());
 });
 
 test("the real CHANGELOG.md and changelog.d render a section holding every pending fragment", () => {
