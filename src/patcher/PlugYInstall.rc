@@ -1,0 +1,68 @@
+//Script de ressources généré par Microsoft Visual C++.
+//
+#include "resource.h"
+#include "../common/PlugYVersion.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Généré à partir de la ressource TEXTINCLUDE 2.
+//
+#ifndef APSTUDIO_INVOKED
+#include "targetver.h"
+#endif
+#define APSTUDIO_HIDDEN_SYMBOLS
+#include "windows.h"
+#undef APSTUDIO_HIDDEN_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// French (France) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_FRA)
+LANGUAGE LANG_FRENCH, SUBLANG_FRENCH
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION PLUGY_VERSION_MAJOR,PLUGY_VERSION_MINOR,PLUGY_VERSION_PATCH,0
+ PRODUCTVERSION PLUGY_VERSION_MAJOR,PLUGY_VERSION_MINOR,PLUGY_VERSION_PATCH,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040c04b0"
+        BEGIN
+            VALUE "CompanyName", "theBGuy"
+            VALUE "FileDescription", "PlugY4Kolbot patcher"
+            VALUE "FileVersion", PLUGY_VERSION_FILE
+            VALUE "LegalCopyright", "Copyright (C) 2021 Yohann Nicolas; (C) 2026 theBGuy. GPLv3"
+#ifdef RESTORE
+            VALUE "OriginalFilename", "RestoreD2File.exe"
+#else
+            VALUE "OriginalFilename", "PatchD2File.exe"
+#endif
+            VALUE "ProductName", "PlugY4Kolbot"
+            VALUE "ProductVersion", PLUGY_VERSION
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x40c, 1200
+    END
+END
+
+#endif    // French (France) resources
+/////////////////////////////////////////////////////////////////////////////
