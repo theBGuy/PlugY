@@ -22,91 +22,149 @@ import { parseVersion } from "./version-lib.mjs";
 
 // GitHub renders a release body like a comment, turning every newline into a
 // line break, so CHANGELOG.md's wrapped lines would break mid-sentence there.
-// The body joins a wrapped line onto the paragraph or list-item line it
-// continues; CHANGELOG.md itself stays wrapped. Every other line keeps its own
-// line, among them headings, list items, quotes, tables, rules and setext
-// underlines, link definitions, HTML, indented code and hard breaks. From the
-// first code fence or raw HTML block (<pre>, a comment) on, nothing is joined:
-// their blank lines and look-alike closers make pairing them guesswork.
+// The body joins wrapped lines back together only in the shape changelog
+// entries take: a paragraph, or a list item with one space after its marker
+// ("- ", "1. "), starting in column 0 and continued by lines of plain text. Every
+// other line is kept as written, so what this doesn't recognise renders as it
+// does today. From the first code fence or raw HTML block (<pre>, a comment)
+// on, nothing is joined: their blank lines and look-alike closers make pairing
+// them guesswork. CHANGELOG.md itself stays wrapped.
+
+// CommonMark's blank lines and line-edge whitespace are spaces and tabs only; other spaces are content.
+// The trims scan characters: an end-anchored regex retries every start and goes quadratic on long runs.
+const BLANK_RE = /^[ \t]*$/;
+const isSpace = (c) => c === " " || c === "\t";
+const trimStartTabs = (s) => {
+  let a = 0;
+  while (a < s.length && isSpace(s[a])) a++;
+  return s.slice(a);
+};
+const trimTabs = (s) => {
+  const t = trimStartTabs(s);
+  let b = t.length;
+  while (b > 0 && isSpace(t[b - 1])) b--;
+  return t.slice(0, b);
+};
+
 // The quote and list markers before a line's content.
-const CONTAINER_RE = /^(\s*(>\s?|[-*+](\s+|$)|\d{1,9}[.)](\s+|$)))*/;
-const FENCE_RE = /^\s*(`{3,}|~{3,})(.*)$/;
-const RAW_HTML_RE = /^\s*(<(pre|script|style|textarea)(\s|>|$)|<!--|<\?|<![A-Za-z]|<!\[CDATA\[)/i;
-const BLOCK_START_RE = /^\s*(#{1,6}(\s|$)|[-*+](\s|$)|\d{1,9}[.)](\s|$)|>|\||<|\[[^\]]+\]:|\[!)/;
-const NOT_TEXT_RE = /^\s*(#{1,6}(\s|$)|\||<|\[!)/; // a heading, table row, HTML or alert marker
-const LINK_DEF_RE = /^\s*\[[^\]]+\]:/;
-const UNDERLINE_RE = /^\s*(=+|-+)\s*$/; // a setext underline, any length
-const RULE_RE = /^\s*([-*_])(\s*\1){2,}\s*$/;
+const CONTAINER_RE = /^([ \t]*(>[ \t]?|[-*+]([ \t]+|$)|\d{1,9}[.)]([ \t]+|$)))*/;
+const QUOTE_RE = /^([ \t]*>[ \t]?)*/;
+const FENCE_RE = /^[ \t]*(`{3,}|~{3,})(.*)$/;
+const MATH_RE = /^[ \t]*\$\$[ \t]*$/; // a GitHub math block, whose TeX comments run to the end of a line
+const RAW_HTML_RE = /^[ \t]*(<(pre|script|style|textarea)([ \t>]|$)|<!--|<\?|<![A-Za-z]|<!\[CDATA\[)/i;
+// A link label may hold escaped brackets.
+const LABEL = String.raw`\[(?:\\.|[^\]\\])*\]:`;
+// A list item that a continuation may join: one space after the marker, then content.
+const ITEM_RE = /^([-*+]|\d{1,9}[.)]) (?=[^ \t])/;
+// Content that opens or belongs to some other block: a heading, list item, quote, table, HTML,
+// alert or link definition.
+const NOT_PLAIN_RE = new RegExp(
+  String.raw`^(#{1,6}([ \t]|$)|[-*+]([ \t]|$)|\d{1,9}[.)]([ \t]|$)|>|\||<|\[!|` + String.raw`${LABEL}|[^[]*\]:)`,
+);
+const UNDERLINE_RE = /^[ \t]*(=+|-+)[ \t]*$/;
+const RULE_RE = /^[ \t]*([-*_])([ \t]*\1){2,}[ \t]*$/;
 // A list item or quote moves the indent its underlines and rules may have, so any indent counts.
 const isUnderline = (line) => UNDERLINE_RE.test(line) || UNDERLINE_RE.test(line.replace(CONTAINER_RE, ""));
 const isRule = (line) => RULE_RE.test(line) || RULE_RE.test(line.replace(CONTAINER_RE, ""));
+const isPlain = (content) =>
+  content !== "" && !NOT_PLAIN_RE.test(content) && !isUnderline(content) && !isRule(content);
+// A delimiter row needs a pipe or a colon: a bare run of dashes is a setext underline or a rule.
 const isTableDelimiter = (line) =>
-  line !== undefined && /^[\s|:-]+$/.test(line) && line.includes("|") && line.includes("-");
+  line !== undefined &&
+  [line, line.replace(QUOTE_RE, "")].some(
+    (l) => /^[ \t|:-]+$/.test(l) && l.includes("-") && (l.includes("|") || l.includes(":")),
+  );
+// A table, an HTML block or a link definition may hold line breaks of its own, so no join enters
+// one until the next blank line.
+const BLOCK_CONTENT_RE = new RegExp(String.raw`^[ \t]*([|<]|${LABEL}|[^[]*\]:)`);
+const opensBlock = (line, next) =>
+  isTableDelimiter(line) || isTableDelimiter(next) || BLOCK_CONTENT_RE.test(line.replace(CONTAINER_RE, ""));
+// A link destination in <...> can't span a line break, so joining one would make a broken link work.
+const OPEN_ANGLE_RE = /\]\([ \t]*<(?:\\.|[^>\\])*$/;
+// Inline <pre>, <code> and <textarea> keep their line breaks; whether one is still open after `part`.
+const leavesRawOpen = (part, open) => {
+  for (const m of part.matchAll(/<(\/?)(pre|code|textarea)\b/gi)) open = m[1] === "";
+  return open;
+};
+// The length of the backtick run of a code span still open after `part` (0: none). A code span keeps
+// the next line's leading spaces, which a join trims; a run that never closes is counted as open too.
+const leavesTicksOpen = (part, open) => {
+  for (let k = 0; k < part.length; ) {
+    if (!open && part[k] === "\\") k += 2;
+    else if (part[k] !== "`") k++;
+    else {
+      let n = 0;
+      while (part[k + n] === "`") n++;
+      if (!open) open = n;
+      else if (n === open) open = 0;
+      k += n;
+    }
+  }
+  return open;
+};
 
 // A backtick fence's info string can't hold a backtick, so "```x``` text" is inline code.
 const opensFence = (content) => {
   const m = content.match(FENCE_RE);
-  return m !== null && !(m[1][0] === "`" && m[2].includes("`"));
-};
-
-// Lines underlined further down make one setext heading, whose anchor is built from
-// the text as written, so they stay as they are.
-const underlinedAhead = (lines, i) => {
-  for (let j = i; j < lines.length && lines[j].trim() !== ""; j++) if (isUnderline(lines[j])) return true;
-  return false;
+  return (m !== null && !(m[1][0] === "`" && m[2].includes("`"))) || MATH_RE.test(content);
 };
 
 /** `text` (LF) with each wrapped paragraph or list-item line joined onto the line it continues. */
 export function unwrapMarkdown(text) {
   const lines = text.split("\n");
+  // Lines with an underline-like line below them in their paragraph stay as written: a setext heading's
+  // anchor is built from its text as written, and a rule there means more than one block.
+  const underlined = new Array(lines.length + 1).fill(false);
+  for (let j = lines.length - 1; j >= 0; j--)
+    underlined[j] = !BLANK_RE.test(lines[j]) && (isUnderline(lines[j]) || underlined[j + 1]);
+  // Each output line is kept as its parts, so a join touches only the newest part, never the whole line.
   const out = [];
-  let prev = "blank"; // the last line: blank, text (a continuation may join it), code, linkdef or other
-  let block = false; // inside a table or an HTML block: no joins until a blank line
+  let joinable = false; // the last line is a paragraph or list-item line a plain continuation may join
+  let block = false; // inside a table, an HTML block or a link definition: no joins until a blank line
+  let openAngle = false; // the last line ends inside a link destination's <...>
+  let rawOpen = false; // an inline <pre>, <code> or <textarea> is open in this paragraph
+  let ticksOpen = 0; // a code span is open in this paragraph
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const content = line.replace(CONTAINER_RE, "");
-    if (opensFence(content) || RAW_HTML_RE.test(content)) {
-      out.push(...lines.slice(i));
+    if (opensFence(line.replace(CONTAINER_RE, "")) || RAW_HTML_RE.test(line.replace(CONTAINER_RE, ""))) {
+      for (const rest of lines.slice(i)) out.push([rest]);
       break;
     }
-    if (line.trim() === "") {
-      out.push(line);
-      prev = "blank";
+    // An inline <pre>, <code> or <textarea> left open at a paragraph's end can run on through the
+    // HTML after it, so it ends all joining like a fence.
+    if (BLANK_RE.test(line) && rawOpen) {
+      for (const rest of lines.slice(i)) out.push([rest]);
+      break;
+    }
+    if (BLANK_RE.test(line)) {
+      out.push([line]);
+      joinable = false;
       block = false;
+      ticksOpen = 0;
       continue;
     }
-    // A table's header row is only known by the delimiter row under it.
-    if (isTableDelimiter(line) || isTableDelimiter(lines[i + 1]) || /^\s*[|<]/.test(content)) block = true;
-    const hardBreak = / {2,}$|\\$/.test(line);
-    const continues =
-      prev === "text" &&
-      !block &&
-      !BLOCK_START_RE.test(line) &&
-      !isRule(line) &&
-      !underlinedAhead(lines, i);
-    if (continues) {
-      const last = out[out.length - 1].trimEnd();
-      out[out.length - 1] = `${last} ${hardBreak ? line.trimStart() : line.trim()}`;
-      if (hardBreak) prev = "other";
+    if (opensBlock(line, lines[i + 1])) block = true;
+    const hardBreak = line.endsWith("  ") || line.endsWith("\\");
+    const rawBefore = rawOpen;
+    const ticksBefore = ticksOpen;
+    rawOpen = leavesRawOpen(line, rawBefore);
+    ticksOpen = leavesTicksOpen(line, ticksBefore);
+    const inSpan = rawBefore || ticksBefore > 0 || openAngle;
+    if (joinable && !block && !underlined[i] && !inSpan && isPlain(trimTabs(line))) {
+      // The previous part keeps its trailing space: inside a code span that crosses the break it is text.
+      const body = hardBreak ? trimStartTabs(line) : trimTabs(line);
+      out[out.length - 1].push(body);
+      joinable = !hardBreak;
+      openAngle = OPEN_ANGLE_RE.test(body);
       continue;
     }
-    out.push(line);
-    // Indented code can follow any block but a paragraph; inside a paragraph the same indent continues it.
-    if (/^( {4}|\t)/.test(line) && prev !== "text") prev = "code";
-    else if (LINK_DEF_RE.test(content)) prev = "linkdef";
-    else if (
-      block ||
-      hardBreak ||
-      prev === "linkdef" || // a link definition's title may sit on the next line
-      content.trim() === "" ||
-      NOT_TEXT_RE.test(content) ||
-      isUnderline(line) ||
-      isRule(line)
-    )
-      prev = "other";
-    else prev = "text";
+    out.push([line]);
+    const item = line.match(ITEM_RE);
+    const content = item ? line.slice(item[0].length) : /^[^ \t]/.test(line) ? line : "";
+    joinable = !block && !hardBreak && !underlined[i] && isPlain(content);
+    openAngle = OPEN_ANGLE_RE.test(line);
   }
-  return out.join("\n");
+  return out.map((parts) => parts.join(" ")).join("\n");
 }
 
 // GitHub rejects a release body over 125,000 characters, and Linux caps any

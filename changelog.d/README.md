@@ -38,9 +38,12 @@ open with a short **bold lead** naming it, so the release notes can be skimmed:
 `- **Safer stash saves.** PlugY writes ...`. The assembler concatenates bodies
 under the right `###` heading without re-wrapping, so what you write is exactly
 what `CHANGELOG.md` gets. GitHub breaks a release body at every newline, so the
-release body joins each wrapped line back onto its bullet. A continuation line
-that starts with `<`, `>`, `|`, `# ` or a list marker keeps its own line there,
-so rewrap to move such a word off the start of a line.
+release body joins each wrapped line back onto its bullet, as long as the line
+holds plain text. A line starting with `<`, `>`, `|`, `# `, a list marker or a
+link definition keeps its own line, and so do the lines after it in that bullet;
+from a code fence or raw HTML block on, nothing is joined. Rewrap to move such a
+word off the start of a line, and keep each `code span` on one line: one that
+crosses a line break keeps the break.
 
 Use at most one em dash per bullet; two read as a paired aside and fail
 `--check`. Em dashes inside backticks, **bold**, or "quotes" don't count, so
@@ -71,7 +74,8 @@ quoted game text can keep its own.
   this, so a malformed fragment fails the PR instead of the release.
 - `node scripts/changelog-draft.mjs` drafts starting-point bullets from the git
   history since the last stable release tag (curate before saving as a
-  fragment, replacing a drafted `**scope:**` prefix with a bold lead).
+  fragment, opening it with a bold lead in place of any drafted `**scope:**`
+  prefix).
 - `node scripts/release.mjs` (maintainers) is the interactive release driver:
   it checks the repo state, previews the fragments, picks the version (patch,
   minor, major or a pre-release), runs `changelog-release.mjs`, then commits,

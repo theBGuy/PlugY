@@ -118,10 +118,23 @@ test("unwrapping joins only paragraph and list-item continuations", () => {
     `> ${F}\nx\ny`,
     `a\n    ${F}\nb\nc\n\n${F}\ncode1\ncode2\n${F}`,
     `${F}\nexample:\n    ${F}\nline a\nline b\n${F}`,
-    "# H\n    code1\n    code2", // indented code right after a heading, a rule or a fence
+    "# H\n    code1\n    code2", // indented code right after a heading or a rule
     "***\n    code1\n    code2",
-    `${F}\nx\n${F}\n    code1\n    code2`,
+    `${F}\nx\n${F}\n    code1\n    code2`, // a closed fence still ends all joining
+    "-     code\nnext", // indented code inside a list item or quote
+    ">     code\nnext",
     "Intro text\na | b\n--|--\n1 | 2", // a table header without a leading pipe
+    "> a | b\n> --- | ---\n> c | d\ne", // a table in a quote doesn't continue lazily
+    "[a]:\n/url\n'title'\nnext", // a link definition over several lines
+    "[foo\nbar]: /url\n'title'\nnext\n\n[foo bar]",
+    "see [x](<a\nb.md>)", // a <...> link destination can't span a line break
+    "[a]( <b\nc>)",
+    "[a\\]b]: /u\nfoo\n\n[a\\]b]", // a link label with an escaped bracket
+    "a\n:-\nb", // a one-column table needs no pipe
+    "foo <pre>a\nb</pre> c", // inline raw HTML that keeps its line breaks
+    "foo <code>a\nb\nc</code> d",
+    "$$\nx % c\ny\n$$", // a math block's TeX comment would swallow the next line
+    `| a |\n| - |\n| b |\n${String.fromCharCode(0xa0)}\nfoo\nbar`, // a no-break space doesn't end a table
     "Title\n=",
     "Title\n--",
     "more words\n10. ten\n   wrapped\n=", // a setext heading over several lines keeps its anchor
@@ -146,9 +159,13 @@ test("unwrapping joins only paragraph and list-item continuations", () => {
     // [input, expected]
     ["### Heading\ntext\nmore", "### Heading\ntext more"],
     ["- a\n- b\n* c\n+ d", "- a\n- b\n* c\n+ d"],
-    ["- a\n  - nested\n    more", "- a\n  - nested more"],
+    // Only column-0 paragraphs and list items are joined; nested items and quotes keep their lines.
+    ["- a\n  - nested\n    more", "- a\n  - nested\n    more"],
     ["1. one\n   cont\n2) two", "1. one cont\n2) two"],
-    ["> quote\n> more\nlazy", "> quote\n> more lazy"],
+    ["> quote\n> more\nlazy", "> quote\n> more\nlazy"],
+    // Only spaces and tabs are trimmed; other spaces are content.
+    [`foo\n${String.fromCharCode(0x3000)}bar`, `foo ${String.fromCharCode(0x3000)}bar`],
+    [`foo${String.fromCharCode(0xa0)}\nbar`, `foo${String.fromCharCode(0xa0)} bar`],
     ["text\n```js\nline one\nline two\n```\nafter", "text\n```js\nline one\nline two\n```\nafter"],
     ["~~~~\na\nb\n~~~\nc\n~~~~", "~~~~\na\nb\n~~~\nc\n~~~~"],
     ["- item\n    ```\n    a\n    b\n    ```", "- item\n    ```\n    a\n    b\n    ```"],
@@ -162,7 +179,11 @@ test("unwrapping joins only paragraph and list-item continuations", () => {
     ["para\n    indented continuation", "para indented continuation"],
     ["[x]: https://example.com\n[y]: https://example.org", "[x]: https://example.com\n[y]: https://example.org"],
     ["<details>\n<summary>x</summary>\ntext", "<details>\n<summary>x</summary>\ntext"],
-    ["trailing space \nnext", "trailing space next"],
+    // The earlier line keeps its trailing space; a code span crossing the break keeps the break.
+    ["trailing space \nnext", "trailing space  next"],
+    ["foo `a \nb` bar\nmore", "foo `a \nb` bar more"],
+    // An inline raw tag left open at a paragraph's end stops joining for the rest of the body.
+    ["foo <pre>a\n\nb\nc", "foo <pre>a\n\nb\nc"],
     ["", ""],
   ];
   for (const [input, expected] of cases) assert.equal(unwrapMarkdown(input), expected, JSON.stringify(input));
