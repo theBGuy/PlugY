@@ -91,8 +91,8 @@ test("nothing found falls back to a pointer line", () => {
     "See CHANGELOG.md for release notes.\n",
   );
   const bare = CHANGELOG.replace("### Fixed\n\n- Hand-written fix.\n\n", "");
-  // A pre-release with nothing pending prints the intro alone: it never gets a
-  // CHANGELOG section a pointer could name.
+  // A pre-release with nothing pending prints the intro alone: the repository's
+  // CHANGELOG.md never gets a section for it that a pointer could name.
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: empty }),
     "Pre-release of 14.5.0 for testing; no changes are recorded since the last stable release.\n",
