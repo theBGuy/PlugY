@@ -141,7 +141,7 @@ client's PlugY applies it to its own copy of the item, so a script only needs it
 | +0C (4) | page flags (as in the ACK) |
 | +10, +11 | chunk index, chunk count (1 for an empty page) |
 | +12 | n, the items in this chunk (at most 26) |
-| +14 (20) | page name, NUL padded (no NUL when it is 20 characters long), empty when unnamed |
+| +14 (20) | page name as saved, NUL padded (no NUL when it is 20 characters long), empty when unnamed; a page PlugY adds for items that no longer fit is `Moved items` in every game language |
 | +28 | n records of 8 bytes: gid (4), classid (2), x, y |
 
 Plain LIST sends every page from the first one asked for up to the last page with items, empty pages in
