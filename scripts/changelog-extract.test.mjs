@@ -110,7 +110,38 @@ test("release bodies put each wrapped bullet and paragraph on one line", () => {
   );
 });
 
-test("unwrapping keeps every line Markdown reads as its own block", () => {
+test("unwrapping joins only paragraph and list-item continuations", () => {
+  const F = "```";
+  // Joining any line of these changes what GitHub renders, so each comes back as it was.
+  const unchanged = [
+    `- ${F}\n  code a\n  code b\n  ${F}\n\nafter\nwrap`, // a fence on a list item stops all joining
+    `> ${F}\nx\ny`,
+    `a\n    ${F}\nb\nc\n\n${F}\ncode1\ncode2\n${F}`,
+    `${F}\nexample:\n    ${F}\nline a\nline b\n${F}`,
+    "# H\n    code1\n    code2", // indented code right after a heading, a rule or a fence
+    "***\n    code1\n    code2",
+    `${F}\nx\n${F}\n    code1\n    code2`,
+    "Intro text\na | b\n--|--\n1 | 2", // a table header without a leading pipe
+    "Title\n=",
+    "Title\n--",
+    "more words\n10. ten\n   wrapped\n=", // a setext heading over several lines keeps its anchor
+    "- item\n    ===", // a list item moves the indent its underlines and rules may have
+    "- item\n    ***",
+    "> para\nwrap\n> ===",
+    "<pre>\nline1\nline2\n</pre>",
+    '[foo]: /url\n"title"\nnext text',
+    "> # heading\nlazy",
+    "-\nfoo",
+    "1.\nfoo",
+    "text\n# Heading",
+  ];
+  for (const input of unchanged) assert.equal(unwrapMarkdown(input), input, JSON.stringify(input));
+  // A GitHub alert's marker must stand alone on its line.
+  assert.equal(unwrapMarkdown("> [!NOTE]\nlazy"), "> [!NOTE]\nlazy");
+  assert.equal(
+    unwrapMarkdown(`${F}x${F} text\nwrapped\n\n${F}\ncode1\ncode2\n${F}`),
+    `${F}x${F} text wrapped\n\n${F}\ncode1\ncode2\n${F}`,
+  );
   const cases = [
     // [input, expected]
     ["### Heading\ntext\nmore", "### Heading\ntext more"],

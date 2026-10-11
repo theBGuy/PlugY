@@ -35,10 +35,12 @@ leading `- ` and the 2-space indent on wrapped continuation lines. Write it *for
 humans*: a clear sentence about what changed for the player, not your commit
 subject. State what the change gives the reader, not the defect it removes, and
 open with a short **bold lead** naming it, so the release notes can be skimmed:
-`- **Safer saves.** PlugY writes ...`. The assembler concatenates bodies under
-the right `###` heading without re-wrapping, so what you write is exactly what
-`CHANGELOG.md` gets; the GitHub release body puts each bullet on one line,
-because GitHub breaks a release body at every newline.
+`- **Safer stash saves.** PlugY writes ...`. The assembler concatenates bodies
+under the right `###` heading without re-wrapping, so what you write is exactly
+what `CHANGELOG.md` gets. GitHub breaks a release body at every newline, so the
+release body joins each wrapped line back onto its bullet. A continuation line
+that starts with `<`, `>`, `|`, `# ` or a list marker keeps its own line there,
+so rewrap to move such a word off the start of a line.
 
 Use at most one em dash per bullet; two read as a paired aside and fail
 `--check`. Em dashes inside backticks, **bold**, or "quotes" don't count, so
@@ -69,7 +71,7 @@ quoted game text can keep its own.
   this, so a malformed fragment fails the PR instead of the release.
 - `node scripts/changelog-draft.mjs` drafts starting-point bullets from the git
   history since the last stable release tag (curate before saving as a
-  fragment).
+  fragment, replacing a drafted `**scope:**` prefix with a bold lead).
 - `node scripts/release.mjs` (maintainers) is the interactive release driver:
   it checks the repo state, previews the fragments, picks the version (patch,
   minor, major or a pre-release), runs `changelog-release.mjs`, then commits,
@@ -81,9 +83,10 @@ quoted game text can keep its own.
   also assembles the fragments into `CHANGELOG.md` as `## [<version>] - <date>`
   and deletes them.
 - `node scripts/changelog-extract.mjs <tag>` prints the release notes for a tag
-  (the release workflow uses it for the GitHub release body), with each wrapped
-  line joined onto the line it continues. A pre-release's notes open with a line
-  naming the newest stable version in `CHANGELOG.md`.
+  (the release workflow uses it for the GitHub release body), with wrapped
+  paragraph and bullet lines joined. A pre-release's notes, like its packaged
+  `CHANGELOG.md`, open with a line naming the newest stable version in
+  `CHANGELOG.md`, or "the last stable release" when it has none.
 - `node scripts/changelog-package.mjs <pre-release version> <output file>`
   writes the `CHANGELOG.md` a pre-release's zip and installer ship: the
   repository's file plus a section for that version built from the pending

@@ -22,54 +22,88 @@ import { parseVersion } from "./version-lib.mjs";
 
 // GitHub renders a release body like a comment, turning every newline into a
 // line break, so CHANGELOG.md's wrapped lines would break mid-sentence there.
-// The body joins each wrapped line onto the line it continues; CHANGELOG.md
-// itself stays wrapped. Lines that open a block (heading, list item, quote,
-// table, rule, link definition, HTML), code, and hard breaks keep their own line.
-const FENCE_OPEN_RE = /^\s*(`{3,}|~{3,})/;
-const BLOCK_START_RE = /^\s*(#{1,6}(\s|$)|[-*+](\s|$)|\d{1,9}[.)](\s|$)|>|\||<|\[[^\]]+\]:)/;
-const NOT_JOINED_ONTO_RE = /^\s*(#{1,6}(\s|$)|\||<|\[[^\]]+\]:)/;
-const RULE_RE = /^ {0,3}([-*_=])(\s*\1){2,}\s*$/;
-const isTableDelimiter = (line) => /^[\s|:-]+$/.test(line) && line.includes("|") && line.includes("-");
+// The body joins a wrapped line onto the paragraph or list-item line it
+// continues; CHANGELOG.md itself stays wrapped. Every other line keeps its own
+// line, among them headings, list items, quotes, tables, rules and setext
+// underlines, link definitions, HTML, indented code and hard breaks. From the
+// first code fence or raw HTML block (<pre>, a comment) on, nothing is joined:
+// their blank lines and look-alike closers make pairing them guesswork.
+// The quote and list markers before a line's content.
+const CONTAINER_RE = /^(\s*(>\s?|[-*+](\s+|$)|\d{1,9}[.)](\s+|$)))*/;
+const FENCE_RE = /^\s*(`{3,}|~{3,})(.*)$/;
+const RAW_HTML_RE = /^\s*(<(pre|script|style|textarea)(\s|>|$)|<!--|<\?|<![A-Za-z]|<!\[CDATA\[)/i;
+const BLOCK_START_RE = /^\s*(#{1,6}(\s|$)|[-*+](\s|$)|\d{1,9}[.)](\s|$)|>|\||<|\[[^\]]+\]:|\[!)/;
+const NOT_TEXT_RE = /^\s*(#{1,6}(\s|$)|\||<|\[!)/; // a heading, table row, HTML or alert marker
+const LINK_DEF_RE = /^\s*\[[^\]]+\]:/;
+const UNDERLINE_RE = /^\s*(=+|-+)\s*$/; // a setext underline, any length
+const RULE_RE = /^\s*([-*_])(\s*\1){2,}\s*$/;
+// A list item or quote moves the indent its underlines and rules may have, so any indent counts.
+const isUnderline = (line) => UNDERLINE_RE.test(line) || UNDERLINE_RE.test(line.replace(CONTAINER_RE, ""));
+const isRule = (line) => RULE_RE.test(line) || RULE_RE.test(line.replace(CONTAINER_RE, ""));
+const isTableDelimiter = (line) =>
+  line !== undefined && /^[\s|:-]+$/.test(line) && line.includes("|") && line.includes("-");
 
-/** `text` (LF) with each wrapped continuation line joined onto the line it continues. */
+// A backtick fence's info string can't hold a backtick, so "```x``` text" is inline code.
+const opensFence = (content) => {
+  const m = content.match(FENCE_RE);
+  return m !== null && !(m[1][0] === "`" && m[2].includes("`"));
+};
+
+// Lines underlined further down make one setext heading, whose anchor is built from
+// the text as written, so they stay as they are.
+const underlinedAhead = (lines, i) => {
+  for (let j = i; j < lines.length && lines[j].trim() !== ""; j++) if (isUnderline(lines[j])) return true;
+  return false;
+};
+
+/** `text` (LF) with each wrapped paragraph or list-item line joined onto the line it continues. */
 export function unwrapMarkdown(text) {
+  const lines = text.split("\n");
   const out = [];
-  let fence = null; // the closing-fence pattern while inside fenced code
-  let table = false; // table rows run until a blank line
-  let prev = "blank"; // the last line: blank, text (a continuation may join it), code or other
-  for (const line of text.split("\n")) {
-    if (fence) {
-      out.push(line);
-      if (fence.test(line)) {
-        fence = null;
-        prev = "other";
-      }
-      continue;
-    }
-    const open = line.match(FENCE_OPEN_RE);
-    if (open) {
-      fence = new RegExp(`^\\s*${open[1][0] === "`" ? "`" : "~"}{${open[1].length},}\\s*$`);
-      out.push(line);
-      continue;
+  let prev = "blank"; // the last line: blank, text (a continuation may join it), code, linkdef or other
+  let block = false; // inside a table or an HTML block: no joins until a blank line
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const content = line.replace(CONTAINER_RE, "");
+    if (opensFence(content) || RAW_HTML_RE.test(content)) {
+      out.push(...lines.slice(i));
+      break;
     }
     if (line.trim() === "") {
       out.push(line);
-      table = false;
       prev = "blank";
+      block = false;
       continue;
     }
-    if (isTableDelimiter(line)) table = true;
+    // A table's header row is only known by the delimiter row under it.
+    if (isTableDelimiter(line) || isTableDelimiter(lines[i + 1]) || /^\s*[|<]/.test(content)) block = true;
     const hardBreak = / {2,}$|\\$/.test(line);
-    if (prev === "text" && !table && !BLOCK_START_RE.test(line) && !RULE_RE.test(line)) {
+    const continues =
+      prev === "text" &&
+      !block &&
+      !BLOCK_START_RE.test(line) &&
+      !isRule(line) &&
+      !underlinedAhead(lines, i);
+    if (continues) {
       const last = out[out.length - 1].trimEnd();
       out[out.length - 1] = `${last} ${hardBreak ? line.trimStart() : line.trim()}`;
       if (hardBreak) prev = "other";
       continue;
     }
     out.push(line);
-    // Indented code only starts after a blank line; within a paragraph the same indent is a continuation.
-    if (/^( {4}|\t)/.test(line) && (prev === "blank" || prev === "code")) prev = "code";
-    else if (table || hardBreak || RULE_RE.test(line) || NOT_JOINED_ONTO_RE.test(line)) prev = "other";
+    // Indented code can follow any block but a paragraph; inside a paragraph the same indent continues it.
+    if (/^( {4}|\t)/.test(line) && prev !== "text") prev = "code";
+    else if (LINK_DEF_RE.test(content)) prev = "linkdef";
+    else if (
+      block ||
+      hardBreak ||
+      prev === "linkdef" || // a link definition's title may sit on the next line
+      content.trim() === "" ||
+      NOT_TEXT_RE.test(content) ||
+      isUnderline(line) ||
+      isRule(line)
+    )
+      prev = "other";
     else prev = "text";
   }
   return out.join("\n");
