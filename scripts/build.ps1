@@ -91,6 +91,7 @@ $DllSources = @(
     'src\plugy\ExtendedSaveFile.cpp'
     'src\plugy\ExtraOptions.cpp'
     'src\plugy\GlobalVariable.cpp'
+    'src\plugy\HostJoin.cpp'
     'src\plugy\InfinityStash.cpp'
     'src\plugy\INIfile.cpp'
     'src\plugy\Interface_Skills.cpp'
