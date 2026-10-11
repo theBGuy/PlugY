@@ -39,11 +39,18 @@ open with a short **bold lead** naming it, so the release notes can be skimmed:
 under the right `###` heading without re-wrapping, so what you write is exactly
 what `CHANGELOG.md` gets. GitHub breaks a release body at every newline, so the
 release body joins each wrapped line back onto its bullet, as long as the line
-holds plain text. A line starting with `<`, `>`, `|`, `# `, a list marker or a
-link definition keeps its own line, and so do the lines after it in that bullet;
-from a code fence or raw HTML block on, nothing is joined. Rewrap to move such a
-word off the start of a line, and keep each `code span` on one line: one that
-crosses a line break keeps the break.
+holds plain text. What it leaves as written:
+
+- A wrapped line starting with `>`, `# ` or a list marker, or the line after a
+  `code span` that crosses a line break: that line and the rest of its bullet.
+- A wrapped line starting with `<` or `|`, or a link definition: that line and
+  every later line up to the next blank one, so the rest of its `###` group.
+- A code fence, a `$$` line, a raw HTML block, or a `<pre>`, `<code>` or
+  `<textarea>` tag still open at the end of its group (even inside backticks):
+  everything from there to the end of the release notes.
+
+So rewrap to move such a word off the start of a line, keep each code span on
+one line, and keep those three tag names out of fragments.
 
 Use at most one em dash per bullet; two read as a paired aside and fail
 `--check`. Em dashes inside backticks, **bold**, or "quotes" don't count, so

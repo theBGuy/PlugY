@@ -34,13 +34,13 @@ import { parseVersion } from "./version-lib.mjs";
 // The trims scan characters: an end-anchored regex retries every start and goes quadratic on long runs.
 const BLANK_RE = /^[ \t]*$/;
 const isSpace = (c) => c === " " || c === "\t";
-const trimStartTabs = (s) => {
+const trimStartSpacesTabs = (s) => {
   let a = 0;
   while (a < s.length && isSpace(s[a])) a++;
   return s.slice(a);
 };
-const trimTabs = (s) => {
-  const t = trimStartTabs(s);
+const trimSpacesTabs = (s) => {
+  const t = trimStartSpacesTabs(s);
   let b = t.length;
   while (b > 0 && isSpace(t[b - 1])) b--;
   return t.slice(0, b);
@@ -150,9 +150,9 @@ export function unwrapMarkdown(text) {
     rawOpen = leavesRawOpen(line, rawBefore);
     ticksOpen = leavesTicksOpen(line, ticksBefore);
     const inSpan = rawBefore || ticksBefore > 0 || openAngle;
-    if (joinable && !block && !underlined[i] && !inSpan && isPlain(trimTabs(line))) {
+    if (joinable && !block && !underlined[i] && !inSpan && isPlain(trimSpacesTabs(line))) {
       // The previous part keeps its trailing space: inside a code span that crosses the break it is text.
-      const body = hardBreak ? trimStartTabs(line) : trimTabs(line);
+      const body = hardBreak ? trimStartSpacesTabs(line) : trimSpacesTabs(line);
       out[out.length - 1].push(body);
       joinable = !hardBreak;
       openAngle = OPEN_ANGLE_RE.test(body);
