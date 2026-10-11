@@ -365,7 +365,7 @@ export function writeHeaderFile(root, text) {
   writeFileSync(join(root, HEADER_PATH), text, "latin1");
 }
 
-// --- installer banner sites ---------------------------------------------------
+// --- game-files banner sites --------------------------------------------------
 
 // latin1 round-trips every byte, so the cp1252 INIs and the UTF-8 readmes stay byte-exact; utf16le files open with FF FE.
 export const BANNER_FILES = [

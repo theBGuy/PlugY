@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Prepare a release: stamp the version into src/common/PlugYVersion.h and the 8
-// installer banners, and, for a stable version, assemble the changelog.d/*.md
+// game-files banners, and, for a stable version, assemble the changelog.d/*.md
 // fragments into CHANGELOG.md as a new "## [X.Y.Z] - <today>" section and
 // delete the consumed fragments. A pre-release stamps only: its notes are
 // rendered from the pending fragments, which wait for the stable release.
@@ -127,7 +127,7 @@ try {
   process.exit(1);
 }
 
-// --- 4. Summary -----------------------------------------------------------------
+// --- 3. Summary -----------------------------------------------------------------
 const lines = [
   `Prepared ${version}${prerelease ? " (pre-release)" : ` (${date})`}.`,
   "  wrote:",

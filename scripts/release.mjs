@@ -580,7 +580,7 @@ async function main() {
   );
   say("    2. review the diff");
   say(
-    `    3. commit "chore(release): ${tag}": the header and the 8 installer banners${prerelease ? "" : ", CHANGELOG.md and the consumed fragments"}`,
+    `    3. commit "chore(release): ${tag}": the header and the 8 game-files banners${prerelease ? "" : ", CHANGELOG.md and the consumed fragments"}`,
   );
   say(`    4. annotated tag ${tag}`);
   say("    5. push master + tag atomically");
