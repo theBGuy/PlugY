@@ -211,6 +211,8 @@ void freeCurrentCF(DWORD memoryPool, s_MPSaveFile** curSF)
 void sendData(BYTE* data, DWORD size, bool isShared)
 {
 	t_rcvMsg pack;
+	// This header is 7 bytes, so packSize+7 sends one byte past the payload: zeroed, no stack byte goes out.
+	ZeroMemory(&pack, sizeof(pack));
 //	d2_assert(size >= 0x40000000, "size of file > 0x40000000", __FILE__, __LINE__);
 
 	pack.packID = customPackID;
