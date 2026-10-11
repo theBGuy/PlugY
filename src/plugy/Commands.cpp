@@ -317,7 +317,8 @@ bool renamePage(Unit* ptChar, char* newName)
 	if (ptStash->name && !strcmp(newName, ptStash->name))
 		return 0;
 
-	// Shift+click fills in the label a "Moved items" page shows; sent back unchanged, the page keeps its saved name.
+	// Shift+click fills in an ASCII label as the stash shows it (else the saved name, matched above); sent back
+	// unchanged, the page keeps its saved name.
 	if (isMovedItemsPageName(ptStash->name) && isShownMovedItemsLabel(newName, getMovedItemsPageLabel()))
 		return 0;
 

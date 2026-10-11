@@ -788,10 +788,10 @@ Beispiele :
 [STASH]
 Größenänderung des Goldschatz auf 10x10 Felder.
 Benutze PlugY\TradeStash.dc6 um das Hintergrundbild zu ändern.
-Unter 1.14d kannst du bigStash jederzeit ausschalten und behältst alle Gegenstände: Ein Gegenstand, der nicht in
-die kleinere Kiste passt, wandert an einen freien Platz seiner Seite oder auf eine neue Seite namens
-"Verschobene Items" (in der Sprache des Spiels) am Ende der Kiste. Skripte und Spielstanddateien verwenden
-immer den englischen Namen "Moved items".
+Unter 1.14d kannst du mit ActiveMultiPageStash=1 bigStash jederzeit ausschalten und behältst alle Gegenstände:
+Ein Gegenstand, der nicht in die kleinere Kiste passt, wandert an einen freien Platz seiner Seite oder auf eine
+neue Seite namens "Verschobene Items" (in der Sprache des Spiels) am Ende der Kiste. Skripte und
+Spielstanddateien verwenden immer den englischen Namen "Moved items".
 Beispiel:
 - ActiveBigStash=0 (Deaktiviert, Standard, original Goldkistengröße aus der MPQ wird benutzt)
 - ActiveBigStash=1 (Aktiviert)

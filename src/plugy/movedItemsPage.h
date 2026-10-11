@@ -9,7 +9,8 @@
 #include <string.h>
 
 // Saved, matched and reported to scripts under this English name in every game language, so a page made under one
-// language is still found under another. Only the stash UI shows the translated label.
+// language is still found under another. Only the stash name field, its Shift+click prefill and the notice use the
+// translated label.
 #define MOVED_ITEMS_PAGE_NAME "Moved items"
 #define MOVED_ITEMS_PAGE_NAME_W L"" MOVED_ITEMS_PAGE_NAME
 #define MOVED_ITEMS_PAGE_LABEL_KEY L"STR_MOVED_ITEMS_PAGE"

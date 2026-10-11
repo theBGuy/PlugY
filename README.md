@@ -23,7 +23,7 @@ Each features can be turned on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURA
 * Added some pages for display more characters stats.
 * Display item level in its popup.
 * Launch any number of Diablo II games on the same computer.
-* Increase the stash to 10x10 squares.
+* Increase the stash to 10x10 squares; on 1.14d, with the multi-page stash, you can turn it off again without losing items.
 * Stash requests for bots and scripts (1.14d): show any page, see what every page holds, and move items between pages without leaving the page shown (see [docs/stash-protocol.md](docs/stash-protocol.md)).
 * Pinned items (1.14d), the Horadric Cube by default, stay on their page when you swap stash pages.
 * Change the save path directory.
@@ -88,7 +88,7 @@ Each launch of the game writes its own log to the `PlugY\logs` folder, named aft
 ## Contribute
 Bug reports and pull requests are welcome in [this repository](https://github.com/theBGuy/PlugY4Kolbot).
 * **Bugs and ideas:** open an issue with your game version, your `PlugY.ini` settings, the session log from `PlugY\logs` and the steps that trigger the problem.
-* **Translations:** send a pull request that edits `game-files/PlugY/LocalizedStrings.ini`. The file must stay UTF-16LE with its byte-order mark; many editors save as UTF-8 by default, so check the encoding before you commit.
+* **Translations:** send a pull request that edits `game-files/PlugY/LocalizedStrings.ini`. The file must stay UTF-16LE with its byte-order mark; many editors save as UTF-8 by default, so check the encoding before you commit. `STR_MOVED_ITEMS_PAGE` is a stash page name: every language needs one, at most 20 characters, with no `#` (the stash shows the page number there) and no leading or trailing spaces, and `ENG` stays `Moved items`. `scripts/build.ps1 -Test`, which CI runs, checks it.
 * **Changelog:** give every user-facing change a fragment in `changelog.d/` (see [changelog.d/README.md](changelog.d/README.md)), so it reaches the release notes.
 
 ## License

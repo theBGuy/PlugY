@@ -687,10 +687,10 @@ Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs signifi
 [STASH]
 Ajuste le coffre pour avoir 10x10 cases.
 Quand bigStash est activé, vou devez redémarrer D2 pour jouer en solo/multi/ouvert après avoir jouer en fermé (et vice versa).
-Sur la 1.14d, vous pouvez désactiver bigStash à tout moment et garder tous vos objets : un objet qui ne tient pas
-dans le coffre plus petit est déplacé vers un emplacement libre de sa page, ou vers une nouvelle page à la fin du
-coffre nommée "Objets déplacés" (dans la langue du jeu). Les scripts et les fichiers de sauvegarde utilisent
-toujours le nom anglais "Moved items".
+Sur la 1.14d, avec ActiveMultiPageStash=1, vous pouvez désactiver bigStash à tout moment et garder tous vos
+objets : un objet qui ne tient pas dans le coffre plus petit est déplacé vers un emplacement libre de sa page, ou
+vers une nouvelle page à la fin du coffre nommée "Objets déplacés" (dans la langue du jeu). Les scripts et les
+fichiers de sauvegarde utilisent toujours le nom anglais "Moved items".
 Utilise PlugY\TradeStash.dc6 pour changer l'image de fond.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveBigStash=0			{0:Taille du coffre par défaut utilisé; 1:Activé, coffre utilise 10x10 cases}
