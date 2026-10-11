@@ -11,8 +11,11 @@
       PlugY4Kolbot_v<V>_symbols.zip         PDBs (updater included) and PlugY.map
       SHA256SUMS.txt                        sha256sum -c format, LF endings
     Inputs are staged under build/out/package/, so nothing is written inside the
-    source tree. Run scripts/build.ps1 first. Needs 7-Zip and NSIS 3.11 or later
-    (makensis).
+    source tree. A pre-release ships a CHANGELOG.md with a section for itself,
+    rendered from the pending changelog.d fragments by
+    scripts/changelog-package.mjs; a stable release ships CHANGELOG.md as
+    committed. Run scripts/build.ps1 first. Needs 7-Zip, NSIS 3.11 or later
+    (makensis) and, for a pre-release, Node.js.
 
 .PARAMETER Config
     Release (default) or Debug: which build/out/<Config>/ to package.
@@ -122,6 +125,7 @@ $Version = $m.Groups[1].Value
 if ($Version -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?\z') { Fail "PLUGY_VERSION '$Version' is not X.Y.Z or X.Y.Z-alpha|beta|rc.N" }
 if ($Version.Length -gt 13) { Fail "PLUGY_VERSION '$Version' is longer than 13 characters" }
 $Base = "PlugY4Kolbot_v$Version"
+$IsPrerelease = $Version.Contains('-')
 
 # --- Inputs and tools ---------------------------------------------------------------
 $Binaries = @('PlugY.dll', 'PlugY.exe', 'PatchD2File.exe', 'RestoreD2File.exe', 'PlugY4KolbotUpdater.exe')
@@ -171,9 +175,24 @@ $MakeNsis = Find-Tool 'makensis' 'C:\Program Files (x86)\NSIS\makensis.exe'
 # NSIS 3.11 retries creating a restricted $PLUGINSDIR (NSIS bug #1315); the installer
 # and uninstaller run PatchD2File.exe from that folder.
 $MakeNsisVersion = Assert-NsisVersion $MakeNsis '3.11'
+$Node = $(if ($IsPrerelease) { Find-Tool 'node' 'C:\Program Files\nodejs\node.exe' })
 Write-Host "Packaging PlugY4Kolbot $Version ($Config)"
 Write-Host "7-Zip:    $SevenZip"
 Write-Host "makensis: $MakeNsis ($MakeNsisVersion)"
+if ($Node) { Write-Host "node:     $Node" }
+New-CleanDirectory $StageRoot
+
+# --- Changelog ----------------------------------------------------------------------
+# The committed CHANGELOG.md gets no section for a pre-release, so its testers would
+# find nothing about it; the zip and the installer ship a rendered copy instead. It is
+# rendered before -OutDir is swept, so a failure leaves the previous assets in place.
+if ($IsPrerelease) {
+    $changelogDir = Join-Path $StageRoot 'changelog'
+    New-Item -ItemType Directory -Force -Path $changelogDir | Out-Null
+    $Changelog = Join-Path $changelogDir 'CHANGELOG.md'
+    Invoke-Tool $Node @((Join-Path $RepoRoot 'scripts\changelog-package.mjs'), $Version, $Changelog)
+    if (-not (Test-Path -LiteralPath $Changelog)) { Fail "scripts/changelog-package.mjs did not write $Changelog" }
+}
 
 # --- Output directory ---------------------------------------------------------------
 # Only a previous run's assets are ever deleted, including those named before the
@@ -200,7 +219,6 @@ if (Test-Path -LiteralPath $OutDir) {
 } else {
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 }
-New-CleanDirectory $StageRoot
 
 # --- Main zip -----------------------------------------------------------------------
 $main = Join-Path $StageRoot 'main'

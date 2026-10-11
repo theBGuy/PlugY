@@ -1,10 +1,12 @@
 // Shared helpers for the changelog-fragment workflow. Fragments live in
 // `changelog.d/` as `<added|changed|fixed>-<slug>.md` files whose body is the
 // finished Keep a Changelog bullet; `changelog-release.mjs` assembles them into
-// CHANGELOG.md, `changelog-extract.mjs` renders release notes from them, and
+// CHANGELOG.md, `changelog-extract.mjs` renders release notes from them,
+// `changelog-package.mjs` renders a pre-release's packaged CHANGELOG.md, and
 // `changelog-draft.mjs --preview` previews them. Node built-ins only (no deps).
-// The repo stores CHANGELOG.md as LF, so read/write via the LF helpers here,
-// never letting CRLF leak into a write.
+// The repo stores CHANGELOG.md as LF, so every write into the tree goes through
+// the LF helpers here. changelog-package.mjs writes only outside the tree and
+// keeps the checkout's line endings, like the CHANGELOG.md a stable release ships.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -290,10 +292,23 @@ export function pendingBody(bodyLines, grp, { noMerge = false } = {}) {
     : appendToBody(bodyLines, grp);
 }
 
+/** True when the lines hold a bullet: a body of bare `### Category` headings has no entries. */
+export const hasEntries = (lines) => lines.some((l) => /^\s*[-*+] \S/.test(l));
+
+/**
+ * The line a pre-release's notes open with, in its GitHub release and in its
+ * packaged CHANGELOG.md alike. `base` is the version without its channel.
+ */
+export const prereleaseIntro = (base, withEntries) =>
+  withEntries
+    ? `Pre-release of ${base} for testing; these notes cover everything since the last stable release.`
+    : `Pre-release of ${base} for testing; no changes are recorded since the last stable release.`;
+
 /**
  * Repoint [Unreleased] to compare against the new tag and insert the new
  * version's compare link. The previous tag is captured verbatim from the
- * existing [Unreleased] def (the authoritative "last released" marker), so the
+ * existing [Unreleased] def. Only a stable release writes CHANGELOG.md back to
+ * the tree, so the committed def always names the last stable release, and the
  * first release compares against the upstream, non-semver v14.03.
  */
 export function rewriteCompareLinks(fullText, ver) {
@@ -315,10 +330,11 @@ export function rewriteCompareLinks(fullText, ver) {
 
 /**
  * Promote the pending notes to "## [ver] - date" with a fresh empty
- * "## [Unreleased]" above, then rewrite the compare links. Pure: takes and
- * returns CHANGELOG.md's LF text.
+ * "## [Unreleased]" above, then rewrite the compare links. `intro`, when given,
+ * is a paragraph placed under the new heading. Pure: takes and returns
+ * CHANGELOG.md's LF text.
  */
-export function assembleChangelog(text, ver, groups, { noMerge = false, date }) {
+export function assembleChangelog(text, ver, groups, { noMerge = false, date, intro }) {
   const lines = text.split("\n");
   const { unreleasedIdx, nextIdx, body } = findUnreleased(lines);
   if (unreleasedIdx === -1) {
@@ -330,7 +346,13 @@ export function assembleChangelog(text, ver, groups, { noMerge = false, date }) 
     throw new Error(`CHANGELOG.md already has a '## [${ver}]' section; choose another version`);
   }
   const newBody = pendingBody(body, groups, { noMerge });
-  const newRegion = ["## [Unreleased]", "", `## [${ver}] - ${date}`, ...newBody];
+  const newRegion = [
+    "## [Unreleased]",
+    "",
+    `## [${ver}] - ${date}`,
+    ...(intro ? ["", intro] : []),
+    ...newBody,
+  ];
   const assembled = [
     ...lines.slice(0, unreleasedIdx),
     ...newRegion,

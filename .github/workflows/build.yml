@@ -48,6 +48,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # package.ps1 runs node to render a pre-release's CHANGELOG.md, and master
+      # carries a pre-release version after each one is cut.
+      - uses: actions/setup-node@v7 # floating major; v7.1.0 was current on 2026-10-11
+        with:
+          node-version: 24
+
       # Puts the NSIS version the script pins first on PATH, so the installer
       # never depends on the one the image ships.
       - name: Install pinned NSIS

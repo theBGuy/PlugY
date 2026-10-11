@@ -7,7 +7,8 @@ changelog. At a stable release, `node scripts/changelog-release.mjs <version>`
 assembles these fragments into `CHANGELOG.md`, in the exact
 [Keep a Changelog](https://keepachangelog.com/) format, and deletes them. A
 pre-release (`-alpha.N`, `-beta.N`, `-rc.N`) leaves them in place: its release
-notes are rendered from them, and the stable release consumes them later.
+notes, and the `CHANGELOG.md` in its zip and installer, are rendered from them,
+and the stable release consumes them later.
 
 **Player-facing changes only.** The release notes on GitHub come from this
 changelog, so write for players and bot operators. Build scripts, CI, and repo
@@ -63,7 +64,8 @@ quoted game text can keep its own.
   (filename + bullet format) and reports all problems; the PR workflow runs
   this, so a malformed fragment fails the PR instead of the release.
 - `node scripts/changelog-draft.mjs` drafts starting-point bullets from the git
-  history since the last release tag (curate before saving as a fragment).
+  history since the last stable release tag (curate before saving as a
+  fragment).
 - `node scripts/release.mjs` (maintainers) is the interactive release driver:
   it checks the repo state, previews the fragments, picks the version (patch,
   minor, major or a pre-release), runs `changelog-release.mjs`, then commits,
@@ -76,5 +78,9 @@ quoted game text can keep its own.
   and deletes them.
 - `node scripts/changelog-extract.mjs <tag>` prints the release notes for a tag
   (the release workflow uses it for the GitHub release body).
+- `node scripts/changelog-package.mjs <pre-release version> <output file>`
+  writes the `CHANGELOG.md` a pre-release's zip and installer ship: the
+  repository's file plus a section for that version built from the pending
+  fragments (`scripts/package.ps1` runs it; nothing in the tree changes).
 
 `README.md` in this directory is ignored by the tooling and never consumed.

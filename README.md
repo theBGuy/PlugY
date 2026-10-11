@@ -112,6 +112,7 @@ Prerequisites (Windows):
 * Visual Studio 2022 with the "Desktop development with C++" workload, including the x86 build tools.
 * NSIS 3.11 or later, for the installer.
 * 7-Zip, for the release zips.
+* Node.js (CI uses version 24), for the release scripts and for packaging a pre-release.
 * PowerShell 7 (`pwsh`) or Windows PowerShell 5.1, which run the build scripts.
 
 Build the plugin, the launcher, the updater and the D2 file patcher, then package them:
@@ -133,6 +134,6 @@ Every push to `master` and every pull request runs the same build in CI, and the
 ## Releasing (maintainers)
 1. Give every user-facing change a changelog fragment in `changelog.d/` (see [changelog.d/README.md](changelog.d/README.md)). Pull requests that change code are checked for one; the `no-changelog` label or `skip-changelog` in the PR title exempts changes users never see.
 2. Run `node scripts/release.mjs` from an up-to-date `master` (add `--dry-run` to rehearse a release first). It bumps the version and, for a stable release, assembles the fragments into `CHANGELOG.md` (a pre-release leaves them pending for the next stable release). Then it commits, creates the tag `vX.Y.Z` (or a pre-release tag such as `vX.Y.Z-rc.N` / `-beta.N`) and pushes `master` and the tag together.
-3. The tag push runs the release workflow, which checks the tag against `src/common/PlugYVersion.h` and that the tagged commit is on `master`, builds every binary and runs the native tests, packages every asset, attests their provenance and creates a **draft** GitHub release. Its notes are the changelog section for a stable release, or the pending fragments for a pre-release.
+3. The tag push runs the release workflow, which checks the tag against `src/common/PlugYVersion.h` and that the tagged commit is on `master`, builds every binary and runs the native tests, packages every asset, attests their provenance and creates a **draft** GitHub release. Its notes are the changelog section for a stable release, or the pending fragments for a pre-release. A pre-release's zip and installer also ship a `CHANGELOG.md` with a section for it, built from those fragments; the repository's `CHANGELOG.md` is left as it is.
 4. Review the draft and smoke-test its downloads.
 5. Publish it: `gh release edit vX.Y.Z --draft=false --latest` for a stable release, or `gh release edit vX.Y.Z-rc.N --draft=false` for a pre-release.

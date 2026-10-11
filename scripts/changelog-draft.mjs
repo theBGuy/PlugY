@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Prints a Keep-a-Changelog draft from the Conventional Commits since the last
-// release tag (or all history if there are no tags). This is a STARTING POINT:
-// curate the output into clear, user-facing prose and save each entry as a
-// changelog.d fragment. Run with: node scripts/changelog-draft.mjs
+// stable release tag (or all history if there are no tags). This is a STARTING
+// POINT: curate the output into clear, user-facing prose and save each entry
+// as a changelog.d fragment. Run with: node scripts/changelog-draft.mjs
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +40,8 @@ if (process.argv.includes("--check")) {
 
 // `--preview` mode: show the pending changelog.d/ fragments assembled under an
 // Unreleased heading, without touching any file. (The default mode, below,
-// still drafts a starting point from the Conventional Commits since the last tag.)
+// still drafts a starting point from the Conventional Commits since the last
+// stable tag.)
 if (process.argv.includes("--preview")) {
   const { groups } = readFragments(join(root, "changelog.d"));
   if (countEntries(groups) === 0) {
