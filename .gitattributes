@@ -1,3 +1,7 @@
+# Text files are stored with LF; checkouts convert them per core.autocrlf / core.eol. Files git detects as binary
+# (images, the UTF-16 .rc scripts) are never converted.
+* text=auto
+
 # Shipped game files keep their exact bytes: PlugY's INI parser needs CRLF (src/plugy/INIfile.cpp), and two of
 # them are UTF-16.
 game-files/** -text

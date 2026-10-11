@@ -367,51 +367,57 @@ test("the release path list is one constant shared by prepare and commit", () =>
 
 const realHeader = () => readFileSync(join(repoRoot, HEADER_PATH), "latin1");
 
+// The checkout decides the header's line endings (LF in git and on CI's Ubuntu
+// runner, CRLF under core.autocrlf), so each header test runs on both styles,
+// built from the real file.
+const HEADER_EOLS = { LF: "\n", CRLF: "\r\n" };
+const headerWith = (eol) => realHeader().replace(/\r?\n/g, eol);
+const crlfCount = (s) => (s.match(/\r\n/g) || []).length;
+const loneLfCount = (s) => (s.match(/(?<!\r)\n/g) || []).length;
+
 // A 13-character version no real release uses, so all five lines change
 // whatever the header holds today.
 const PROBE = "99.98.97-rc.1";
 
-test("header round trip keeps CRLF and every other byte", () => {
-  const original = realHeader();
-  assert.ok(original.includes("\r\n"), "fixture is CRLF");
-  const h = parseHeader(original);
-  assert.equal(headerProblem(h), null);
+for (const [name, eol] of Object.entries(HEADER_EOLS)) {
+  test(`header round trip keeps ${name} and every other byte`, () => {
+    const original = headerWith(eol);
+    const h = parseHeader(original);
+    assert.equal(headerProblem(h), null);
 
-  const pre = renderHeader(original, PROBE);
-  assert.deepEqual(parseHeader(pre), {
-    major: 99,
-    minor: 98,
-    patch: 97,
-    version: PROBE,
-    fileVersion: "99.98.97.0",
+    const pre = renderHeader(original, PROBE);
+    assert.deepEqual(parseHeader(pre), {
+      major: 99,
+      minor: 98,
+      patch: 97,
+      version: PROBE,
+      fileVersion: "99.98.97.0",
+    });
+    assert.equal(headerProblem(parseHeader(pre)), null);
+    assert.equal(crlfCount(pre), crlfCount(original));
+    assert.equal(loneLfCount(pre), loneLfCount(original));
+    // Only the five version lines differ.
+    const a = original.split(eol);
+    const b = pre.split(eol);
+    assert.equal(a.length, b.length);
+    const changed = a.flatMap((l, i) => (l === b[i] ? [] : [l]));
+    assert.equal(changed.length, 5);
+    assert.ok(changed.every((l) => l.startsWith("#define PLUGY_VERSION")));
+
+    assert.equal(renderHeader(pre, h.version), original);
   });
-  assert.equal(headerProblem(parseHeader(pre)), null);
-  assert.equal(
-    (pre.match(/\r\n/g) || []).length,
-    (original.match(/\r\n/g) || []).length,
-  );
-  assert.equal((pre.match(/(?<!\r)\n/g) || []).length, 0);
-  // Only the five version lines differ.
-  const a = original.split("\r\n");
-  const b = pre.split("\r\n");
-  assert.equal(a.length, b.length);
-  const changed = a.flatMap((l, i) => (l === b[i] ? [] : [l]));
-  assert.equal(changed.length, 5);
-  assert.ok(changed.every((l) => l.startsWith("#define PLUGY_VERSION")));
 
-  assert.equal(renderHeader(pre, h.version), original);
-});
-
-test("header writes refuse a bad version and a missing or doubled line", () => {
-  const original = realHeader();
-  assert.throws(() => renderHeader(original, "14.10.0-beta.1"), /13-character limit/);
-  const missing = original.replace(/^#define PLUGY_VERSION_PATCH .*\r\n/m, "");
-  assert.notEqual(missing, original);
-  assert.throws(() => renderHeader(missing, "14.4.0"), /exactly one patch line, found 0/);
-  const doubled = original.replace(/^#define PLUGY_VERSION ".*\r\n/m, (line) => line + line);
-  assert.notEqual(doubled, original);
-  assert.throws(() => parseHeader(doubled), /exactly one version line, found 2/);
-});
+  test(`header writes refuse a bad version and a missing or doubled line (${name})`, () => {
+    const original = headerWith(eol);
+    assert.throws(() => renderHeader(original, "14.10.0-beta.1"), /13-character limit/);
+    const missing = original.replace(/^#define PLUGY_VERSION_PATCH .*\r?\n/m, "");
+    assert.notEqual(missing, original);
+    assert.throws(() => renderHeader(missing, "14.4.0"), /exactly one patch line, found 0/);
+    const doubled = original.replace(/^#define PLUGY_VERSION ".*\r?\n/m, (line) => line + line);
+    assert.notEqual(doubled, original);
+    assert.throws(() => parseHeader(doubled), /exactly one version line, found 2/);
+  });
+}
 
 test("headerProblem flags disagreeing lines", () => {
   const ok = { major: 14, minor: 4, patch: 0, version: "14.4.0-rc.1", fileVersion: "14.4.0.0" };
