@@ -57,7 +57,7 @@ static void recordRelease(void* net, DWORD clientID)
 	LeaveCriticalSection(&releasedLock);
 }
 
-static bool takeRelease(DWORD clientID)
+static bool takeCurrentServerRelease(DWORD clientID)
 {
 	void* net = *(void**)(offset_D2Game + HJ_SERVER_NET);
 	EnterCriticalSection(&releasedLock);
@@ -77,7 +77,7 @@ static DWORD FASTCALL releasedConnection(void* net, DWORD clientID, DWORD file, 
 static NetClient* FASTCALL findClientRemovingDeadJoiner(DWORD clientID)
 {
 	t_findClient findClient = HJ_CALL(t_findClient, HJ_FIND_CLIENT);
-	if (!takeRelease(clientID))
+	if (!takeCurrentServerRelease(clientID))
 		return findClient(clientID);
 	// The connection is gone, so whatever PlugY received from it will never be loaded.
 	discardClientSaveFiles(clientID);
