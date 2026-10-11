@@ -307,8 +307,9 @@ export const prereleaseIntro = (base, withEntries) =>
 /**
  * Repoint [Unreleased] to compare against the new tag and insert the new
  * version's compare link. The previous tag is captured verbatim from the
- * existing [Unreleased] def (the authoritative "last released" marker), so the
- * first release compares against the upstream, non-semver v14.03.
+ * existing [Unreleased] def, the authoritative "last stable release" marker (a
+ * pre-release never moves it), so the first release compares against the
+ * upstream, non-semver v14.03.
  */
 export function rewriteCompareLinks(fullText, ver) {
   const m = fullText.match(

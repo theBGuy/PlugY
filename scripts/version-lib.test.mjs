@@ -287,7 +287,8 @@ test("the pre-release base prompt lists only bases that fit, and its default is 
 
 test("commits are counted from the last stable tag, whatever the target", () => {
   assert.equal(commitBase({ tagListOutput: "v14.03\nv14.02", describeTag: "v14.03" }), "v14.03");
-  // A pre-release tag never becomes the base: its notes cover everything since the last release.
+  // A pre-release tag never becomes the base: its notes cover everything since
+  // the last stable release.
   assert.equal(
     commitBase({ tagListOutput: "v14.03\nv14.4.0-rc.1\nv14.4.0-rc.2", describeTag: "v14.03" }),
     "v14.03",

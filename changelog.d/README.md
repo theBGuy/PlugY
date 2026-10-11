@@ -64,7 +64,8 @@ quoted game text can keep its own.
   (filename + bullet format) and reports all problems; the PR workflow runs
   this, so a malformed fragment fails the PR instead of the release.
 - `node scripts/changelog-draft.mjs` drafts starting-point bullets from the git
-  history since the last release tag (curate before saving as a fragment).
+  history since the last stable release tag (curate before saving as a
+  fragment).
 - `node scripts/release.mjs` (maintainers) is the interactive release driver:
   it checks the repo state, previews the fragments, picks the version (patch,
   minor, major or a pre-release), runs `changelog-release.mjs`, then commits,
