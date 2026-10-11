@@ -38,7 +38,6 @@
 **/*.VC.VC.opendb
 **/UpgradeLog*
 /src/launcher/PlugYRun.aps
-harness/build/
 /harness/
 /build/out/
 /dist/

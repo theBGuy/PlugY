@@ -54,7 +54,7 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File .github/scripts/install-nsis.ps1
 
-      # -Test also builds and runs the native update-check and updater suites;
+      # -Test also builds and runs the native update-check, updater and session-log suites;
       # no --live, so the job never depends on the GitHub API.
       - name: Build and test (Release, x86)
         shell: pwsh

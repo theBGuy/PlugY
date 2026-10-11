@@ -29,7 +29,7 @@ LANGUAGE LANG_FRENCH, SUBLANG_FRENCH
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,6,0
+ FILEVERSION PLUGY_VERSION_MAJOR,PLUGY_VERSION_MINOR,PLUGY_VERSION_PATCH,0
  PRODUCTVERSION PLUGY_VERSION_MAJOR,PLUGY_VERSION_MINOR,PLUGY_VERSION_PATCH,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
@@ -47,9 +47,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "theBGuy"
             VALUE "FileDescription", "PlugY4Kolbot patcher"
-            VALUE "FileVersion", "1.0.6.0"
+            VALUE "FileVersion", PLUGY_VERSION_FILE
             VALUE "LegalCopyright", "Copyright (C) 2021 Yohann Nicolas; (C) 2026 theBGuy. GPLv3"
-            VALUE "OriginalFilename", "PlugYInstall.exe"
+#ifdef RESTORE
+            VALUE "OriginalFilename", "RestoreD2File.exe"
+#else
+            VALUE "OriginalFilename", "PatchD2File.exe"
+#endif
             VALUE "ProductName", "PlugY4Kolbot"
             VALUE "ProductVersion", PLUGY_VERSION
         END

@@ -367,7 +367,7 @@ export function writeHeaderFile(root, text) {
 
 // --- installer banner sites ---------------------------------------------------
 
-// latin1 keeps the cp1252/ASCII files byte-exact; utf16le files open with FF FE.
+// latin1 round-trips every byte, so the cp1252 INIs and the UTF-8 readmes stay byte-exact; utf16le files open with FF FE.
 export const BANNER_FILES = [
   { path: "game-files/PlugY.ini", encoding: "latin1" },
   { path: "game-files/PlugY/PlugYDefault.ini", encoding: "latin1" },

@@ -512,7 +512,7 @@ bool launchGameXP(LPSTR commandLine, LPSTR currentDirectory, LPSTR libraryName, 
 		}
 		ContinueDebugEvent(DebugEvent.dwProcessId, DebugEvent.dwThreadId, status);
 	}
-	MessageBox(0, "ERROR : PlugY isn't installed", "PlugYRun", MB_OK | MB_ICONASTERISK);
+	MessageBox(0, "ERROR : PlugY isn't installed", "PlugY4Kolbot", MB_OK | MB_ICONASTERISK);
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
 	return false;

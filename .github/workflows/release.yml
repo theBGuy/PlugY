@@ -38,6 +38,18 @@ jobs:
       id-token: write # mint the OIDC token the provenance signature needs
       attestations: write # store the provenance attestations
     steps:
+      # The binaries check theBGuy/PlugY4Kolbot for updates and the notes link there, so a
+      # release built under any other repository name would ship dead links.
+      - name: Check the repository name
+        shell: pwsh
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          if ($env:REPO -ne 'theBGuy/PlugY4Kolbot') {
+            Write-Output "::error::Releases are built only in theBGuy/PlugY4Kolbot, not $env:REPO; rename the repository first."
+            exit 1
+          }
+
       - uses: actions/checkout@v7 # floating major; v7.0.1 was current on 2026-10-08
         with:
           # Full history and branches, for the master-ancestry check below.

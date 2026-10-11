@@ -15,6 +15,7 @@ You can make a donation if you want.
 
 ******** WARNING ********
 - This plug-in works with LoD version 1.09 to 1.13d and 1.14d and mods based on.
+- PlugY4Kolbot is developed and tested on 1.14d only; the other versions are not tested with it.
 - This plug-in doesn't work on Battle.net and others realms.
 - All files have changed since previous version. Please don't use old files.
 - LOD 1.14 change the save directory, so you must move PlugY save files manually.
@@ -409,14 +410,17 @@ v1.00 features (can all be easily enabled or disabled) :
 
 
 ******** CONTENTS ********
-20 files, 1 folder :
+23 files, 1 folder :
 - PlugY_The_Survival_Kit_-_Readme.txt
 - PlugY_The_Survival_Kit_-_LisezMoi.txt
 - PlugY_The_Survival_Kit_-_Liesmich.txt
 - PlugY_The_Survival_Kit_-_讀我檔案.txt
 - PlugY.exe
+- PlugY4KolbotUpdater.exe
 - PlugY.dll (in Diablo II directory)
 - PlugY.ini
+- LICENSE.txt
+- CHANGELOG.md
 - PlugY\PlugYFixed.ini
 - PlugY\PlugYDefault.ini
 - PlugY\LocalizedStrings.ini
@@ -518,6 +522,20 @@ Exit codes: 0 done, 1 already done, 2 unexpected file contents, 3 no supported g
 D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can't be opened),
 4 file in use (close Diablo II), 5 access denied or administrator rights not given, 6 cancelled,
 7 other error.
+
+
+******** UPDATING ********
+- In game: when a newer release is out, the main menu shows "Update: X.Y.Z" in green (with
+  ActivePrintPlugYVersion=1). CheckForUpdates and UpdateChannel in PlugY.ini control the check.
+- Close every Diablo II game, then run PlugY4KolbotUpdater.exe from your PlugY folder (the one
+  that holds PlugY.exe); the installer also adds the Start-menu shortcut "Check for PlugY4Kolbot
+  updates". It verifies the download against SHA256SUMS.txt and GitHub's SHA-256 digest, and
+  keeps your PlugY.ini. For an install the installer made, it runs the new installer for that
+  install alone; otherwise it backs up each file it replaces under PlugY4Kolbot-backup\.
+- Options, for scripts: --check only reports, --yes installs without asking, and --prerelease
+  also offers alpha, beta and rc builds (the same as UpdateChannel=prerelease).
+Exit codes: 0 updated or up to date, 1 error, 2 update available (--check), 3 files in use,
+4 cancelled.
 
 
 ******************** FAQ ******************

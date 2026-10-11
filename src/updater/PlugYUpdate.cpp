@@ -196,7 +196,7 @@ static void printUsage()
 		L"\n"
 		L"  --check        Only report whether an update is available.\n"
 		L"  --yes          Install without asking first.\n"
-		L"  --prerelease   Also offer release candidates and betas. The same as\n"
+		L"  --prerelease   Also offer alpha, beta and rc builds. The same as\n"
 		L"                 UpdateChannel=prerelease in the [GENERAL] section of PlugY.ini.\n"
 		L"  --help         Show this text.\n"
 		L"\n"
@@ -431,18 +431,108 @@ static bool deleteTreeBelow(const wchar_t* base, const wchar_t* dir)
 	return deleteTree(dir);
 }
 
-/* FlushFileBuffers on a closed file, so its data is on disk before it is moved
-   into place. Full sharing: an antivirus scan holding the new file must not fail the update. */
-static bool flushFile(const wchar_t* path)
+// Deletes the file open as h through that handle, so whatever holds its name by now is never touched, and closes h.
+static void discardOpenFile(HANDLE h)
 {
-	HANDLE h = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
-	if (h == INVALID_HANDLE_VALUE)
-		return false;
-	bool ok = FlushFileBuffers(h) != 0;
 	DWORD error = GetLastError();
+	FILE_DISPOSITION_INFO disposition = { TRUE };
+	SetFileInformationByHandle(h, FileDispositionInfo, &disposition, sizeof(disposition));
 	CloseHandle(h);
 	SetLastError(error);
-	return ok;
+}
+
+/* Copies src into dest as a new file, open with DELETE access, data flushed and
+   src's last-write time kept; INVALID_HANDLE_VALUE (last error set) on failure.
+   dest is created exclusively without following a link (CREATE_NEW plus
+   FILE_FLAG_OPEN_REPARSE_POINT), so an existing entry of that name, a planted
+   link included, fails the copy instead of being written through as
+   administrator. A src that is a link is refused: it is read as the entry itself. */
+static HANDLE copyToNewFile(const wchar_t* src, const wchar_t* dest)
+{
+	HANDLE in = CreateFileW(src, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING,
+		FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+	if (in == INVALID_HANDLE_VALUE)
+		return INVALID_HANDLE_VALUE;
+	FILE_ATTRIBUTE_TAG_INFO tag;
+	FILE_BASIC_INFO basic;
+	if (!GetFileInformationByHandleEx(in, FileAttributeTagInfo, &tag, sizeof(tag))
+		|| !GetFileInformationByHandleEx(in, FileBasicInfo, &basic, sizeof(basic)))
+	{
+		DWORD error = GetLastError();
+		CloseHandle(in);
+		SetLastError(error);
+		return INVALID_HANDLE_VALUE;
+	}
+	if (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+	{
+		CloseHandle(in);
+		SetLastError(ERROR_REPARSE_POINT_ENCOUNTERED);
+		return INVALID_HANDLE_VALUE;
+	}
+	HANDLE out = CreateFileW(dest, GENERIC_WRITE | DELETE, FILE_SHARE_READ, NULL, CREATE_NEW,
+		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+	if (out == INVALID_HANDLE_VALUE)
+	{
+		DWORD error = GetLastError();
+		CloseHandle(in);
+		SetLastError(error);
+		return INVALID_HANDLE_VALUE;
+	}
+	static BYTE buffer[64 * 1024];
+	bool ok = true;
+	for (;;)
+	{
+		DWORD got = 0;
+		DWORD written = 0;
+		if (!ReadFile(in, buffer, sizeof(buffer), &got, NULL))
+			ok = false;
+		else if (got && (!WriteFile(out, buffer, got, &written, NULL) || written != got))
+			ok = false;
+		if (!ok || !got)
+			break;
+	}
+	// Zero fields are left unchanged; the time is set after the last write, which would otherwise update it.
+	FILE_BASIC_INFO times;
+	memset(&times, 0, sizeof(times));
+	times.LastWriteTime = basic.LastWriteTime;
+	/* The data is flushed here, before installFile's by-handle rename makes it
+	   visible at dest, so a crash can never surface a torn or empty file. The
+	   rename metadata itself is left to NTFS journaling: the old MoveFileEx
+	   path's MOVEFILE_WRITE_THROUGH has no SetFileInformationByHandle(rename)
+	   equivalent, and a volume flush is admin-only (unavailable to a
+	   non-elevated run). The multi-file apply already recovers from a crash by
+	   rollback and the next run's leftover sweep. */
+	ok = ok && SetFileInformationByHandle(out, FileBasicInfo, &times, sizeof(times)) && FlushFileBuffers(out);
+	DWORD error = ok ? 0 : GetLastError();
+	CloseHandle(in);
+	if (!ok)
+	{
+		discardOpenFile(out);
+		SetLastError(error ? error : ERROR_WRITE_FAULT);
+		return INVALID_HANDLE_VALUE;
+	}
+	return out;
+}
+
+// Renames the file open as h (DELETE access) to dest; with replace, an existing dest entry is replaced, never followed.
+static bool renameOpenFile(HANDLE h, const wchar_t* dest, bool replace)
+{
+	union
+	{
+		FILE_RENAME_INFO info;
+		BYTE raw[sizeof(FILE_RENAME_INFO) + MAX_PATH * sizeof(wchar_t)];
+	} request;
+	size_t len = wcslen(dest);
+	if (len >= MAX_PATH)
+	{
+		SetLastError(ERROR_FILENAME_EXCED_RANGE);
+		return false;
+	}
+	memset(&request, 0, sizeof(request));
+	request.info.ReplaceIfExists = replace;
+	request.info.FileNameLength = (DWORD)(len * sizeof(wchar_t));
+	memcpy(request.info.FileName, dest, (len + 1) * sizeof(wchar_t));
+	return SetFileInformationByHandle(h, FileRenameInfo, &request, sizeof(request)) != 0;
 }
 
 static char* readSmallFile(const wchar_t* path, DWORD maxBytes, DWORD* len)
@@ -1372,8 +1462,10 @@ static bool extractAndValidate(const wchar_t* zipPath, const char* version, cons
 
 /*============================== Apply =============================*/
 
-// Copies src next to dest, then moves it over dest. The running updater cannot be
-// overwritten but can be renamed, so it is moved to <dest>.old first.
+/* Copies src to a new <dest>.PlugY4Kolbot-new and renames that file over dest
+   through the handle the copy made, so a name swapped in between is never what
+   gets moved. The running updater cannot be overwritten but can be renamed, so
+   it is moved to <dest>.old first. */
 static bool installFile(const wchar_t* src, const wchar_t* dest, bool isSelf, DWORD* error)
 {
 	wchar_t temp[MAX_PATH];
@@ -1383,36 +1475,28 @@ static bool installFile(const wchar_t* src, const wchar_t* dest, bool isSelf, DW
 		*error = ERROR_FILENAME_EXCED_RANGE;
 		return false;
 	}
-	if (!CopyFileW(src, temp, FALSE) || !flushFile(temp))
+	HANDLE h = copyToNewFile(src, temp);
+	if (h == INVALID_HANDLE_VALUE)
 	{
 		*error = GetLastError();
-		DeleteFileW(temp);
 		return false;
 	}
 	clearReadOnly(dest);
-	if (isSelf)
-	{
-		if (!MoveFileExW(dest, old, MOVEFILE_REPLACE_EXISTING))
-		{
-			*error = GetLastError();
-			DeleteFileW(temp);
-			return false;
-		}
-		if (!MoveFileExW(temp, dest, MOVEFILE_WRITE_THROUGH))
-		{
-			*error = GetLastError();
-			MoveFileExW(old, dest, 0);
-			DeleteFileW(temp);
-			return false;
-		}
-		return true;
-	}
-	if (!MoveFileExW(temp, dest, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+	if (isSelf && !MoveFileExW(dest, old, MOVEFILE_REPLACE_EXISTING))
 	{
 		*error = GetLastError();
-		DeleteFileW(temp);
+		discardOpenFile(h);
 		return false;
 	}
+	if (!renameOpenFile(h, dest, !isSelf))
+	{
+		*error = GetLastError();
+		if (isSelf)
+			MoveFileExW(old, dest, 0);
+		discardOpenFile(h);
+		return false;
+	}
+	CloseHandle(h);
 	return true;
 }
 
@@ -1601,8 +1685,19 @@ static int applyStaged(const Target* t, const wchar_t* staging, const char* inst
 				continue;
 			wchar_t src[MAX_PATH];
 			wchar_t saved[MAX_PATH];
-			if (!pathJoin(src, t->dir, plan[i].rel) || !pathJoin(saved, backupDir, plan[i].rel)
-				|| !createParents(backupDir, plan[i].rel, false) || !CopyFileW(src, saved, TRUE))
+			HANDLE copy = INVALID_HANDLE_VALUE;
+			// The backup folder lies in the install too: its folders get the install's link check, each copy is a new file.
+			if (pathJoin(src, t->dir, plan[i].rel) && pathJoin(saved, backupDir, plan[i].rel)
+				&& createParents(backupDir, plan[i].rel, false))
+			{
+				if (noLinksBelow(backupDir, plan[i].rel))
+					copy = copyToNewFile(src, saved);
+				else
+					SetLastError(ERROR_REPARSE_POINT_ENCOUNTERED);
+			}
+			if (copy != INVALID_HANDLE_VALUE)
+				CloseHandle(copy);
+			else
 			{
 				DWORD error = GetLastError();
 				wchar_t root[MAX_PATH];
@@ -1636,7 +1731,11 @@ static int applyStaged(const Target* t, const wchar_t* staging, const char* inst
 			ok = installFile(src, dest, plan[i].isSelf, &error);
 		if (!ok)
 		{
-			fail(L"Could not replace %ls: %ls.\n", plan[i].rel, errorText(error ? error : ERROR_FILENAME_EXCED_RANGE));
+			if (error == ERROR_FILE_EXISTS)
+				fail(L"Could not replace %ls: %ls" NEW_SUFFIX L" is in the way. Delete it and run the updater again.\n",
+					plan[i].rel, plan[i].rel);
+			else
+				fail(L"Could not replace %ls: %ls.\n", plan[i].rel, errorText(error ? error : ERROR_FILENAME_EXCED_RANGE));
 			rollbackAndReport(t, backupDir, backupRootCreated);
 			return UPDATER_EXIT_ERROR;
 		}

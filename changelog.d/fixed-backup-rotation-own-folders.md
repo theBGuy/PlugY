@@ -1,3 +1,2 @@
-- With `ActiveAutoBackup=1`, `MaxBackupPerCharacter` counts and removes only that
-  character's own backup folders, so characters whose names start alike keep
-  their backups.
+- With `ActiveAutoBackup=1`, each character keeps its own newest
+  `MaxBackupPerCharacter` backups; other characters' backups don't count.

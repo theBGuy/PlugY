@@ -5,9 +5,8 @@ list what every page holds, and move a stash item to any page by its gid, with o
 it can wait for. The items on the page shown never leave D2BS's view, so references to them (the Horadric Cube
 above all) stay valid.
 
-kolbot users don't need the bytes below: `libs/modules/PlugY.js` implements all of it, configured by
-`Config.PlugY` (and SoloPlay's own setting). This page is the wire reference for anyone writing their own
-client.
+kolbot's own client for this protocol ships separately from PlugY4Kolbot. This page is the wire reference
+for anyone writing a client.
 
 ## Requirements
 
