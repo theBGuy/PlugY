@@ -12,6 +12,7 @@
 
 #include "hostJoin.h"
 #include "loadPlayerData.h"
+#include "releasedConnections.h"
 #include "common.h"
 
 // 1.14d Game.exe server, as offsets from offset_D2Game.
@@ -46,54 +47,28 @@ typedef void (FASTCALL *t_removeClient)(Game* game, DWORD clientID, DWORD flag);
 // Connections the net layer released, recorded on its own thread just before it queues their 0x70. The 0x70 handler
 // acts only on an entry of the current server's net object, so neither a 0x70 a connected client sends itself nor an
 // entry left over from an earlier server (its 0x70 dropped at shutdown) changes anything.
-struct ReleasedConnection
-{
-	void* net;
-	DWORD clientID;
-};
 static CRITICAL_SECTION releasedLock;
-static ReleasedConnection released[64];
-static int nbReleased = 0;
+static ReleasedConnections released = {};
 
-static void addReleased(void* net, DWORD clientID)
+static void recordRelease(void* net, DWORD clientID)
 {
 	EnterCriticalSection(&releasedLock);
-	if (nbReleased == (int)ARRAYSIZE(released))
-	{
-		memmove(released, released + 1, sizeof(released) - sizeof(released[0]));
-		nbReleased--;
-	}
-	released[nbReleased].net = net;
-	released[nbReleased].clientID = clientID;
-	nbReleased++;
+	addReleased(&released, net, clientID);
 	LeaveCriticalSection(&releasedLock);
 }
 
-static bool takeReleased(DWORD clientID)
+static bool takeRelease(DWORD clientID)
 {
 	void* net = *(void**)(offset_D2Game + HJ_SERVER_NET);
-	bool found = false;
 	EnterCriticalSection(&releasedLock);
-	int kept = 0;
-	for (int i = 0; i < nbReleased; i++)
-	{
-		if (released[i].net != net)
-			continue;
-		if (!found && released[i].clientID == clientID)
-		{
-			found = true;
-			continue;
-		}
-		released[kept++] = released[i];
-	}
-	nbReleased = kept;
+	bool found = takeReleased(&released, net, clientID);
 	LeaveCriticalSection(&releasedLock);
 	return found;
 }
 
 static DWORD FASTCALL releasedConnection(void* net, DWORD clientID, DWORD file, DWORD line)
 {
-	addReleased(net, clientID);
+	recordRelease(net, clientID);
 	return HJ_CALL(t_releaseCallback, HJ_RELEASE_CALLBACK)(net, clientID, file, line);
 }
 
@@ -102,7 +77,7 @@ static DWORD FASTCALL releasedConnection(void* net, DWORD clientID, DWORD file, 
 static NetClient* FASTCALL findClientRemovingDeadJoiner(DWORD clientID)
 {
 	t_findClient findClient = HJ_CALL(t_findClient, HJ_FIND_CLIENT);
-	if (!takeReleased(clientID))
+	if (!takeRelease(clientID))
 		return findClient(clientID);
 	// The connection is gone, so whatever PlugY received from it will never be loaded.
 	discardClientSaveFiles(clientID);
