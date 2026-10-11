@@ -33,9 +33,24 @@ Create a file named **`<category>-<slug>.md`**, where:
 The **file body is the finished changelog bullet, verbatim**, including the
 leading `- ` and the 2-space indent on wrapped continuation lines. Write it *for
 humans*: a clear sentence about what changed for the player, not your commit
-subject. State what the change gives the reader, not the defect it removes. The
-assembler concatenates bodies under the right `###` heading without re-wrapping,
-so what you write is exactly what ships.
+subject. State what the change gives the reader, not the defect it removes, and
+open with a short **bold lead** naming it, so the release notes can be skimmed:
+`- **Safer stash saves.** PlugY writes ...`. The assembler concatenates bodies
+under the right `###` heading without re-wrapping, so what you write is exactly
+what `CHANGELOG.md` gets. GitHub breaks a release body at every newline, so the
+release body joins each wrapped line back onto its bullet, as long as the line
+holds plain text. What it leaves as written:
+
+- A wrapped line starting with `>`, `# ` or a list marker, or the line after a
+  `code span` that crosses a line break: that line and the rest of its bullet.
+- A wrapped line starting with `<` or `|`, or a link definition: that line and
+  every later line up to the next blank one, so the rest of its `###` group.
+- A code fence, a `$$` line, a raw HTML block, or a `<pre>`, `<code>` or
+  `<textarea>` tag still open at the end of its group (even inside backticks):
+  everything from there to the end of the release notes.
+
+So rewrap to move such a word off the start of a line, keep each code span on
+one line, and keep those three tag names out of fragments.
 
 Use at most one em dash per bullet; two read as a paired aside and fail
 `--check`. Em dashes inside backticks, **bold**, or "quotes" don't count, so
@@ -52,8 +67,9 @@ quoted game text can keep its own.
 ### Example: `fixed-autosave-stash-files.md`
 
 ```md
-- In single-player games on Diablo II 1.14d, the PlugY stash (`.d2x`) and the
-  shared stash are saved with the character every time the game saves it.
+- **Stashes save with the character.** In single-player games on Diablo II
+  1.14d, the PlugY stash (`.d2x`) and the shared stash are saved with the
+  character every time the game saves it.
 ```
 
 ## Commands
@@ -65,7 +81,8 @@ quoted game text can keep its own.
   this, so a malformed fragment fails the PR instead of the release.
 - `node scripts/changelog-draft.mjs` drafts starting-point bullets from the git
   history since the last stable release tag (curate before saving as a
-  fragment).
+  fragment, opening it with a bold lead in place of any drafted `**scope:**`
+  prefix).
 - `node scripts/release.mjs` (maintainers) is the interactive release driver:
   it checks the repo state, previews the fragments, picks the version (patch,
   minor, major or a pre-release), runs `changelog-release.mjs`, then commits,
@@ -77,7 +94,10 @@ quoted game text can keep its own.
   also assembles the fragments into `CHANGELOG.md` as `## [<version>] - <date>`
   and deletes them.
 - `node scripts/changelog-extract.mjs <tag>` prints the release notes for a tag
-  (the release workflow uses it for the GitHub release body).
+  (the release workflow uses it for the GitHub release body), with wrapped
+  paragraph and bullet lines joined. A pre-release's notes, like its packaged
+  `CHANGELOG.md`, open with a line naming the newest stable version in
+  `CHANGELOG.md`, or "the last stable release" when it has none.
 - `node scripts/changelog-package.mjs <pre-release version> <output file>`
   writes the `CHANGELOG.md` a pre-release's zip and installer ship: the
   repository's file plus a section for that version built from the pending

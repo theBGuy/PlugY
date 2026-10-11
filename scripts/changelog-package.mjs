@@ -16,6 +16,7 @@ import {
   countEntries,
   findUnreleased,
   hasEntries,
+  lastStableVersion,
   localDate,
   pendingBody,
   prereleaseIntro,
@@ -44,8 +45,9 @@ export function prereleaseChangelog({ text, version, groups, date }) {
   const parsed = parseVersion(version);
   const crlf = text.includes("\r\n");
   const lf = text.replace(/\r\n/g, "\n").replace(/^\uFEFF/, "");
-  const { body } = findUnreleased(lf.split("\n"));
-  const intro = prereleaseIntro(parsed.base, hasEntries(pendingBody(body, groups)));
+  const lines = lf.split("\n");
+  const { body } = findUnreleased(lines);
+  const intro = prereleaseIntro(parsed.base, hasEntries(pendingBody(body, groups)), lastStableVersion(lines));
   const out = assembleChangelog(lf, version, groups, { date, intro });
   return crlf ? out.replace(/\n/g, "\r\n") : out;
 }
