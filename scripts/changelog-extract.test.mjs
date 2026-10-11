@@ -49,7 +49,7 @@ test("a pre-release tag prints the intro plus Unreleased merged with fragments",
   assert.equal(
     out,
     [
-      "Pre-release of 14.5.0 for testing; these notes cover everything since the last release.",
+      "Pre-release of 14.5.0 for testing; these notes cover everything since the last stable release.",
       "",
       "### Added",
       "",
@@ -73,7 +73,7 @@ test("a pre-release with an empty Unreleased body renders the fragments alone", 
   });
   assert.equal(
     out,
-    "Pre-release of 14.5.0 for testing; these notes cover everything since the last release.\n\n### Changed\n\n- Pending change,\n  wrapped.\n",
+    "Pre-release of 14.5.0 for testing; these notes cover everything since the last stable release.\n\n### Changed\n\n- Pending change,\n  wrapped.\n",
   );
 });
 
@@ -95,23 +95,23 @@ test("nothing found falls back to a pointer line", () => {
   // CHANGELOG section a pointer could name.
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: empty }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since the last release.\n",
+    "Pre-release of 14.5.0 for testing; no changes are recorded since the last stable release.\n",
   );
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: bare, groups: null }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since the last release.\n",
+    "Pre-release of 14.5.0 for testing; no changes are recorded since the last stable release.\n",
   );
   // Bare category headings with no bullets are not notes either.
   const headingsOnly = bare.replace("## [Unreleased]\n\n", "## [Unreleased]\n\n### Added\n\n### Fixed\n\n");
   assert.notEqual(headingsOnly, bare);
   assert.equal(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: headingsOnly, groups: empty }),
-    "Pre-release of 14.5.0 for testing; no changes are recorded since the last release.\n",
+    "Pre-release of 14.5.0 for testing; no changes are recorded since the last stable release.\n",
   );
   // ...while a single bullet under them is.
   assert.match(
     buildReleaseNotes({ tag: "v14.5.0-rc.1", changelogText: headingsOnly, groups: { ...empty, Fixed: ["- One fix."] } }),
-    /cover everything since the last release\.\n\n### Added\n\n### Fixed\n\n- One fix\.\n$/,
+    /cover everything since the last stable release\.\n\n### Added\n\n### Fixed\n\n- One fix\.\n$/,
   );
 });
 

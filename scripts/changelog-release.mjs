@@ -2,8 +2,9 @@
 // Prepare a release: stamp the version into src/common/PlugYVersion.h and the 8
 // game-files banners, and, for a stable version, assemble the changelog.d/*.md
 // fragments into CHANGELOG.md as a new "## [X.Y.Z] - <today>" section and
-// delete the consumed fragments. A pre-release stamps only: its notes are
-// rendered from the pending fragments, which wait for the stable release.
+// delete the consumed fragments. A pre-release stamps only: its notes and its
+// packaged CHANGELOG.md (changelog-package.mjs) are rendered from the pending
+// fragments, which wait for the stable release.
 // Usage:
 //   node scripts/changelog-release.mjs 14.4.0            (stable)
 //   node scripts/changelog-release.mjs 14.4.0-rc.1       (pre-release: stamp only)

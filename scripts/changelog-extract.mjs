@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Prints the release notes for a tag, for use as the GitHub Release body. A
 // stable tag gets its CHANGELOG.md section. A pre-release tag gets everything
-// since the last release: the [Unreleased] body merged with the pending
+// since the last stable release: the [Unreleased] body merged with the pending
 // changelog.d fragments (a pre-release never consumes them). A stable tag with
 // no section falls back to a pointer line; the script always exits 0 so a notes problem
 // never fails the release. Usage:
@@ -10,7 +10,13 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findUnreleased, pendingBody, readFragments } from "./changelog-lib.mjs";
+import {
+  findUnreleased,
+  hasEntries,
+  pendingBody,
+  prereleaseIntro,
+  readFragments,
+} from "./changelog-lib.mjs";
 import { parseVersion } from "./version-lib.mjs";
 
 // GitHub rejects a release body over 125,000 characters, and Linux caps any
@@ -66,12 +72,10 @@ export function buildReleaseNotes({ tag, changelogText, groups, env = {} }) {
     )
       .join("\n")
       .trim();
-    // Entries are bullets, so a body of bare `### Category` headings counts as
-    // empty. No pointer either way: a pre-release never gets a CHANGELOG section.
-    const hasEntries = pending.split("\n").some((l) => /^\s*[-*+] \S/.test(l));
-    notes = hasEntries
-      ?`Pre-release of ${parsed.base} for testing; these notes cover everything since the last release.\n\n${pending}`
-      : `Pre-release of ${parsed.base} for testing; no changes are recorded since the last release.`;
+    // No pointer either way: the repo's CHANGELOG.md never gets a pre-release section.
+    const withEntries = hasEntries(pending.split("\n"));
+    const intro = prereleaseIntro(parsed.base, withEntries);
+    notes = withEntries ? `${intro}\n\n${pending}` : intro;
   } else {
     notes = stableSection(lines, version) || pointer(tag);
   }
