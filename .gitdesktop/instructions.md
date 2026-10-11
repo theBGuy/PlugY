@@ -29,11 +29,12 @@ All commit messages and PR titles must follow **Conventional Commits** format.
 - `feat(stash-protocol)` (missing description)
 - `Fix: the stash thing` (capitalized, vague scope)
 - `fix: various installer fixes` (missing scope, vague description)
-- `feat(stash,docs): …` (`docs` is a type, not a feature area)
+- `feat(stash,docs): show page names` (`docs` is a type, not a feature area)
 
 ## Tips
 
-- **Scope should name the feature area**, not the file or function (use `stash`, not `InfinityStash`)
+- **Scope should name the feature area**, not the file or function (use `stash`, not `InfinityStash`); docs that
+  ship with a feature take the feature's scope
 - **Multiple scopes** for cross-cutting changes: `fix(saves,tcpip): keep the joiner's stash files`
 - **Type guides later tooling** — `node scripts/changelog-draft.mjs` drafts starting bullets from the `feat`
   (Added), `fix` (Fixed) and `perf`/`refactor`/`revert` (Changed) subjects since the last stable tag, and skips the
@@ -55,8 +56,10 @@ every sentence must hold against the diff.
 - When a change is deliberately narrow, say what stays the same ("the saved page name stays English; only
   the stash shows the translation"). Never extend a change to code its diff doesn't touch.
 - Describe tests by what their test cases check, never by the topics the feature covers.
-- Lead with what changes for players and bot operators. Every behavior change gets a line, even a one-line
-  diff (a new default, a fix in a shared loader). File paths support a claim; they are not the claim.
+- Lead with what changes for players and bot operators. When nothing does (build, CI, tests, repo tooling),
+  say so and lead with what changes for maintainers; never invent player impact. Every behavior change gets a
+  line, even a one-line diff (a new default, a fix in a shared loader). File paths support a claim; they are not
+  the claim.
 - Use exact verbs: "moves" or "renames" for moved code, "rewrites" for replaced code, "adds" only for new
   files or features.
 - A list introduced with "including" names every item, or says "for example".
