@@ -794,7 +794,7 @@ Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs signifi
 ATTENTION : CHEAT, NE PAS UTILISER EN PARTIE NORMAL.
 Donne à vos personnages un bonus de MF (chances de trouver des objets magiques) et de GF (or supplémentaire) qui s'ajoute au MF et au GF de leur équipement (1.14d uniquement).
 Ce bonus fonctionne comme le MF et le GF des objets ; le MF garde ses rendements décroissants habituels pour les objets uniques, de set et rares.
-Le serveur de jeu l'ajoute chaque fois qu'un personnage entre dans une partie : en monojoueur, et pour chaque personnage d'une partie TCP/IP que vous hébergez (les valeurs MagicFind et GoldFind propres à un joueur qui rejoint la partie n'ont aucun effet). Avec les fichiers de données d'origine du jeu, il n'est jamais sauvegardé dans le fichier du personnage.
+Le serveur de jeu l'ajoute chaque fois qu'un personnage entre dans une partie : en monojoueur, et pour chaque personnage d'une partie TCP/IP que vous hébergez (les valeurs MagicFind et GoldFind propres à un joueur qui rejoint la partie n'ont aucun effet). Le bonus n'est jamais sauvegardé dans le fichier du personnage : avec des fichiers de données qui sauvegardent le MF ou le GF (certains mods), le bonus correspondant n'est pas appliqué.
 La page de stats supplémentaire de PlugY (/page 2, avec ActiveNewStatsInterface=1) affiche le total. Dans une partie TCP/IP, un joueur qui rejoint la partie le voit sur cette page s'il utilise cette version de PlugY4Kolbot avec ActiveMultiPageStash=1 ou ActiveStatBonus=1.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveStatBonus=0		{0:Désactivé; 1:Activé}

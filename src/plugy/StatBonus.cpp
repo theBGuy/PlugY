@@ -2,9 +2,9 @@
 	Stat bonus: the game server adds the [STAT BONUS] magic find and gold find to every character it loads into a
 	game. 1.14d only.
 
-	Both are base stats the .d2s never saves with the game's own ItemStatCost (no CSvBits), so each load starts
+	Both are base stats the game's own ItemStatCost never saves in the .d2s (no CSvBits), so each load starts
 	without them, and the game never sends them to the client (not Saved), so the server mirrors each value with
-	UC_ADD_STAT.
+	UC_ADD_STAT. Data files that do save one of them get no bonus for it, so a saved value is never overwritten.
 
 =================================================================*/
 
@@ -20,7 +20,7 @@ int statBonusGoldFind = 0;
 C_ASSERT(STAT_BONUS_GOLD_FIND == STATS_ITEM_GOLDBONUS);
 C_ASSERT(STAT_BONUS_MAGIC_FIND == STATS_ITEM_MAGICBONUS);
 
-// An absolute set, so a value the base list already holds (a mod that saves the stat) never stacks.
+// An absolute set, so applying it again never stacks.
 static void setBaseStat(Unit* ptChar, DWORD statId, int value)
 {
 	int base = D2GetPlayerBaseStat(ptChar, statId, 0);
@@ -28,12 +28,22 @@ static void setBaseStat(Unit* ptChar, DWORD statId, int value)
 		D2AddPlayerStat(ptChar, statId, value - base, 0);
 }
 
-static void applyStatBonus(Unit* ptChar, DWORD statId, int value)
+// Returns the bonus applied: 0 when the value is 0 or the stat is skipped.
+static int applyStatBonus(Unit* ptChar, DWORD statId, int value)
 {
 	if (!value)
-		return;
+		return 0;
+	// Data files that save the stat (some mods give it CSvBits) would write the bonus over the character's own value.
+	ItemStatCostBIN* statCost = D2GetItemStatCostBIN(statId);
+	if (!statCost || statCost->csvbits)
+	{
+		log_msg("Stat bonus : stat %u %s, so its bonus is not applied\n", statId,
+			statCost ? "is saved in the character file by these data files" : "is missing from ItemStatCost");
+		return 0;
+	}
 	setBaseStat(ptChar, statId, value);
 	updateClient(ptChar, UC_ADD_STAT, statId, value, 0);
+	return value;
 }
 
 // Replaces CLIENTS_AddPlayerToGame's call to D2InvModeLast (same register contract). The save is loaded and the
@@ -43,10 +53,10 @@ void FASTCALL statBonusOnPlayerLoaded(Game* ptGame, Unit* ptChar)
 	D2InvModeLast(ptGame, ptChar);
 	if (!ptChar || ptChar->nUnitType != UNIT_PLAYER)
 		return;
-	applyStatBonus(ptChar, STATS_ITEM_MAGICBONUS, statBonusMagicFind);
-	applyStatBonus(ptChar, STATS_ITEM_GOLDBONUS, statBonusGoldFind);
+	int magicFind = applyStatBonus(ptChar, STATS_ITEM_MAGICBONUS, statBonusMagicFind);
+	int goldFind = applyStatBonus(ptChar, STATS_ITEM_GOLDBONUS, statBonusGoldFind);
 	log_msg("Stat bonus for %s : magic find %d (total %d), gold find %d (total %d)\n", PCPlayerData ? PCPlayerData->name : "?",
-		statBonusMagicFind, D2GetPlayerStat(ptChar, STATS_ITEM_MAGICBONUS, 0), statBonusGoldFind, D2GetPlayerStat(ptChar, STATS_ITEM_GOLDBONUS, 0));
+		magicFind, D2GetPlayerStat(ptChar, STATS_ITEM_MAGICBONUS, 0), goldFind, D2GetPlayerStat(ptChar, STATS_ITEM_GOLDBONUS, 0));
 }
 
 // Applies whatever the server sends, not this client's own INI: in TCP/IP the host's server decides the bonus.

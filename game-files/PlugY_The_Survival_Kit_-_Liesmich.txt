@@ -906,7 +906,7 @@ Beispiel :
 ACHTUNG: CHEAT, NICHT IM NORMALEN SPIEL BENUTZEN.
 Gibt deinen Charakteren zusätzlich zu ihrer Ausrüstung mehr Magic Find und Gold Find (nur 1.14d).
 Der Bonus wirkt wie Magic Find und Gold Find von Gegenständen; Magic Find unterliegt dabei wie gewohnt dem abnehmenden Nutzen (Diminishing Returns) bei einzigartigen, Set- und seltenen Gegenständen.
-Der Spielserver rechnet ihn jedes Mal hinzu, wenn ein Charakter ein Spiel betritt: im Singleplayer und für jeden Charakter in einem TCP/IP-Spiel, das du hostest (die eigenen Werte MagicFind und GoldFind eines beitretenden Spielers haben keine Wirkung). Mit den originalen Datendateien des Spiels wird er nie in der Spielstanddatei des Charakters gespeichert.
+Der Spielserver rechnet ihn jedes Mal hinzu, wenn ein Charakter ein Spiel betritt: im Singleplayer und für jeden Charakter in einem TCP/IP-Spiel, das du hostest (die eigenen Werte MagicFind und GoldFind eines beitretenden Spielers haben keine Wirkung). Der Bonus wird nie in der Spielstanddatei des Charakters gespeichert: Mit Datendateien, die Magic Find oder Gold Find speichern (bei manchen Mods), wird der jeweilige Bonus nicht hinzugerechnet.
 Die extra Spielerinfo-Seite von PlugY (/page 2, mit ActiveNewStatsInterface=1) zeigt den Gesamtwert. In einem TCP/IP-Spiel sieht ein beigetretener Spieler ihn dort, wenn er diese Version von PlugY4Kolbot mit ActiveMultiPageStash=1 oder ActiveStatBonus=1 nutzt.
 Im folgenden die Standardwerte und in {} einige Beispiel Werte mit Beschreibungen:
 - ActiveStatBonus=0		{0:Deaktiviert; 1:Aktiviert}

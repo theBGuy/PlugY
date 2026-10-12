@@ -864,7 +864,7 @@ Following are default values, between {} are some examples values with descripti
 WARNING : CHEAT, DON'T USE IN NORMAL GAME.
 Give your characters extra magic find and gold find on top of their gear (1.14d only).
 It works like magic find and gold find from items; magic find keeps its usual diminishing returns for unique, set and rare items.
-The game server adds it each time a character enters a game: in single player, and for every character in a TCP/IP game you host (a joiner's own MagicFind and GoldFind have no effect). With the game's own data files it is never saved in the character file.
+The game server adds it each time a character enters a game: in single player, and for every character in a TCP/IP game you host (a joiner's own MagicFind and GoldFind have no effect). It is never saved in the character file: with data files that save magic find or gold find (some mods), the bonus for that stat is not applied.
 PlugY's extra stats page (/page 2, with ActiveNewStatsInterface=1) shows the total. In a TCP/IP game, a joiner sees it there when it runs this version of PlugY4Kolbot with ActiveMultiPageStash=1 or ActiveStatBonus=1.
 Following are default values, between {} are some examples values with descriptions :
 - ActiveStatBonus=0		{0:Disabled; 1:Enabled}
