@@ -25,6 +25,7 @@ import {
   renderGroupBlocks,
   validateFragments,
 } from "./changelog-lib.mjs";
+import { zhReadmeLag } from "./readme-lag-lib.mjs";
 import {
   assessCandidate,
   BANNER_FILES,
@@ -365,6 +366,39 @@ async function main() {
     );
   }
   ok("changelog fragments valid");
+
+  // Pull requests leave the zh-TW readme behind (git merges its UTF-16 as binary); release prep catches it up.
+  // A check that cannot measure asks too: it must never pass a stale readme silently.
+  const zhLag = zhReadmeLag(git);
+  let zhQuestion = null;
+  if (zhLag.error) {
+    warn(`could not tell how far the Traditional Chinese readme lags: ${zhLag.error}`);
+    zhQuestion = "Release without that check?";
+  } else {
+    const catchUp = zhLag.catchUp.slice(0, 7);
+    const basis = `${zhLag.translatedTo.slice(0, 7)}, which the last Traditional Chinese catch-up (${catchUp}) translates`;
+    const list = (commits) => {
+      for (const c of commits) say(`    ${dim(`${c.sha.slice(0, 7)} ${c.subject}`)}`);
+    };
+    if (zhLag.behind.length === 0 && zhLag.editedSince.length === 0) {
+      ok(`no English readme change to translate since ${basis}`);
+    }
+    if (zhLag.behind.length > 0) {
+      warn(
+        `the English readme changed in ${zhLag.behind.length} commit(s) after ${basis}; update the Traditional Chinese readme before releasing, or release it behind:`,
+      );
+      list(zhLag.behind);
+      zhQuestion = "Release with the Traditional Chinese readme behind?";
+    }
+    if (zhLag.editedSince.length > 0) {
+      warn(
+        `the Traditional Chinese readme was edited in ${zhLag.editedSince.length} commit(s) after its catch-up (${catchUp}); check that each kept the translation:`,
+      );
+      list(zhLag.editedSince);
+      if (!zhQuestion) zhQuestion = "Release with those Traditional Chinese readme edits unchecked?";
+    }
+  }
+  if (zhQuestion && !dryRun && !(await confirm(zhQuestion, false))) abort();
 
   // === 2. Context ===========================================================
   say("");

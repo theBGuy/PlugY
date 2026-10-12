@@ -367,16 +367,20 @@ export function writeHeaderFile(root, text) {
 
 // --- game-files banner sites --------------------------------------------------
 
+// The English and Traditional Chinese readmes, also the two paths readme-lag-lib.mjs compares: one rename covers both.
+export const EN_README = "game-files/PlugY_The_Survival_Kit_-_Readme.txt";
+export const ZH_README = "game-files/PlugY_The_Survival_Kit_-_讀我檔案.txt";
+
 // latin1 round-trips every byte, so the cp1252 INIs and the UTF-8 readmes stay byte-exact; utf16le files open with FF FE.
 export const BANNER_FILES = [
   { path: "game-files/PlugY.ini", encoding: "latin1" },
   { path: "game-files/PlugY/PlugYDefault.ini", encoding: "latin1" },
   { path: "game-files/PlugY/PlugYFixed.ini", encoding: "latin1" },
-  { path: "game-files/PlugY_The_Survival_Kit_-_Readme.txt", encoding: "latin1" },
+  { path: EN_README, encoding: "latin1" },
   { path: "game-files/PlugY_The_Survival_Kit_-_LisezMoi.txt", encoding: "latin1" },
   { path: "game-files/PlugY_The_Survival_Kit_-_Liesmich.txt", encoding: "latin1" },
   { path: "game-files/PlugY/LocalizedStrings.ini", encoding: "utf16le" },
-  { path: "game-files/PlugY_The_Survival_Kit_-_讀我檔案.txt", encoding: "utf16le" },
+  { path: ZH_README, encoding: "utf16le" },
 ];
 
 /** Every file a release stamps: changelog-release.mjs writes these, release.mjs commits them. */
