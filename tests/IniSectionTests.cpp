@@ -1,7 +1,7 @@
 /*=================================================================
 	Unit tests for src/plugy/iniSection.h.
-	Built and run by scripts/build.ps1 -Test with the shipped game-files\PlugY.ini and PlugY\PlugYDefault.ini as
-	arguments; exits 1 on any failure.
+	Built and run by scripts/build.ps1 -Test with the shipped game-files\PlugY.ini, PlugY\PlugYDefault.ini,
+	PlugY\PlugYFixed.ini and the UTF-16 PlugY\LocalizedStrings.ini as arguments; exits 1 on any failure.
 =================================================================*/
 
 #include "../src/plugy/iniSection.h"
@@ -46,6 +46,10 @@ static void testHeaders()
 	CHECK(at("[AB]\r\n", "A") == -1);
 	CHECK(at("[A\r\n", "A") == -1);
 	CHECK(at("[B]\r\n", "A") == -1);
+	CHECK(at("x=1\n[B]\nk=1", "B") == 7);							// LF-only lines
+	CHECK(at("k=1\r\n[B]", "B") == 8);								// the last line, with no line end
+	CHECK(at("[MAIN]\r\n[MAIN SCREEN]\r\n", "MAIN SCREEN") == 21);	// a shorter name first
+	CHECK(at("[MAIN SCREEN]\r\n", "MAIN") == -1);					// a longer name only
 	CHECK(findIniSection((const char*)NULL, "A") == NULL);
 	CHECK(findIniSection("[A]", (const char*)NULL) == NULL);
 }
@@ -80,16 +84,52 @@ static char* readFile(const char* path)
 	fseek(file, 0, SEEK_END);
 	long size = ftell(file);
 	fseek(file, 0, SEEK_SET);
-	char* data = (char*)malloc(size + 1);
+	char* data = (char*)malloc(size + 2);
 	if (data && fread(data, 1, size, file) != (size_t)size)
 	{
 		free(data);
 		data = NULL;
 	}
 	if (data)
-		data[size] = 0;
+		data[size] = data[size + 1] = 0;	// a char and a wchar_t terminator
 	fclose(file);
 	return data;
+}
+
+// Every header line of the UTF-16 LocalizedStrings.ini, read by INIFileW, is found at that very line. Its values
+// are translations, so a '[' inside a line is not checked here.
+static void testShippedWideFile(const char* path, const wchar_t* text)
+{
+	int headers = 0;
+	for (const wchar_t* line = text[0] == 0xFEFF ? text + 1 : text; *line; )
+	{
+		const wchar_t* end = wcsstr(line, L"\r\n");
+		size_t lineLen = end ? (size_t)(end - line) : wcslen(line);
+		if (line[0] == L'[')
+		{
+			const wchar_t* close = wmemchr(line, L']', lineLen);
+			CHECK(close != NULL);
+			if (close)
+			{
+				wchar_t name[64] = L"";
+				size_t nameLen = close - line - 1;
+				if (nameLen < sizeof(name) / sizeof(name[0]))
+				{
+					wmemcpy(name, line + 1, nameLen);
+					name[nameLen] = 0;
+					headers++;
+					if (findIniSection(text, name) != close + 1)
+						printf("  %s: [%ls] is not found at its own header\n", path, name);
+					CHECK(findIniSection(text, name) == close + 1);
+				}
+			}
+		}
+		if (!end)
+			break;
+		line = end + 2;
+	}
+	CHECK(headers >= 10);
+	printf("  %s: %d section headers (UTF-16)\n", path, headers);
 }
 
 // Every header line of a shipped INI is found at that very line, and no other line names a section in brackets, as
@@ -101,6 +141,12 @@ static void testShippedFile(const char* path)
 	if (!text)
 	{
 		printf("  cannot read %s\n", path);
+		return;
+	}
+	if ((unsigned char)text[0] == 0xFF && (unsigned char)text[1] == 0xFE)
+	{
+		testShippedWideFile(path, (const wchar_t*)text);
+		free(text);
 		return;
 	}
 	int headers = 0;
@@ -160,7 +206,7 @@ int main(int argc, char** argv)
 	testWide();
 	for (int i = 1; i < argc; i++)
 		testShippedFile(argv[i]);
-	CHECK(argc >= 3);	// both shipped INI files
+	CHECK(argc >= 5);	// the four shipped INI files
 	printf("%d passed, %d failed\n", nbPassed, nbFailed);
 	return nbFailed ? 1 : 0;
 }

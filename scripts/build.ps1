@@ -534,7 +534,11 @@ try {
         Invoke-Tool (Join-Path $OutDir $ServerMessageRulesTests.Out) @()
         Write-Log ''
         Write-Log '=== IniSectionTests.exe'
-        Invoke-Tool (Join-Path $OutDir $IniSectionTests.Out) @((Join-Path $RepoRoot 'game-files\PlugY.ini'), (Join-Path $RepoRoot 'game-files\PlugY\PlugYDefault.ini'))
+        Invoke-Tool (Join-Path $OutDir $IniSectionTests.Out) @(
+            (Join-Path $RepoRoot 'game-files\PlugY.ini'),
+            (Join-Path $RepoRoot 'game-files\PlugY\PlugYDefault.ini'),
+            (Join-Path $RepoRoot 'game-files\PlugY\PlugYFixed.ini'),
+            (Join-Path $RepoRoot 'game-files\PlugY\LocalizedStrings.ini'))
     }
 
     $warnings = @(Get-Content -LiteralPath $LogFile | Where-Object { $_ -match ': warning [A-Z]+\d+' }).Count
