@@ -5,13 +5,15 @@
 	gone" packet to the server, whose handler flags the record (+0x504) for a sweep that runs on realm servers only.
 	The record keeps the character's name in the host's name table, so the join validator silently refuses every
 	later join under that name until the host leaves the game.
-	The patches are active wherever the game runs its own server, single player included; they only change
-	anything for a client whose connection closed before its character loaded.
+	The patches are active wherever the game runs its own server, single player included. They remove only a client
+	whose connection closed before its character loaded; whenever the server handles a closed connection's 0x70,
+	they also free the PlugY save files the host still held for it, received or waiting to be sent.
 
 =================================================================*/
 
 #include "hostJoin.h"
 #include "loadPlayerData.h"
+#include "savePlayerData.h"
 #include "releasedConnections.h"
 #include "common.h"
 
@@ -79,8 +81,10 @@ static NetClient* FASTCALL findClientRemovingDeadJoiner(DWORD clientID)
 	t_findClient findClient = HJ_CALL(t_findClient, HJ_FIND_CLIENT);
 	if (!takeCurrentServerRelease(clientID))
 		return findClient(clientID);
-	// The connection is gone, so whatever PlugY received from it will never be loaded.
+	// The connection is gone: what PlugY received from it will never be loaded, and what it still had to send never
+	// will be (the second of the two saves vanilla makes of a leaving player is never sent).
 	discardClientSaveFiles(clientID);
+	discardClientSaveTransfer(clientID);
 	if (*(DWORD*)(offset_D2Game + HJ_REALM_DB))
 		return findClient(clientID);
 

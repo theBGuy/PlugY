@@ -437,13 +437,13 @@ DWORD STDCALL LoadMPCustomData(Unit* ptChar)
 		ret = 0xE;//Unable to enter game, generic bad file
 	}
 
-	if (!ret && !PCGame)
+	if (!PCGame)
 	{
 		log_msg("LoadMPCustomData : PCGame == NULL\n");
-		ret = 0x1B;//Unknow failure
+		if (!ret)
+			ret = 0x1B;//Unknow failure
 	}
-
-	if (PCGame->isLODGame)
+	else if (PCGame->isLODGame)
 	{
 		log_msg("is LOD Game\n");
 		if (!ret)
@@ -454,7 +454,8 @@ DWORD STDCALL LoadMPCustomData(Unit* ptChar)
 		log_msg("is not LOD Game\n");
 	}
 
-	freeCurrentCF(PCGame->memoryPool, &curSF);
+	// Pool 0, the pool ReceiveSaveFiles allocates the entry from: Fog releases a block only through the pool that owns it.
+	freeCurrentCF(0, &curSF);
 
 	log_msg("--- End LoadMPCustomData. ---\n\n");
 
