@@ -9,6 +9,7 @@
 #include "common.h"
 
 extern bool active_Commands;
+extern bool active_savegame;	// /save can run: set by Install_Commands
 
 void savePlayers(Unit* ptChar);
 void putGold(Unit* ptChar, DWORD amount);

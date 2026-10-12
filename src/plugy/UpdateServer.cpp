@@ -24,8 +24,8 @@ void updateServer(WORD p)
 }
 
 
-// Only single player runs US_RENAME, so these hold its one client's name: a stream starts over for another unit, and
-// keeps one character past a name's length so an over-long name is refused, not cut.
+// Only single player runs US_RENAME, so these hold its one client's name: a stream starts over when another unit pointer
+// sends one, and keeps one character past a name's length so an over-long name is refused, not cut.
 static Unit* renameUnit = NULL;
 static int renameIndex = 0;
 static char renameString[RENAME_NAME_MAX + 2];
@@ -81,11 +81,11 @@ static bool isServerUpdateAllowed(Unit* ptChar, int type)
 
 		// Shared gold is saved with the shared stash, so it moves only while that stash is loaded.
 		case US_PUTGOLD :
-		case US_TAKEGOLD :				return hasStashData(ptChar) && PCPY->sharedStashIsOpened;
+		case US_TAKEGOLD :				return active_sharedGold && hasStashData(ptChar) && PCPY->sharedStashIsOpened;
 
-		case US_SAVE :					return ptChar != NULL;
+		case US_SAVE :					return ptChar && active_savegame;
 		// The game indexes each multiplayer client by the name it joined with and finds it by its current name when it
-		// leaves (measured on 1.14d), so a rename there ends the host or leaves a stale entry.
+		// leaves (1.14d disassembly), so a rename there ends the host or leaves a stale entry.
 		case US_RENAME :				return ptChar && PCPlayerData && isSinglePlayerGameMode(ClientGameMode);
 
 		default :						return false;
@@ -131,7 +131,9 @@ int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 	if (!isServerUpdateAllowed(ptChar, type))
 	{
 		// A refused message ends the stream it belongs to, so the next one starts clean.
-		if (hasStashData(ptChar))
+		if (type == US_RENAME)
+			renameIndex = 0;
+		else if (hasStashData(ptChar))
 		{
 			if (type >= US_SWAP3 && type <= US_SWAP0_TOGGLE)
 				PCPY->pageSwap = 0;

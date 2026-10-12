@@ -77,9 +77,10 @@ static void testRenameNames()
 static void testGameMode()
 {
 	CHECK(isSinglePlayerGameMode(0));
-	CHECK(!isSinglePlayerGameMode(1));	// TCP/IP host
-	CHECK(!isSinglePlayerGameMode(6));	// the other modes that run a server in this process
-	CHECK(!isSinglePlayerGameMode(8));
+	CHECK(!isSinglePlayerGameMode(8));	// a TCP/IP host, measured on 1.14d
+	CHECK(!isSinglePlayerGameMode(9));	// a TCP/IP joiner, measured on 1.14d
+	CHECK(!isSinglePlayerGameMode(1));	// other modes SendPlayersCommand lets /players run in
+	CHECK(!isSinglePlayerGameMode(6));
 	CHECK(!isSinglePlayerGameMode(2));
 	CHECK(!isSinglePlayerGameMode(0xFFFFFFFF));
 }
