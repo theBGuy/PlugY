@@ -585,9 +585,9 @@ Section "!$(SECTION_NAME_CORE)" Core
   Call AddMissingOptions
 !ifdef PRERELEASE_ID
   ; Testers' bug reports need whole-session logs, so every pre-release install or update turns an
-  ; existing ActiveLogFile=0 into 1 (changelog-lib.mjs announces it), after the merge, so a missing
-  ; key added as 0 turns too. Only an exact 0 changes; WriteINIStr keeps every other byte but ends
-  ; a file that has no final newline with CRLF.
+  ; existing ActiveLogFile=0 into 1 (changelog-lib.mjs announces it), after the merge, so it sees
+  ; an ActiveLogFile the merge added too. Only an exact 0 changes; WriteINIStr keeps every other
+  ; byte but ends a file that has no final newline with CRLF.
   ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile"
   ${If} $0 == "0"
     WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile" "1"

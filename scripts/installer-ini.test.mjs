@@ -89,7 +89,7 @@ test("the installer adds the missing options once PlugYDefault.ini is installed"
   const merge = core.indexOf("  Call AddMissingOptions\n");
   assert.ok(defaults > 0 && defaults < coreEnd, "the Core section no longer installs PlugYDefault.ini");
   assert.ok(merge > defaults && merge < coreEnd, "AddMissingOptions must run in Core, after PlugYDefault.ini is installed");
-  // The pre-release flip must see the merged file, or a missing ActiveLogFile could be added as 0 after it ran.
+  // The pre-release flip must see the merged file, whatever default the merge writes for a missing ActiveLogFile.
   const flip = core.indexOf("!ifdef PRERELEASE_ID\n");
   assert.ok(flip > merge && flip < coreEnd, "the pre-release ActiveLogFile flip must run after AddMissingOptions");
   const fn = nsi.slice(nsi.indexOf("Function AddMissingOptions\n"));

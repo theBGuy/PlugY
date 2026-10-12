@@ -1659,10 +1659,14 @@ static int mergeKeptIni(const Target* t, const wchar_t* staging, const wchar_t* 
 	wchar_t templ[MAX_PATH];
 	wchar_t defaults[MAX_PATH];
 	wchar_t saved[MAX_PATH];
-	*why = L"it could not be read";
-	if (!backupDir[0] || !pathJoin(work, staging, L"PlugY.ini" NEW_SUFFIX) || !pathJoin(templ, staging, L"PlugY.ini")
+	*why = L"this update made no backup folder";
+	if (!backupDir[0])
+		return -1;
+	*why = L"its paths are too long";
+	if (!pathJoin(work, staging, L"PlugY.ini" NEW_SUFFIX) || !pathJoin(templ, staging, L"PlugY.ini")
 		|| !pathJoin(defaults, t->dir, L"PlugY\\PlugYDefault.ini") || !pathJoin(saved, backupDir, L"PlugY.ini"))
 		return -1;
+	*why = L"it could not be read";
 	DWORD attrs = GetFileAttributesW(t->ini);
 	if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY))
 	{
@@ -1852,7 +1856,7 @@ static int applyStaged(const Target* t, const wchar_t* staging, const char* inst
 		if (added > 0)
 			say(L"  Your PlugY.ini was kept, and %d new option(s) were added to it, set to the values PlugY was already using.\n", added);
 		else if (added == 0)
-			say(L"  Your PlugY.ini was kept; it already has every option.\n");
+			say(L"  Your PlugY.ini was kept; it already has every option the release's PlugY.ini lists.\n");
 		else
 			say(L"  Your PlugY.ini was kept without its new options (%ls); they take their defaults from PlugY\\PlugYDefault.ini.\n", why);
 	}
