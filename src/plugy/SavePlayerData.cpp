@@ -379,7 +379,7 @@ struct s_dataToSend
 // Nodes come from pool 0: client ids restart in every game, so a node outlives the game it was made in.
 s_dataToSend* ptDataToSend=NULL;
 
-static void freeDataToSend(s_dataToSend* dataToSend)
+static void freeDataToSendBuffers(s_dataToSend* dataToSend)
 {
 	if (dataToSend->dataExtended)
 		D2FreeMem(dataToSend->memoryPool, dataToSend->dataExtended,__FILE__,__LINE__,0);
@@ -398,7 +398,7 @@ void discardClientSaveTransfer(DWORD clientID)
 	if (!dataToSend) return;
 	if (dataToSend->dataExtended || dataToSend->dataShared)
 		log_msg("Discard the save files not yet sent to client %u\n", clientID);
-	freeDataToSend(dataToSend);
+	freeDataToSendBuffers(dataToSend);
 	*link = dataToSend->next;
 	D2FreeMem(0, dataToSend,__FILE__,__LINE__,0);
 }
@@ -467,7 +467,7 @@ void STDCALL SendSaveFilesToSave( Unit* ptChar )
 		ptDataToSend = dataToSend;
 	}
 	// This save replaces one not yet sent, which vanilla makes when it saves twice in a row (a player leaving).
-	freeDataToSend(dataToSend);
+	freeDataToSendBuffers(dataToSend);
 	dataToSend->memoryPool = PCGame->memoryPool;
 
 	//Sending savefiles
