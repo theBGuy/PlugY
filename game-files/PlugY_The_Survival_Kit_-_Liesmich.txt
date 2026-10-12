@@ -1016,7 +1016,7 @@ Move Cain near Harrogath waypoint.
 - MoveCainNearHarrogathWaypoint=0 {0:Disabled; 1:Enabled}
 
 Lässt Andariel, Duriel, Mephisto, Diablo und Baal bei jedem Kill ihren Quest-Drop fallen, auch wenn du ihre Quest bereits abgeschlossen hast (nur 1.14d).
-Der Quest-Drop hat bessere Chancen auf einzigartige, Set- und seltene Gegenstände als ihr normaler Drop und enthält kein Gold und keine Ramschgegenstände. Nur der Drop ändert sich: Quest-Gegenstände und -Belohnungen, wie Mephistos Seelenstein, bleiben unverändert.
+Der Quest-Drop hat bessere Chancen auf einzigartige, Set- und seltene Gegenstände als ihr normaler Drop und enthält kein Gold. Nur der Drop ändert sich: Quest-Gegenstände und -Belohnungen, wie Mephistos Seelenstein, bleiben unverändert.
 Das gilt im Singleplayer und in den TCP/IP-Spielen, die du hostest (die eigene Einstellung eines beitretenden Spielers hat keine Wirkung). Mit Datendateien, die anderen Monstern eine Quest-Treasure-Class geben (TreasureClass4 und TCQuestId in MonStats.txt, bei manchen Mods), verwenden auch diese Monster immer ihre Quest-Treasure-Class.
 - AlwaysQuestDrops=0 {0:Deaktiviert; 1:Aktiviert}
 

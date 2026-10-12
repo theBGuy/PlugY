@@ -972,7 +972,7 @@ Move Cain near Harrogath waypoint.
 - MoveCainNearHarrogathWaypoint=0 {0:Disabled; 1:Enabled}
 
 Make Andariel, Duriel, Mephisto, Diablo and Baal drop their quest drop on every kill, even after you have finished their quest (1.14d only).
-The quest drop has better odds of unique, set and rare items than their normal drop, and no gold or junk items. Only the drop changes: quest items and rewards, such as Mephisto's Soulstone, are unchanged.
+The quest drop has better odds of unique, set and rare items than their normal drop, and no gold. Only the drop changes: quest items and rewards, such as Mephisto's Soulstone, are unchanged.
 It applies in single player and in the TCP/IP games you host (a joiner's own setting has no effect). With data files that give other monsters a quest treasure class (TreasureClass4 and TCQuestId in MonStats.txt, in some mods), those monsters always use it too.
 - AlwaysQuestDrops=0 {0:Disabled; 1:Enabled}
 
