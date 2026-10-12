@@ -1,10 +1,12 @@
 /*=================================================================
-	Unit tests for src/updater/UpdaterLogic: the updater's decisions
-	that need no I/O. Built and run by scripts/build.ps1 -Test; exits 1
-	on any failure. Touches no file, registry key or network.
+	Unit tests for src/updater/UpdaterLogic (the updater's decisions
+	that need no I/O) and UpdaterIniMerge. Built and run by
+	scripts/build.ps1 -Test; exits 1 on any failure. Touches no registry
+	key or network, and no file outside a %TEMP% folder of its own.
 =================================================================*/
 
 #include "../src/updater/UpdaterLogic.h"
+#include "../src/updater/UpdaterIniMerge.h"
 #include <sddl.h>
 #include <stdio.h>
 #include <string.h>
@@ -639,6 +641,164 @@ static void testMutexName()
 }
 
 
+/*============================ INI merge ===========================*/
+static wchar_t mergeDir[MAX_PATH];
+
+static void mergePath(wchar_t* out, const wchar_t* name)
+{
+	_snwprintf(out, MAX_PATH, L"%ls\\%ls", mergeDir, name);
+	out[MAX_PATH - 1] = 0;
+}
+
+static bool writeBytes(const wchar_t* name, const char* bytes)
+{
+	wchar_t path[MAX_PATH];
+	mergePath(path, name);
+	SetFileAttributesW(path, FILE_ATTRIBUTE_NORMAL);
+	HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file == INVALID_HANDLE_VALUE)
+		return false;
+	DWORD len = (DWORD)strlen(bytes);
+	DWORD written = 0;
+	bool ok = WriteFile(file, bytes, len, &written, NULL) && written == len;
+	CloseHandle(file);
+	return ok;
+}
+
+// The file's bytes as a string ("" when unreadable), in a static buffer.
+static const char* readBytes(const wchar_t* name)
+{
+	static char buffer[4096];
+	wchar_t path[MAX_PATH];
+	mergePath(path, name);
+	buffer[0] = 0;
+	HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file == INVALID_HANDLE_VALUE)
+		return buffer;
+	DWORD read = 0;
+	if (ReadFile(file, buffer, sizeof(buffer) - 1, &read, NULL))
+		buffer[read] = 0;
+	CloseHandle(file);
+	return buffer;
+}
+
+static const wchar_t* iniValue(const wchar_t* name, const wchar_t* section, const wchar_t* key)
+{
+	static wchar_t value[256];
+	wchar_t path[MAX_PATH];
+	mergePath(path, name);
+	GetPrivateProfileStringW(section, key, L"<missing>", value, 256, path);
+	return value;
+}
+
+static int merge(const wchar_t* user)
+{
+	wchar_t ini[MAX_PATH], templ[MAX_PATH], defaults[MAX_PATH];
+	mergePath(ini, user);
+	mergePath(templ, L"templ.ini");
+	mergePath(defaults, L"defaults.ini");
+	return UpdaterAddMissingOptions(ini, templ, defaults);
+}
+
+static void testAddMissingOptions()
+{
+	wchar_t temp[MAX_PATH];
+	GetTempPathW(MAX_PATH, temp);
+	_snwprintf(mergeDir, MAX_PATH, L"%lsPlugYUpdaterTests-%lu", temp, GetCurrentProcessId());
+	mergeDir[MAX_PATH - 1] = 0;
+	CreateDirectoryW(mergeDir, NULL);
+	CHECK(writeBytes(L"templ.ini",
+		"; head\r\n[LAUNCHING]\r\nParam=\r\nLibrary=PlugY.dll\r\n\r\n[GENERAL]\r\nA=1\r\n;Comment=1\r\nB=1\r\n\r\n[NEW]\r\nC=5\r\nD=\r\n;;;;"));
+	CHECK(writeBytes(L"defaults.ini", "[LAUNCHING]\r\nLibrary=PlugY.dll\r\n[GENERAL]\r\nA=0\r\nB=0\r\n[NEW]\r\nC=0\r\n"));
+
+	// The values PlugY already used: B and C from the defaults, D from the release's file (no default); [LAUNCHING] alone.
+	CHECK(writeBytes(L"user.ini", "[LAUNCHING]\r\nParam=\r\n\r\n[GENERAL]\r\nA=7\r\n\r\n[END]\r\nE=1"));
+	CHECK_EQ(merge(L"user.ini"), 3);
+	CHECK_WSTR(iniValue(L"user.ini", L"GENERAL", L"A"), L"7");
+	CHECK_WSTR(iniValue(L"user.ini", L"GENERAL", L"B"), L"0");
+	CHECK_WSTR(iniValue(L"user.ini", L"GENERAL", L"Comment"), L"<missing>");
+	CHECK_WSTR(iniValue(L"user.ini", L"NEW", L"C"), L"0");
+	CHECK_WSTR(iniValue(L"user.ini", L"NEW", L"D"), L"");
+	CHECK_WSTR(iniValue(L"user.ini", L"LAUNCHING", L"Library"), L"<missing>");
+	CHECK_WSTR(iniValue(L"user.ini", L"END", L"E"), L"1");
+	const char* merged = readBytes(L"user.ini");
+	CHECK(strstr(merged, "[LAUNCHING]\r\nParam=\r\n") == merged);
+	CHECK(strstr(merged, "E=1\r\n\r\n[NEW]\r\nC=0\r\nD=\r\n") != NULL);	// a new section after an empty line
+	char before[4096];
+	strcpy(before, merged);
+	CHECK_EQ(merge(L"user.ini"), 0);	// a second update changes nothing
+	CHECK_STR(readBytes(L"user.ini"), before);
+
+	// An empty value is an option already there; a file ending in a line end gets one more for the empty line.
+	CHECK(writeBytes(L"empty-value.ini", "[GENERAL]\r\nA=\r\nB=1\r\n"));
+	CHECK_EQ(merge(L"empty-value.ini"), 2);
+	CHECK_WSTR(iniValue(L"empty-value.ini", L"GENERAL", L"A"), L"");
+	CHECK(strstr(readBytes(L"empty-value.ini"), "B=1\r\n\r\n[NEW]\r\nC=0\r\n") != NULL);
+
+	// An empty file gets every option but [LAUNCHING]'s, with no empty line first.
+	CHECK(writeBytes(L"blank.ini", ""));
+	CHECK_EQ(merge(L"blank.ini"), 4);
+	CHECK(strncmp(readBytes(L"blank.ini"), "[GENERAL]\r\n", 11) == 0);
+
+	// [launching] in any case is left alone; a section the file knows by its second option gets no empty line; a header
+	// without its "]" names no section; the release file's last line, with no line end, still counts.
+	CHECK(writeBytes(L"templ2.ini", "[launching]\r\nLibrary=x\r\n[NEW]\r\nC=5\r\nD=6\r\n[BROKEN\r\nZ=1\r\n[LAST]\r\nL=9"));
+	CHECK(writeBytes(L"user2.ini", "[NEW]\r\nD=1\r\n"));
+	{
+		wchar_t user2[MAX_PATH], templ2[MAX_PATH], noDefaults[MAX_PATH];
+		mergePath(user2, L"user2.ini");
+		mergePath(templ2, L"templ2.ini");
+		mergePath(noDefaults, L"no-defaults.ini");
+		CHECK_EQ(UpdaterAddMissingOptions(user2, templ2, noDefaults), 2);
+	}
+	CHECK_WSTR(iniValue(L"user2.ini", L"NEW", L"C"), L"5");
+	CHECK_WSTR(iniValue(L"user2.ini", L"NEW", L"D"), L"1");
+	CHECK_WSTR(iniValue(L"user2.ini", L"LAST", L"L"), L"9");
+	CHECK_WSTR(iniValue(L"user2.ini", L"BROKEN", L"Z"), L"<missing>");
+	CHECK_WSTR(iniValue(L"user2.ini", L"launching", L"Library"), L"<missing>");
+	CHECK_STR(readBytes(L"user2.ini"), "[NEW]\r\nD=1\r\nC=5\r\n\r\n[LAST]\r\nL=9\r\n");
+
+	// An empty default is a value: a missing SavePath gets PlugYDefault.ini's empty one, not the release's "Mod PlugY".
+	CHECK(writeBytes(L"templ3.ini", "[SAVEPATH]\r\nActiveSavePathChange=0\r\nSavePath=Mod PlugY\r\n"));
+	CHECK(writeBytes(L"defaults3.ini", "[SAVEPATH]\r\nActiveSavePathChange=0\r\nSavePath=\r\n"));
+	CHECK(writeBytes(L"user3.ini", "[SAVEPATH]\r\nActiveSavePathChange=1\r\n"));
+	{
+		wchar_t user3[MAX_PATH], templ3[MAX_PATH], defaults3[MAX_PATH];
+		mergePath(user3, L"user3.ini");
+		mergePath(templ3, L"templ3.ini");
+		mergePath(defaults3, L"defaults3.ini");
+		CHECK_EQ(UpdaterAddMissingOptions(user3, templ3, defaults3), 1);
+	}
+	CHECK_WSTR(iniValue(L"user3.ini", L"SAVEPATH", L"SavePath"), L"");
+	CHECK_STR(readBytes(L"user3.ini"), "[SAVEPATH]\r\nActiveSavePathChange=1\r\nSavePath=\r\n");
+
+	// No release file to read, or a file that can't be written: -1, and nothing changes.
+	wchar_t ini[MAX_PATH], missing[MAX_PATH], defaults[MAX_PATH];
+	mergePath(ini, L"empty-value.ini");
+	mergePath(missing, L"no-such.ini");
+	mergePath(defaults, L"defaults.ini");
+	CHECK_EQ(UpdaterAddMissingOptions(ini, missing, defaults), -1);
+	CHECK_EQ(UpdaterAddMissingOptions(NULL, missing, defaults), -1);
+	CHECK(writeBytes(L"readonly.ini", "[GENERAL]\r\nA=1\r\n"));
+	wchar_t readonlyPath[MAX_PATH];
+	mergePath(readonlyPath, L"readonly.ini");
+	SetFileAttributesW(readonlyPath, FILE_ATTRIBUTE_READONLY);
+	CHECK_EQ(merge(L"readonly.ini"), -1);
+	CHECK_STR(readBytes(L"readonly.ini"), "[GENERAL]\r\nA=1\r\n");
+	SetFileAttributesW(readonlyPath, FILE_ATTRIBUTE_NORMAL);
+
+	const wchar_t* names[] = { L"templ.ini", L"defaults.ini", L"user.ini", L"empty-value.ini", L"blank.ini", L"readonly.ini",
+		L"templ2.ini", L"user2.ini", L"templ3.ini", L"defaults3.ini", L"user3.ini" };
+	for (size_t i = 0; i < _countof(names); i++)
+	{
+		wchar_t path[MAX_PATH];
+		mergePath(path, names[i]);
+		DeleteFileW(path);
+	}
+	RemoveDirectoryW(mergeDir);
+}
+
+
 /*============================== Main =============================*/
 
 int main(int argc, char** argv)
@@ -666,6 +826,7 @@ int main(int argc, char** argv)
 	testMutexName();
 	testCtrlAndSecurity();
 	testRelaunchArgs();
+	testAddMissingOptions();
 	printf("%d passed, %d failed\n", nbPassed, nbFailed);
 	return nbFailed ? 1 : 0;
 }

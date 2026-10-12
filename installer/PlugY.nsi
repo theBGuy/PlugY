@@ -4,6 +4,8 @@ Unicode True
 !include "MUI2.nsh"
 !include "Sections.nsh"
 !include "FileFunc.nsh"
+!include "TextFunc.nsh"
+!include "WordFunc.nsh"
 
 ; VERSION ("v14.3.0") names the installer; DISPLAY_VERSION is the bare version for
 ; Add/Remove Programs. A /DVERSION=... override wins, minus a leading "v".
@@ -245,6 +247,12 @@ LangString UNPATCH_FAILED ${LANG_FRENCH} "Game.exe n'a pas pu être restauré (c
 LangString UNPATCH_FAILED ${LANG_GERMAN} "Game.exe konnte nicht wiederhergestellt werden (Exitcode $0). PatchD2File.exe und RestoreD2File.exe bleiben in$\n$D2Path$\nStarten Sie dort RestoreD2File.exe, um es wiederherzustellen."
 LangString UNPATCH_FAILED ${LANG_RUSSIAN} "Не удалось восстановить Game.exe (код выхода $0). PatchD2File.exe и RestoreD2File.exe остаются в$\n$D2Path$\nЗапустите там RestoreD2File.exe, чтобы восстановить его."
 LangString UNPATCH_FAILED ${LANG_TRADCHINESE} "無法還原 Game.exe (結束代碼 $0)。PatchD2File.exe 與 RestoreD2File.exe 會保留在：$\n$D2Path$\n請在該處執行 RestoreD2File.exe 以還原。"
+; Followed by "[SECTION] Key=value" in the installer's details.
+LangString INI_OPTION_ADDED ${LANG_ENGLISH} "New option in PlugY.ini:"
+LangString INI_OPTION_ADDED ${LANG_FRENCH} "Nouvelle option dans PlugY.ini :"
+LangString INI_OPTION_ADDED ${LANG_GERMAN} "Neue Option in PlugY.ini:"
+LangString INI_OPTION_ADDED ${LANG_RUSSIAN} "Новый параметр в PlugY.ini:"
+LangString INI_OPTION_ADDED ${LANG_TRADCHINESE} "PlugY.ini 新增選項："
 
 ; Drops a trailing backslash, so folders compare equal however they were typed or stored.
 ; A drive root ("C:\") stays whole. Clobbers $R9.
@@ -424,6 +432,107 @@ Function LaunchPlugY
 	ExecShell "" "$INSTDIR\PlugY.exe"
 FunctionEnd
 
+; Adds each option of the shipped PlugY.ini that $INSTDIR\PlugY.ini lacks, set to its PlugYDefault.ini value: PlugY
+; already used that value, so nothing plays differently. An option already there, even empty, keeps its value; so does
+; [LAUNCHING], which PlugY.exe reads from PlugY.ini alone. The shipped file's comment lines are not copied. It is
+; parsed as written: "[SECTION]" and "Key=value" lines at the start of a line (scripts/installer-ini.test.mjs checks
+; it). Clobbers $0-$7.
+Function AddMissingOptions
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\PlugY.ini" "${D2FILES}\PlugY.ini"
+  ClearErrors
+  FileOpen $0 "$PLUGINSDIR\PlugY.ini" r
+  ${IfThen} ${Errors} ${|} Return ${|}
+  StrCpy $2 ""
+  ${Do}
+    ClearErrors
+    FileRead $0 $1
+    ${IfThen} ${Errors} ${|} ${ExitDo} ${|}
+    ${TrimNewLines} $1 $1
+    StrCpy $3 $1 1
+    ${If} $3 == "["
+      ClearErrors
+      ${WordFind} $1 "]" "E+1" $2
+      ${If} ${Errors}
+        StrCpy $2 ""
+      ${Else}
+        StrCpy $2 $2 "" 1
+        ${IfThen} $2 == "LAUNCHING" ${|} StrCpy $2 "" ${|}
+      ${EndIf}
+      ${If} $2 != ""
+        ; $6 = 1 when the user's file holds an option of this section already; else WriteINIStr may append the
+        ; section, so it gets an empty line before it first.
+        FileSeek $0 0 CUR $7
+        StrCpy $6 0
+        ${Do}
+          ClearErrors
+          FileRead $0 $1
+          ${IfThen} ${Errors} ${|} ${ExitDo} ${|}
+          ${TrimNewLines} $1 $1
+          StrCpy $3 $1 1
+          ${IfThen} $3 == "[" ${|} ${ExitDo} ${|}
+          ${If} $3 != ";"
+            ClearErrors
+            ${WordFind} $1 "=" "E+1" $3
+            ${IfNot} ${Errors}
+              ClearErrors
+              ReadINIStr $4 "$INSTDIR\PlugY.ini" $2 $3
+              ${IfNot} ${Errors}
+                StrCpy $6 1
+                ${ExitDo}
+              ${EndIf}
+            ${EndIf}
+          ${EndIf}
+        ${Loop}
+        FileSeek $0 $7 SET
+      ${EndIf}
+    ${ElseIf} $3 != ";"
+    ${AndIf} $2 != ""
+      ClearErrors
+      ${WordFind} $1 "=" "E+1" $3
+      ${IfNot} ${Errors}
+        ClearErrors
+        ReadINIStr $4 "$INSTDIR\PlugY.ini" $2 $3
+        ${If} ${Errors}
+          ClearErrors
+          ReadINIStr $4 "$INSTDIR\PlugY\PlugYDefault.ini" $2 $3
+          ${If} ${Errors}
+            ClearErrors
+            ${WordFind} $1 "=" "E+1}" $4
+            ${IfThen} ${Errors} ${|} StrCpy $4 "" ${|}
+          ${EndIf}
+          ${If} $6 == 0
+            ClearErrors
+            FileOpen $5 "$INSTDIR\PlugY.ini" a
+            ${IfNot} ${Errors}
+              FileSeek $5 0 END $7
+              ${If} $7 > 0
+                FileSeek $5 -1 END
+                FileReadByte $5 $7
+                FileSeek $5 0 END
+                ${If} $7 != 10
+                  FileWriteByte $5 13
+                  FileWriteByte $5 10
+                ${EndIf}
+                FileWriteByte $5 13
+                FileWriteByte $5 10
+              ${EndIf}
+              FileClose $5
+            ${EndIf}
+            StrCpy $6 1
+          ${EndIf}
+          ClearErrors
+          WriteINIStr "$INSTDIR\PlugY.ini" $2 $3 $4
+          ${IfNot} ${Errors}
+            DetailPrint "$(INI_OPTION_ADDED) [$2] $3=$4"
+          ${EndIf}
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+  ${Loop}
+  FileClose $0
+FunctionEnd
+
 InstType "Standard"
 InstType "Minimal"
 
@@ -450,20 +559,11 @@ Section "!$(SECTION_NAME_CORE)" Core
   ${AndIf} ${FileExists} "$RegInstallPath\PlugY.ini"
     CopyFiles /SILENT "$RegInstallPath\PlugY.ini" "$INSTDIR"
   ${EndIf}
-  ; An upgrade keeps the user's PlugY.ini: new options take their defaults from
-  ; PlugY\PlugYDefault.ini, which is always replaced.
+  ; An upgrade keeps the user's PlugY.ini; AddMissingOptions adds the options it lacks once
+  ; PlugY\PlugYDefault.ini, which is always replaced, is in place.
   SetOverwrite off
   File "${D2FILES}\PlugY.ini"
   SetOverwrite on
-!ifdef PRERELEASE_ID
-  ; Testers' bug reports need whole-session logs, so every pre-release install or update turns an
-  ; existing ActiveLogFile=0 into 1 (changelog-lib.mjs announces it). Only an exact 0 changes;
-  ; WriteINIStr keeps every other byte but ends a file that has no final newline with CRLF.
-  ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile"
-  ${If} $0 == "0"
-    WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile" "1"
-  ${EndIf}
-!endif
   File "${D2FILES}\PlugY_The_Survival_Kit_-_Readme.txt"
   File "${D2FILES}\PlugY_The_Survival_Kit_-_LisezMoi.txt"
   File "${D2FILES}\PlugY_The_Survival_Kit_-_Liesmich.txt"
@@ -482,6 +582,17 @@ Section "!$(SECTION_NAME_CORE)" Core
   File "${D2FILES}\PlugY\TradeStash.dc6"
   File "${D2FILES}\PlugY\UnassignSkillsBtns.dc6"
   File "${D2FILES}\PlugY\UnassignStatsBtns.dc6"
+  Call AddMissingOptions
+!ifdef PRERELEASE_ID
+  ; Testers' bug reports need whole-session logs, so every pre-release install or update turns an
+  ; existing ActiveLogFile=0 into 1 (changelog-lib.mjs announces it), after the merge, so it sees
+  ; an ActiveLogFile the merge added too. Only an exact 0 changes; WriteINIStr keeps every other
+  ; byte but ends a file that has no final newline with CRLF.
+  ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile"
+  ${If} $0 == "0"
+    WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile" "1"
+  ${EndIf}
+!endif
 SectionEnd
 
 ; Opt-in: it changes Game.exe for every program that starts it, not only for PlugY.exe.

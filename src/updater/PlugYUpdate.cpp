@@ -4,9 +4,10 @@
 	Brings the PlugY4Kolbot install it sits in up to the newest GitHub
 	release. Zip layout (PlugY.dll beside the updater): verifies the
 	release zip, extracts it with Windows' tar.exe and replaces the
-	files one by one, keeping the user's PlugY.ini and backing up
-	everything it replaces. Installer layout (an install the NSIS
-	installer made, found by its folder in the installer's records):
+	files one by one, keeping the user's PlugY.ini (with the options it
+	lacks added) and backing up everything it replaces. Installer layout
+	(an install the NSIS installer made, found by its folder in the
+	installer's records):
 	verifies the release installer and runs it silently for that
 	install. printUsage has the options.
 
@@ -17,6 +18,7 @@
 =================================================================*/
 
 #include "UpdaterLogic.h"
+#include "UpdaterIniMerge.h"
 #include "../common/UpdateCheck.h"
 #include "../common/UpdateDownload.h"
 #include <shellapi.h>
@@ -1629,6 +1631,110 @@ static bool createBackupDir(const Target* t, const char* installed, wchar_t* bac
 	return false;
 }
 
+// Writes len bytes to path as a new file: CREATE_NEW never opens an existing entry, a planted link included.
+static bool writeNewFile(const wchar_t* path, const void* data, DWORD len)
+{
+	HANDLE h = CreateFileW(path, GENERIC_WRITE | DELETE, 0, NULL, CREATE_NEW,
+		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+	if (h == INVALID_HANDLE_VALUE)
+		return false;
+	DWORD written = 0;
+	if (!WriteFile(h, data, len, &written, NULL) || written != len || !FlushFileBuffers(h))
+	{
+		discardOpenFile(h);
+		return false;
+	}
+	CloseHandle(h);
+	return true;
+}
+
+// Replaces the whole content of the open file h with len bytes.
+static bool rewriteFile(HANDLE h, const void* data, DWORD len)
+{
+	LARGE_INTEGER start;
+	start.QuadPart = 0;
+	DWORD written = 0;
+	return SetFilePointerEx(h, start, NULL, FILE_BEGIN) && WriteFile(h, data, len, &written, NULL) && written == len
+		&& SetEndOfFile(h) && FlushFileBuffers(h);
+}
+
+/* Adds the options the kept PlugY.ini lacks (UpdaterAddMissingOptions) to a copy in the private staging folder, then
+   writes the result back through the handle that read the file, so it keeps its ACL and attributes. A PlugY.ini that
+   is a link, has other hard links or is read-only is neither read nor written: an elevated run could be pointed at
+   another file, and the installer leaves a read-only one alone too. The backup gets the file as it was first.
+   Returns the options added, or -1 with why set and PlugY.ini unchanged (a failed write-back puts the original bytes
+   back), or -2 when even that failed, so PlugY.ini may be damaged and only the backup holds the original. */
+static int mergeKeptIni(const Target* t, const wchar_t* staging, const wchar_t* backupDir, const wchar_t** why)
+{
+	wchar_t work[MAX_PATH];
+	wchar_t templ[MAX_PATH];
+	wchar_t defaults[MAX_PATH];
+	wchar_t saved[MAX_PATH];
+	*why = L"this update made no backup folder";
+	if (!backupDir[0])
+		return -1;
+	*why = L"its paths are too long";
+	if (!pathJoin(work, staging, L"PlugY.ini" NEW_SUFFIX) || !pathJoin(templ, staging, L"PlugY.ini")
+		|| !pathJoin(defaults, t->dir, L"PlugY\\PlugYDefault.ini") || !pathJoin(saved, backupDir, L"PlugY.ini"))
+		return -1;
+	*why = L"it could not be read";
+	DWORD attrs = GetFileAttributesW(t->ini);
+	if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY))
+	{
+		*why = L"it is read-only";
+		return -1;
+	}
+	HANDLE ini = CreateFileW(t->ini, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+		FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+	if (ini == INVALID_HANDLE_VALUE)
+		return -1;
+	int added = -1;
+	FILE_ATTRIBUTE_TAG_INFO tag;
+	FILE_STANDARD_INFO standard;
+	BYTE* data = NULL;
+	DWORD len = 0;
+	bool known = GetFileInformationByHandleEx(ini, FileAttributeTagInfo, &tag, sizeof(tag))
+		&& GetFileInformationByHandleEx(ini, FileStandardInfo, &standard, sizeof(standard));
+	if (known && ((tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) || standard.NumberOfLinks != 1))
+		*why = L"it is a link or has other hard links";
+	else if (known && standard.EndOfFile.QuadPart > 1024 * 1024)
+		*why = L"it is over 1 MB";
+	else if (known && (data = (BYTE*)malloc((size_t)standard.EndOfFile.QuadPart + 1)) != NULL
+		&& ReadFile(ini, data, (DWORD)standard.EndOfFile.QuadPart, &len, NULL) && len == (DWORD)standard.EndOfFile.QuadPart)
+	{
+		if (!writeNewFile(saved, data, len))
+			*why = L"it could not be backed up";
+		else if (!writeNewFile(work, data, len))
+			*why = L"no working copy could be made";
+		else
+		{
+			added = UpdaterAddMissingOptions(work, templ, defaults);
+			if (added < 0)
+				*why = L"the new options could not be added";
+			else if (added > 0)
+			{
+				DWORD mergedLen = 0;
+				char* merged = readSmallFile(work, 2 * 1024 * 1024, &mergedLen);
+				if (!merged)
+				{
+					added = -1;
+					*why = L"the working copy could not be read";
+				}
+				else if (!rewriteFile(ini, merged, mergedLen))
+				{
+					added = rewriteFile(ini, data, len) ? -1 : -2;
+					*why = L"writing the new options failed, so it was put back as it was";
+				}
+				free(merged);
+			}
+			DeleteFileW(work);
+		}
+	}
+	free(data);
+	CloseHandle(ini);
+	return added;
+}
+
 static int applyStaged(const Target* t, const wchar_t* staging, const char* installed, const char* version)
 {
 	bool targetHasIni = fileExists(t->ini);
@@ -1755,7 +1861,19 @@ static int applyStaged(const Target* t, const wchar_t* staging, const char* inst
 	if (backupDir[0])
 		say(L"  Backup of the replaced files: %ls\n", backupDir);
 	if (targetHasIni)
-		say(L"  Your PlugY.ini was kept; new options take their defaults from PlugY\\PlugYDefault.ini.\n");
+	{
+		const wchar_t* why = L"";
+		int added = mergeKeptIni(t, staging, backupDir, &why);
+		if (added > 0)
+			say(L"  Your PlugY.ini was kept, and %d new option(s) were added to it, set to the values PlugY was already using.\n", added);
+		else if (added == 0)
+			say(L"  Your PlugY.ini was kept; it already has every option the release's PlugY.ini lists.\n");
+		else if (added == -2)
+			say(L"  Writing the new options into your PlugY.ini failed, and it could not be put back as it was.\n"
+				L"  If it looks damaged, copy %ls\\PlugY.ini over it.\n", backupDir);
+		else
+			say(L"  Your PlugY.ini was kept without its new options (%ls); they take their defaults from PlugY\\PlugYDefault.ini.\n", why);
+	}
 	else
 		say(L"  There was no PlugY.ini, so the release's default PlugY.ini was installed.\n");
 	if (selfReplaced)

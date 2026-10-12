@@ -449,6 +449,11 @@ Normal Installation :
 note : With the patch, or with a copy of Diablo II other than the one Windows has registered, every
 file goes in the Diablo II folder. Otherwise you choose the PlugY folder ("Mod PlugY" by default).
 
+note : Installing over an existing install keeps your PlugY.ini settings, and adds each option a
+new install's PlugY.ini has that yours lacks (such as a new feature's section), set to the value
+PlugY was already using, from PlugY\PlugYDefault.ini. The [LAUNCHING] section, which only
+PlugY.exe reads, stays as it is.
+
 Silent installation : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installs without showing its pages, for the Diablo II folder that /D2= names (a full path, in quotes).
 It exits with 2, installing nothing, when /D2= is not a full path or the folder holds no Game.exe.
@@ -533,8 +538,9 @@ D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can
   that holds PlugY.exe); the installer also adds the Start-menu shortcut "Check for PlugY4Kolbot
   updates". It verifies the download against SHA256SUMS.txt and GitHub's SHA-256 digest, and
   keeps your PlugY.ini (a pre-release's installer turns ActiveLogFile=0 into 1: see
-  ActiveLogFile below). For an install the installer made, it runs the new installer for that
-  install alone; otherwise it backs up each file it replaces under PlugY4Kolbot-backup\.
+  ActiveLogFile below), adding the options it lacks (see INSTALLATION). For an install the
+  installer made, it runs the new installer for that install alone; otherwise it backs up each
+  file it replaces under PlugY4Kolbot-backup\, and PlugY.ini too before it looks for options to add.
 - Options, for scripts: --check only reports, --yes installs without asking, and --prerelease
   also offers alpha, beta and rc builds (the same as UpdateChannel=prerelease).
 Exit codes: 0 updated or up to date, 1 error, 2 update available (--check), 3 files in use,

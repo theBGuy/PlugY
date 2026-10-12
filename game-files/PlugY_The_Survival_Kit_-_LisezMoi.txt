@@ -394,6 +394,11 @@ note : Avec le patch, ou avec une copie de Diablo II autre que celle que Windows
 tous les fichiers vont dans le répertoire de Diablo II. Sinon, vous choisissez le répertoire de
 PlugY ("Mod PlugY" par défaut).
 
+note : Installer par-dessus une installation existante conserve les réglages de votre PlugY.ini, et y
+ajoute chaque option que contient le fichier PlugY.ini d'une nouvelle installation et qui manque au vôtre
+(comme la section d'une nouvelle fonction), réglée sur la valeur que PlugY utilisait déjà, celle de
+PlugY\PlugYDefault.ini. La section [LAUNCHING], que seul PlugY.exe lit, reste telle quelle.
+
 Installation silencieuse : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installe sans afficher l'assistant, pour le répertoire de Diablo II indiqué par /D2= (un chemin complet,
 entre guillemets). L'installeur se termine avec le code de sortie 2, sans rien installer, si /D2= n'est
@@ -472,9 +477,10 @@ section "D2File Patcher" du fichier anglais PlugY_The_Survival_Kit_-_Readme.txt.
 - Fermer toutes les parties de Diablo II, puis lancer PlugY4KolbotUpdater.exe depuis le répertoire de PlugY
   (celui qui contient PlugY.exe) ; l'installeur ajoute aussi le raccourci "Check for PlugY4Kolbot updates"
   dans le menu démarrer. PlugY4KolbotUpdater.exe vérifie le téléchargement avec SHA256SUMS.txt et l'empreinte
-  SHA-256 fournie par GitHub, et conserve votre PlugY.ini. Pour une installation faite par l'installeur, il
-  lance le nouvel installeur pour cette seule installation ; sinon, il sauvegarde chaque fichier qu'il
-  remplace dans PlugY4Kolbot-backup\.
+  SHA-256 fournie par GitHub, et conserve votre PlugY.ini, en y ajoutant les options qui lui manquent (voir
+  INSTALLATION). Pour une installation faite par l'installeur, il lance le nouvel installeur pour cette
+  seule installation ; sinon, il sauvegarde dans PlugY4Kolbot-backup\ chaque fichier qu'il remplace,
+  ainsi que PlugY.ini avant d'y chercher les options à ajouter.
 - Options pour les scripts : --check ne fait qu'informer, --yes installe sans rien demander, et --prerelease
   propose aussi les versions alpha, beta et rc (comme UpdateChannel=prerelease).
 Codes de sortie : 0 mis à jour ou déjà à jour, 1 erreur, 2 mise à jour disponible (--check), 3 fichiers en
