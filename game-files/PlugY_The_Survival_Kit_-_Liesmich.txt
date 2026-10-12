@@ -439,11 +439,6 @@ Hinweis: Mit dem Patch oder mit einer anderen Diablo II-Kopie als der, die in Wi
 kommen alle Dateien in das Diablo II-Verzeichnis. Sonst wählst du das PlugY-Verzeichnis ("Mod PlugY"
 als Standard).
 
-Hinweis: Eine Installation über eine bestehende behält die Einstellungen deiner PlugY.ini und ergänzt
-jede Option, die die PlugY.ini einer neuen Installation hat und deiner fehlt (etwa den Abschnitt einer
-neuen Funktion), mit dem Wert, den PlugY schon verwendet hat, aus PlugY\PlugYDefault.ini. Der
-Abschnitt [LAUNCHING], den nur PlugY.exe liest, bleibt, wie er ist.
-
 Unbeaufsichtigte Installation : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installiert, ohne seine Seiten anzuzeigen, für das Diablo II-Verzeichnis, das /D2= angibt (ein vollständiger
 Pfad, in Anführungszeichen). Ist /D2= kein vollständiger Pfad oder enthält das Verzeichnis keine Game.exe,
@@ -453,6 +448,11 @@ wird PlugY4Kolbot trotzdem installiert, und das Installationsprogramm endet mit 
 folgt eine neue Installation dem Hinweis oben ("Mod PlugY" für die in Windows registrierte Kopie). Um eine
 Installation unbeaufsichtigt zu aktualisieren, gib zusätzlich ihr PlugY-Verzeichnis als /D=<folder> an,
 als letzten Parameter und ohne Anführungszeichen: sie wird dort aktualisiert, wo sie ist, samt ihrem Patch.
+
+Hinweis: Eine Installation über eine bestehende behält die Einstellungen deiner PlugY.ini und ergänzt
+jede Option, die die PlugY.ini einer neuen Installation hat und deiner fehlt (etwa den Abschnitt einer
+neuen Funktion), mit dem Wert, den PlugY schon verwendet hat, aus PlugY\PlugYDefault.ini. Der
+Abschnitt [LAUNCHING], den nur PlugY.exe liest, bleibt, wie er ist.
 
 Installation in einem anderen Mod :
 - Entpacke alle Dateien in dein Diablo Verzeichnis.
@@ -525,7 +525,8 @@ englischen Datei PlugY_The_Survival_Kit_-_Readme.txt.
 - Schließe alle Diablo II-Spiele und starte dann PlugY4KolbotUpdater.exe aus deinem PlugY-Verzeichnis
   (dem, das PlugY.exe enthält); das Installationsprogramm legt außerdem die Startmenüverknüpfung "Check
   for PlugY4Kolbot updates" an. Der Updater prüft den Download anhand der SHA256SUMS.txt und der
-  SHA-256-Prüfsumme von GitHub und behält deine PlugY.ini, die er um die fehlenden Optionen ergänzt (siehe
+  SHA-256-Prüfsumme von GitHub und behält deine PlugY.ini (das Installationsprogramm einer Vorabversion
+  setzt ActiveLogFile=0 auf 1: siehe ActiveLogFile weiter unten), die er um die fehlenden Optionen ergänzt (siehe
   INSTALLATION). Bei einer Installation, die das Installationsprogramm angelegt hat, führt er das neue
   Installationsprogramm nur für diese Installation aus; sonst sichert er jede Datei, die er ersetzt, unter
   PlugY4Kolbot-backup\, und auch die PlugY.ini, bevor er nach fehlenden Optionen sucht.
@@ -660,6 +661,7 @@ Beispiel:
 
 Jeder Start des Spiels schreibt ein eigenes Log in den Ordner PlugY\logs, zum Beispiel PlugY_2026-10-10_20-44-47_287472.log (Startdatum, Startzeit, Prozess-ID). Jede nicht leere Zeile beginnt mit der Uhrzeit.
 Logs, die älter als 7 Tage sind, werden gelöscht, und höchstens die 500 neuesten bleiben. Ist der Spielordner schreibgeschützt, landen die Logs in %LOCALAPPDATA%\PlugY4Kolbot\logs.
+Das Installationsprogramm einer Vorabversion (auch wenn der Updater eine Installation aktualisiert, die das Installationsprogramm angelegt hat) setzt bei jeder Installation oder jedem Update ein vorhandenes ActiveLogFile=0 auf 1, damit die Logs der Tester die ganze Sitzung abdecken.
 Beispiel:
 - ActiveLogFile=1 (Standard: die ganze Sitzung wird protokolliert)
 - ActiveLogFile=0 (nur der Start von PlugY wird protokolliert)
