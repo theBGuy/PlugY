@@ -46,6 +46,7 @@ Jedes Feature kann via PlugY.ini an/ausgeschaltet werden (siehe "Kommentare aus 
 - Die Basiswerte der Statuspunkte werden angezeigt (Ohne Boni von magischen Gegenständen).
 - Das Spiel kann im Fenstermodus gestartet werden.
 - Stat-Bonus (1.14d, ein Cheat, standardmäßig deaktiviert): extra Magic Find und Gold Find für jeden Charakter in den Spielen, die man selbst startet oder hostet.
+- Quest-Drops bei jedem Boss-Kill (1.14d, standardmäßig deaktiviert): Andariel, Duriel, Mephisto, Diablo und Baal lassen immer ihren Quest-Drop fallen, auch wenn man ihre Quest bereits abgeschlossen hat.
 - Folgende Befehle hinzugefügt (siehe "Kommentare aus der Konfigurationsdatei") :
 	/lockmouse : Begrenzt den Mauszeiger auf das Fenster.
 	/lock: Siehe /lockmouse.
@@ -1013,6 +1014,11 @@ Prevent Nihlathak's portal from closing.
 
 Move Cain near Harrogath waypoint.
 - MoveCainNearHarrogathWaypoint=0 {0:Disabled; 1:Enabled}
+
+Lässt Andariel, Duriel, Mephisto, Diablo und Baal bei jedem Kill ihren Quest-Drop fallen, auch wenn du ihre Quest bereits abgeschlossen hast (nur 1.14d).
+Der Quest-Drop hat bessere Chancen auf einzigartige, Set- und seltene Gegenstände als ihr normaler Drop und enthält kein Gold. Nur der Drop ändert sich: Quest-Gegenstände und -Belohnungen, wie Mephistos Seelenstein, bleiben unverändert.
+Das gilt im Singleplayer und in den TCP/IP-Spielen, die du hostest (die eigene Einstellung eines beitretenden Spielers hat keine Wirkung). Mit Datendateien, die anderen Monstern eine Quest-Treasure-Class geben (TreasureClass4 und TCQuestId in MonStats.txt, bei manchen Mods), verwenden auch diese Monster immer ihre Quest-Treasure-Class.
+- AlwaysQuestDrops=0 {0:Deaktiviert; 1:Aktiviert}
 
 Wenn Ihr Anregungen habt, Fehler findet oder Konflikte mit MODs feststellt, schickt eine eMail an ynicolas@worldonline.fr mit "DiabloII" als Betreffzeile!
 Zur Korrektur der deutschen Übersetzung bitte eine eMail an ChaosEnergy@planetdiablo.com
