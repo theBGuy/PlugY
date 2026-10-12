@@ -62,7 +62,7 @@ Each features can be turned on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURA
 	* /page 6 : (beta) Show available runewords (stats page must be opened).
 	* /save : (beta) Save game without exit.
 	* /listcube : (beta) Create a "cube.txt" file in save directory containing all cube's receipts.
-	* /renamechar newname : (beta) Rename your character and save it.
+	* /renamechar newname : (beta) Rename your character and save it, in single player only. The new name is 2 to 15 letters or underscores.
 	
 ## Installing
 * **Installer:** choose the Diablo II folder (the one that holds `Game.exe`); any copy of Diablo II works. For D2Bot / kolbot, tick **Patch Game.exe (D2Bot / kolbot)**: `Game.exe` then starts PlugY by itself, with PlugY's files next to it. Each install gets its own entry in Apps & features. Uninstalling the install that patched `Game.exe` restores it, and leaves your other PlugY4Kolbot installs alone. The desktop and Start-menu shortcuts start the install that created them last.
