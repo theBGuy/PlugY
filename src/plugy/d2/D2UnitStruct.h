@@ -527,8 +527,8 @@ struct Unit
 		DWORD			nPlayerClass;
 		DWORD			nTxtFileNo;
     };									//+04
-	DWORD		nUnitId;				//+08
-	DWORD		nItemNum;				//+0C
+	DWORD		uk08;					//+08	not the unit id
+	DWORD		nItemNum;				//+0C	the unit id of every unit type, a player's too (1.14d looks units up by it)
 	DWORD		mode;					//+10
 	union{
 		MonsterData*	ptMonsterData;
