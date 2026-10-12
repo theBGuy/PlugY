@@ -16,7 +16,7 @@
 #include "windowed.h"
 #include "common.h"
 #include "savePlayerData.h"
-#include "loadPlayerData.h"
+#include "serverMessageRules.h"
 #include "stashProtocol.h"
 #include <stdio.h>
 
@@ -60,7 +60,6 @@ const char * CMD_DISPLAY_MANA = "/dm";
 
 const char * CMD_LISTCUBEFORMULA="/listcube";
 //const char * CMD_RELOAD="/reload";
-//const char * CMD_MAXGOLD="/maxgold";
 
 
 /*
@@ -212,27 +211,6 @@ void savePlayers(Unit* ptChar)
 		D2SaveGame(PCGame);
 }
 
-void maxGold(Unit* ptChar)
-{
-	log_msg("maxGold\n");
-
-	DWORD maxGold = D2GetMaxGold(ptChar);
-	DWORD maxGoldBank = D2GetMaxGoldBank(ptChar);
-	DWORD playerGold = D2GetPlayerStat(ptChar, STATS_GOLD, 0);
-	DWORD playerGoldBank = D2GetPlayerStat(ptChar, STATS_GOLDBANK, 0);
-	if ( (playerGold < maxGold) || (playerGoldBank < maxGoldBank) ) {
-		D2AddPlayerStat( ptChar, STATS_GOLD, maxGold-playerGold, 0 );
-		D2AddPlayerStat( ptChar, STATS_GOLDBANK, maxGoldBank-playerGoldBank, 0 );
-	} else {
-		D2AddPlayerStat( ptChar, STATS_GOLD, 100000, 0 );
-	}
-	if (active_sharedGold)
-	{
-		PCPY->sharedGold = 0xFFFFFFFF;
-		updateClient(ptChar, UC_SHARED_GOLD, PCPY->sharedGold, 0, 0);
-	}
-}
-
 void putGold(Unit* ptChar, DWORD amount)
 {
 	if (!active_sharedGold) return;
@@ -332,15 +310,18 @@ bool renamePage(Unit* ptChar, char* newName)
 
 bool renameCharacter(Unit* ptChar, char* newName)
 {
+	// The server refuses US_RENAME outside single player (see isServerUpdateAllowed), so the files must stay put too.
+	if (!isSinglePlayerGameMode(ClientGameMode))
+	{
+		log_msg("Rename Character refused : single player only (game mode %u)\n", ClientGameMode);
+		return 0;
+	}
 	int len = strlen(newName);
-	if (len < 2 || len > 15)
+	if (len < RENAME_NAME_MIN || len > RENAME_NAME_MAX)
 		return 0;
 	for (int i = 0; i < len; i++)
-	{
-		char c = newName[i];
-		if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_')))
+		if (!isRenameNameChar(newName[i]))
 			return 1;
-	}
 	log_msg("Rename Character : %s -> %s\n", PCPlayerData->name, newName);
 
 	// Move current save file
@@ -386,13 +367,6 @@ bool renameCharacter(Unit* ptChar, char* newName)
 		strcpy(&szCurrentFile[curLen], "map");
 		strcpy(&szNewFile[newLen], "map");
 		MoveFile(szCurrentFile, szNewFile);
-	}
-
-	// Multiplayer saves are named after the joined character (SaveMPPlayerCustomData), so it follows the rename.
-	if (!strcmp(joinedCharName, PCPlayerData->name))
-	{
-		strncpy(joinedCharName, newName, sizeof(joinedCharName) - 1);
-		joinedCharName[sizeof(joinedCharName) - 1] = '\0';
 	}
 
 	// Update server
@@ -642,13 +616,6 @@ int STDCALL commands (char* ptText)
 	//{
 	//	if (onRealm) return 1;
 	//	gambleReload(ptChar);
-	//	return 0;
-	//}
-
-	//if (!strcmp(command,CMD_MAXGOLD))
-	//{
-	//	if (onRealm) return 1;
-	//	updateServer(US_MAXGOLD);
 	//	return 0;
 	//}
 

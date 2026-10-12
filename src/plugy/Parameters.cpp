@@ -244,6 +244,7 @@ const char* S_active_EnabledCowPortalWhenCowKingWasKill = "ActiveCowPortalWhenCo
 const char* S_active_DoNotCloseNihlathakPortal = "ActiveDoNotCloseNihlathakPortal";
 const char* S_active_MoveCainNearHarrogathWaypoint = "MoveCainNearHarrogathWaypoint";
 const char* S_active_RemoveExperienceDiminushingReturn = "RemoveExperienceDiminushingReturn";
+const char* S_active_AlwaysQuestDrops = "AlwaysQuestDrops";
 
 const char* S_DLL = "DLL:\t";
 const char* S_DEFAULT = "DEFAULT:";
@@ -1192,6 +1193,15 @@ void init_ExtraOptions(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefa
 			log_msg("active_RemoveExperienceDiminushingReturn\t= %d (Warning : this feature is only for LoD version 1.14d or higher, so it's automatically disabled)\n", active_RemoveExperienceDiminushingReturn);
 		}
 	}
+
+	GET_PRIVATE_PROFILE_STRING(S_EXTRA, S_active_AlwaysQuestDrops, "0");
+	active_AlwaysQuestDrops = atoi(buffer) != 0;
+	// The treasure class patch has a 1.14d address only.
+	if (active_AlwaysQuestDrops && version_D2Game != V114d) {
+		active_AlwaysQuestDrops = 0;
+		log_msg("active_AlwaysQuestDrops\t\t= %d (Warning : this feature is only for version 1.14d, so it's automatically disabled)\n\n", active_AlwaysQuestDrops);
+	} else
+		log_msg("active_AlwaysQuestDrops\t\t= %u\n\n", active_AlwaysQuestDrops);
 }
 
 

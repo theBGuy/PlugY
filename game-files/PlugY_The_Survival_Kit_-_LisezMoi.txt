@@ -46,6 +46,7 @@ Toutes ces fonctions peuvent être activé/désactivé via PlugY.ini (voir "COMM
 - Affiche la valeur courante des caractéristiques (sans les bonus magiques).
 - Permet de lancer en mode fenêtré.
 - Bonus de stats (1.14d, un cheat, désactivé par défaut) : ajoute du MF (chances de trouver des objets magiques) et du GF (or supplémentaire) à tous les personnages des parties que vous lancez.
+- Butin de quête à chaque boss tué (1.14d, désactivé par défaut) : Andariel, Duriel, Méphisto, Diablo et Baal laissent toujours tomber leur butin de quête, même après que vous avez terminé leur quête.
 - Ajout des commandes suivantes (voir "COMMENTAIRES SUR LE FICHIER DE CONFIGURATION") :
 	/lockmouse : Bloque le curseur de la souris dans la fenêtre.
 	/lock : Identique à /lockmouse.
@@ -76,7 +77,7 @@ Toutes ces fonctions peuvent être activé/désactivé via PlugY.ini (voir "COMM
 	/page 6 : (beta) Affiche la page des mots runiques actifs (la page des stats doit être ouverte).
 	/save : (beta) Sauvegarde la partie sans quitter.
 	/listcube : (beta) Crée un fichier "cube.txt" dans le répertoire de sauvegarde contenant toutes les formules du cube.
-	/renamechar newname : (beta) Renomme la personnage et le sauvegarde.
+	/renamechar newname : (beta) Renomme le personnage et le sauvegarde, en solo uniquement (2 à 15 lettres ou tirets bas).
 
 Changements apportés par la v14.03 :
 - Corrige un bug d'affichage d'objects quand une seule page du coffre est remplit.
@@ -393,6 +394,11 @@ note : Avec le patch, ou avec une copie de Diablo II autre que celle que Windows
 tous les fichiers vont dans le répertoire de Diablo II. Sinon, vous choisissez le répertoire de
 PlugY ("Mod PlugY" par défaut).
 
+note : Installer par-dessus une installation existante conserve les réglages de votre PlugY.ini, et y
+ajoute chaque option que contient le fichier PlugY.ini d'une nouvelle installation et qui manque au vôtre
+(comme la section d'une nouvelle fonction), réglée sur la valeur que PlugY utilisait déjà, celle de
+PlugY\PlugYDefault.ini. La section [LAUNCHING], que seul PlugY.exe lit, reste telle quelle.
+
 Installation silencieuse : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installe sans afficher l'assistant, pour le répertoire de Diablo II indiqué par /D2= (un chemin complet,
 entre guillemets). L'installeur se termine avec le code de sortie 2, sans rien installer, si /D2= n'est
@@ -471,9 +477,10 @@ section "D2File Patcher" du fichier anglais PlugY_The_Survival_Kit_-_Readme.txt.
 - Fermer toutes les parties de Diablo II, puis lancer PlugY4KolbotUpdater.exe depuis le répertoire de PlugY
   (celui qui contient PlugY.exe) ; l'installeur ajoute aussi le raccourci "Check for PlugY4Kolbot updates"
   dans le menu démarrer. PlugY4KolbotUpdater.exe vérifie le téléchargement avec SHA256SUMS.txt et l'empreinte
-  SHA-256 fournie par GitHub, et conserve votre PlugY.ini. Pour une installation faite par l'installeur, il
-  lance le nouvel installeur pour cette seule installation ; sinon, il sauvegarde chaque fichier qu'il
-  remplace dans PlugY4Kolbot-backup\.
+  SHA-256 fournie par GitHub, et conserve votre PlugY.ini, en y ajoutant les options qui lui manquent (voir
+  INSTALLATION). Pour une installation faite par l'installeur, il lance le nouvel installeur pour cette
+  seule installation ; sinon, il sauvegarde dans PlugY4Kolbot-backup\ chaque fichier qu'il remplace,
+  ainsi que PlugY.ini avant d'y chercher les options à ajouter.
 - Options pour les scripts : --check ne fait qu'informer, --yes installe sans rien demander, et --prerelease
   propose aussi les versions alpha, beta et rc (comme UpdateChannel=prerelease).
 Codes de sortie : 0 mis à jour ou déjà à jour, 1 erreur, 2 mise à jour disponible (--check), 3 fichiers en
@@ -601,7 +608,7 @@ Active les nouvelles commandes de PlugY.
 	/page 6 : (beta) Affiche la page des mots runiques actifs (la page des stats doit être ouverte).
 	/save : (beta) Sauvegarde la partie sans quitter.
 	/listcube : (beta) Crée un fichier "cube.txt" dans le répertoire de sauvegarde contenant toutes les formules du cube.
-	/renamechar newname : (beta) Renomme la personnage et le sauvegarde.
+	/renamechar newname : (beta) Renomme le personnage et le sauvegarde, en solo uniquement (2 à 15 lettres ou tirets bas).
 - ActiveCommands=0 		{0:Désactivé; 1:Activé}
 
 Quitte D2, si PlugY échoue à installer toutes les fonctions.
@@ -883,6 +890,11 @@ Empéche la fermeture du portail de Nihlathak.
 
 Déplace Deckar Cain à coté du portail d'Harrogath.
 - MoveCainNearHarrogathWaypoint=0 {0:Désactivé; 1:Activé}
+
+Fait en sorte qu'Andariel, Duriel, Méphisto, Diablo et Baal laissent tomber leur butin de quête chaque fois qu'ils sont tués, même après que vous avez terminé leur quête (1.14d uniquement).
+Le butin de quête offre de meilleures chances d'obtenir des objets uniques, de set et rares que leur butin normal, et ne contient pas d'or. Seul le butin change : les objets et récompenses de quête, comme la Pierre d'âme de Méphisto, restent inchangés.
+Cela s'applique en monojoueur et dans les parties TCP/IP que vous hébergez (le réglage propre à un joueur qui rejoint la partie n'a aucun effet). Avec des fichiers de données qui donnent à d'autres monstres une treasure class de quête (TreasureClass4 et TCQuestId dans MonStats.txt, dans certains mods), ces monstres l'utilisent eux aussi systématiquement.
+- AlwaysQuestDrops=0 {0:Désactivé; 1:Activé}
 
 
 * Liste des codes couleurs (Les codes de couleur supérieur à 12 sont noirs en 1.14d plein écran):

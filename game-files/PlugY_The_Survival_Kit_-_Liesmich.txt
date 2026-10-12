@@ -46,6 +46,7 @@ Jedes Feature kann via PlugY.ini an/ausgeschaltet werden (siehe "Kommentare aus 
 - Die Basiswerte der Statuspunkte werden angezeigt (Ohne Boni von magischen Gegenständen).
 - Das Spiel kann im Fenstermodus gestartet werden.
 - Stat-Bonus (1.14d, ein Cheat, standardmäßig deaktiviert): extra Magic Find und Gold Find für jeden Charakter in den Spielen, die man selbst startet oder hostet.
+- Quest-Drops bei jedem Boss-Kill (1.14d, standardmäßig deaktiviert): Andariel, Duriel, Mephisto, Diablo und Baal lassen immer ihren Quest-Drop fallen, auch wenn man ihre Quest bereits abgeschlossen hat.
 - Folgende Befehle hinzugefügt (siehe "Kommentare aus der Konfigurationsdatei") :
 	/lockmouse : Begrenzt den Mauszeiger auf das Fenster.
 	/lock: Siehe /lockmouse.
@@ -76,7 +77,7 @@ Jedes Feature kann via PlugY.ini an/ausgeschaltet werden (siehe "Kommentare aus 
 	/page 6 : (Beta) Zeigt alle verfügbaren Runenwörter (Die Spielerinfo-Seite muss geöffnet sein).
 	/save: (Beta) Speichert das Spiel ohne es zu beenden.
 	/listcube: (Beta) Erstellt eine "cube.txt" Datei im Savegame-Verzeichnis mit allen Würfelrezepten.
-	/renamechar newname: (Beta) Speichert und benennt den Char um.
+	/renamechar newname: (Beta) Speichert und benennt den Char um, nur im Einzelspielermodus (2 bis 15 Buchstaben oder Unterstriche).
 
 v14.03 Änderungen :
 - Behebung eines Fehlers bei der Anzeige von Gegenständen, wenn nur eine Stash-Seite gefüllt ist.
@@ -438,6 +439,11 @@ Hinweis: Mit dem Patch oder mit einer anderen Diablo II-Kopie als der, die in Wi
 kommen alle Dateien in das Diablo II-Verzeichnis. Sonst wählst du das PlugY-Verzeichnis ("Mod PlugY"
 als Standard).
 
+Hinweis: Eine Installation über eine bestehende behält die Einstellungen deiner PlugY.ini und ergänzt
+jede Option, die die PlugY.ini einer neuen Installation hat und deiner fehlt (etwa den Abschnitt einer
+neuen Funktion), mit dem Wert, den PlugY schon verwendet hat, aus PlugY\PlugYDefault.ini. Der
+Abschnitt [LAUNCHING], den nur PlugY.exe liest, bleibt, wie er ist.
+
 Unbeaufsichtigte Installation : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installiert, ohne seine Seiten anzuzeigen, für das Diablo II-Verzeichnis, das /D2= angibt (ein vollständiger
 Pfad, in Anführungszeichen). Ist /D2= kein vollständiger Pfad oder enthält das Verzeichnis keine Game.exe,
@@ -519,9 +525,10 @@ englischen Datei PlugY_The_Survival_Kit_-_Readme.txt.
 - Schließe alle Diablo II-Spiele und starte dann PlugY4KolbotUpdater.exe aus deinem PlugY-Verzeichnis
   (dem, das PlugY.exe enthält); das Installationsprogramm legt außerdem die Startmenüverknüpfung "Check
   for PlugY4Kolbot updates" an. Der Updater prüft den Download anhand der SHA256SUMS.txt und der
-  SHA-256-Prüfsumme von GitHub und behält deine PlugY.ini. Bei einer Installation, die das
-  Installationsprogramm angelegt hat, führt er das neue Installationsprogramm nur für diese Installation
-  aus; sonst sichert er jede Datei, die er ersetzt, unter PlugY4Kolbot-backup\.
+  SHA-256-Prüfsumme von GitHub und behält deine PlugY.ini, die er um die fehlenden Optionen ergänzt (siehe
+  INSTALLATION). Bei einer Installation, die das Installationsprogramm angelegt hat, führt er das neue
+  Installationsprogramm nur für diese Installation aus; sonst sichert er jede Datei, die er ersetzt, unter
+  PlugY4Kolbot-backup\, und auch die PlugY.ini, bevor er nach fehlenden Optionen sucht.
 - Optionen für Skripte: --check meldet nur, --yes installiert ohne Rückfrage, und --prerelease bietet
   auch Alpha-, Beta- und RC-Builds an (wie UpdateChannel=prerelease).
 Exitcodes: 0 aktualisiert oder bereits aktuell, 1 Fehler, 2 Update verfügbar (--check), 3 Dateien in
@@ -704,7 +711,7 @@ Neue Kommandos in PlugY hinzugefügt, diese können während des Spiels genutzt 
 	/page 6 : (beta) Show available runewords (stats page must be opened).
 	/save : (beta) Save game without exit.
 	/listcube : (beta) Create a "cube.txt" file in save directory containing all cube's receipts.
-	/renamechar newname : (beta) Rename your character and save it.
+	/renamechar newname : (beta) Rename your character and save it, in single player only (2 to 15 letters or underscores).
 - ActiveCommands=0 (0=Aus; 1=Ein)
 
 Beendet D2, wenn PlugY nicht alle Features installieren konnte.
@@ -1013,6 +1020,11 @@ Prevent Nihlathak's portal from closing.
 
 Move Cain near Harrogath waypoint.
 - MoveCainNearHarrogathWaypoint=0 {0:Disabled; 1:Enabled}
+
+Lässt Andariel, Duriel, Mephisto, Diablo und Baal bei jedem Kill ihren Quest-Drop fallen, auch wenn du ihre Quest bereits abgeschlossen hast (nur 1.14d).
+Der Quest-Drop hat bessere Chancen auf einzigartige, Set- und seltene Gegenstände als ihr normaler Drop und enthält kein Gold. Nur der Drop ändert sich: Quest-Gegenstände und -Belohnungen, wie Mephistos Seelenstein, bleiben unverändert.
+Das gilt im Singleplayer und in den TCP/IP-Spielen, die du hostest (die eigene Einstellung eines beitretenden Spielers hat keine Wirkung). Mit Datendateien, die anderen Monstern eine Quest-Treasure-Class geben (TreasureClass4 und TCQuestId in MonStats.txt, bei manchen Mods), verwenden auch diese Monster immer ihre Quest-Treasure-Class.
+- AlwaysQuestDrops=0 {0:Deaktiviert; 1:Aktiviert}
 
 Wenn Ihr Anregungen habt, Fehler findet oder Konflikte mit MODs feststellt, schickt eine eMail an ynicolas@worldonline.fr mit "DiabloII" als Betreffzeile!
 Zur Korrektur der deutschen Übersetzung bitte eine eMail an ChaosEnergy@planetdiablo.com

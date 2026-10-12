@@ -34,8 +34,8 @@
     After the five binaries, also build tests/UpdateCheckTests.cpp,
     tests/UpdaterTests.cpp, tests/SessionLogTests.cpp,
     tests/SaveTransferTests.cpp, tests/MovedItemsPageTests.cpp,
-    tests/ReleasedConnectionsTests.cpp, tests/StatBonusTests.cpp and
-    tests/IniSectionTests.cpp into
+    tests/ReleasedConnectionsTests.cpp, tests/StatBonusTests.cpp,
+    tests/ServerMessageRulesTests.cpp and tests/IniSectionTests.cpp into
     build/out/<Config>/tests/ (console, static CRT) and run them. Exits 1 when a
     test fails.
 
@@ -365,7 +365,7 @@ try {
     # Windows from virtualizing its writes to Program Files; it elevates itself when needed.
     $Update = @{
         Key       = 'update'
-        Sources   = @('src\updater\PlugYUpdate.cpp', 'src\updater\UpdaterLogic.cpp',
+        Sources   = @('src\updater\PlugYUpdate.cpp', 'src\updater\UpdaterLogic.cpp', 'src\updater\UpdaterIniMerge.cpp',
                       'src\common\UpdateCheck.cpp', 'src\common\UpdateDownload.cpp')
         Rc        = 'src\updater\PlugYUpdate.rc'
         Out       = 'PlugY4KolbotUpdater.exe'
@@ -402,7 +402,7 @@ try {
         Build-Target $Tests
         $UpdaterTests = @{
             Key       = 'updtests'
-            Sources   = @('tests\UpdaterTests.cpp', 'src\updater\UpdaterLogic.cpp')
+            Sources   = @('tests\UpdaterTests.cpp', 'src\updater\UpdaterLogic.cpp', 'src\updater\UpdaterIniMerge.cpp')
             Rc        = $null
             Out       = 'tests\UpdaterTests.exe'
             Pdb       = 'tests\UpdaterTests.pdb'
@@ -478,6 +478,19 @@ try {
             LinkExtra = @()
         }
         Build-Target $StatBonusTests
+        $ServerMessageRulesTests = @{
+            Key       = 'servermessagetests'
+            Sources   = @('tests\ServerMessageRulesTests.cpp')
+            Rc        = $null
+            Out       = 'tests\ServerMessageRulesTests.exe'
+            Pdb       = 'tests\ServerMessageRulesTests.pdb'
+            ClFlags   = @('/nologo', '/c', '/W3', '/EHsc') + $StaticOpt
+            Defines   = @('WIN32', $NDebug, '_CONSOLE', '_MBCS', '_CRT_SECURE_NO_WARNINGS')
+            RcFlags   = @()
+            LinkFlags = $ConsoleLink
+            LinkExtra = @()
+        }
+        Build-Target $ServerMessageRulesTests
         $IniSectionTests = @{
             Key       = 'inisectiontests'
             Sources   = @('tests\IniSectionTests.cpp')
@@ -517,12 +530,15 @@ try {
         Write-Log '=== StatBonusTests.exe'
         Invoke-Tool (Join-Path $OutDir $StatBonusTests.Out) @()
         Write-Log ''
+        Write-Log '=== ServerMessageRulesTests.exe'
+        Invoke-Tool (Join-Path $OutDir $ServerMessageRulesTests.Out) @()
+        Write-Log ''
         Write-Log '=== IniSectionTests.exe'
         Invoke-Tool (Join-Path $OutDir $IniSectionTests.Out) @((Join-Path $RepoRoot 'game-files\PlugY.ini'), (Join-Path $RepoRoot 'game-files\PlugY\PlugYDefault.ini'))
     }
 
     $warnings = @(Get-Content -LiteralPath $LogFile | Where-Object { $_ -match ': warning [A-Z]+\d+' }).Count
-    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections, stat-bonus and ini-section tests passed' } else { '' }
+    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections, stat-bonus, server-message and ini-section tests passed' } else { '' }
     Write-Host ''
     $defined = if ($Define.Count) { ', PlugY.dll with ' + ($Define -join ' ') } else { '' }
     Write-Host "Built PlugY.dll, PlugY.exe, PatchD2File.exe, RestoreD2File.exe, PlugY4KolbotUpdater.exe ($Config, /$Crt$defined) with $warnings warning(s) in $OutDir$tested" -ForegroundColor Green

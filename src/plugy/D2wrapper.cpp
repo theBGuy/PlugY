@@ -525,6 +525,9 @@ extern "C" __declspec(dllexport) void* __stdcall Init(LPSTR IniName)
 	if (active_RemoveExperienceDiminushingReturn)
 		Install_RemoveExperienceDiminushingReturn();
 
+	if (active_AlwaysQuestDrops)
+		Install_AlwaysQuestDrops();
+
 	log_msg("\nDLL patched sucessfully.\n\n\n");
 
 	unhookLibraries();

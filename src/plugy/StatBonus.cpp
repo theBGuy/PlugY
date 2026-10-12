@@ -64,9 +64,10 @@ void applyStatBonusClient(DataPacket* packet)
 {
 	Unit* ptChar = D2GetClientPlayer();
 	DWORD statId = packet->mParam1;
-	if (!ptChar || ptChar->nUnitId != packet->mPlayerID || !isStatBonusStat(statId))
+	if (!ptChar || ptChar->nItemNum != packet->mPlayerID || !isStatBonusStat(statId))
 	{
-		log_msg("[CLIENT] Stat bonus %u for player %u ignored\n", statId, packet->mPlayerID);
+		log_msg("[CLIENT] Stat bonus %u for player %u ignored (client player %u)\n", statId, packet->mPlayerID,
+			ptChar ? ptChar->nItemNum : 0);
 		return;
 	}
 	setBaseStat(ptChar, statId, clampStatBonus((int)packet->mParam2));

@@ -117,7 +117,7 @@ struct DataPacket
 	BYTE mSize;			// +04 Size of the Packet
 	DWORD mReserved;	// +06 Used with items
 	BYTE mUnitType;		// +0A Always '0'
-	DWORD mPlayerID;	// +0C The Player ID (ptUnit + 08h)
+	DWORD mPlayerID;	// +0C The Player ID (Unit::nItemNum, the unit id)
 	DWORD mItemID;		// +10 The Item ID
 	DWORD mMod1_ID;		// +14 The Stat/Mod ID
 	DWORD mParam1;		// +18 3 Paramters

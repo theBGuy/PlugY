@@ -46,6 +46,7 @@ Each features can be turn on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURATI
 - Display the current stats value (without magical bonus).
 - Can launch game in windowed mode.
 - Stat bonus (1.14d, a cheat, off by default): extra magic find and gold find for every character in the games you run.
+- Quest drops on every boss kill (1.14d, off by default): Andariel, Duriel, Mephisto, Diablo and Baal always drop their quest drop, even after you have finished their quest.
 - Add following commands (see "COMMENTS ON THE CONFIGURATION FILE") :
 	/lockmouse : Lock mouse cursor in the window.
 	/lock : Same as /lockmouse.
@@ -76,7 +77,7 @@ Each features can be turn on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURATI
 	/page 6 : (beta) Show available runewords (stats page must be opened).
 	/save : (beta) Save game without exit.
 	/listcube : (beta) Create a "cube.txt" file in save directory containing all cube's receipts.
-	/renamechar newname : (beta) Rename your character and save it.
+	/renamechar newname : (beta) Rename your character and save it, in single player only (2 to 15 letters or underscores).
 
 v14.03 changes :
 - Fix a items diplay bug when only one stash page is filled.
@@ -448,6 +449,11 @@ Normal Installation :
 note : With the patch, or with a copy of Diablo II other than the one Windows has registered, every
 file goes in the Diablo II folder. Otherwise you choose the PlugY folder ("Mod PlugY" by default).
 
+note : Installing over an existing install keeps your PlugY.ini settings, and adds each option a
+new install's PlugY.ini has that yours lacks (such as a new feature's section), set to the value
+PlugY was already using, from PlugY\PlugYDefault.ini. The [LAUNCHING] section, which only
+PlugY.exe reads, stays as it is.
+
 Silent installation : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installs without showing its pages, for the Diablo II folder that /D2= names (a full path, in quotes).
 It exits with 2, installing nothing, when /D2= is not a full path or the folder holds no Game.exe.
@@ -532,8 +538,9 @@ D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can
   that holds PlugY.exe); the installer also adds the Start-menu shortcut "Check for PlugY4Kolbot
   updates". It verifies the download against SHA256SUMS.txt and GitHub's SHA-256 digest, and
   keeps your PlugY.ini (a pre-release's installer turns ActiveLogFile=0 into 1: see
-  ActiveLogFile below). For an install the installer made, it runs the new installer for that
-  install alone; otherwise it backs up each file it replaces under PlugY4Kolbot-backup\.
+  ActiveLogFile below), adding the options it lacks (see INSTALLATION). For an install the
+  installer made, it runs the new installer for that install alone; otherwise it backs up each
+  file it replaces under PlugY4Kolbot-backup\, and PlugY.ini too before it looks for options to add.
 - Options, for scripts: --check only reports, --yes installs without asking, and --prerelease
   also offers alpha, beta and rc builds (the same as UpdateChannel=prerelease).
 Exit codes: 0 updated or up to date, 1 error, 2 update available (--check), 3 files in use,
@@ -676,7 +683,7 @@ Activate some new commands in PlugY. In parenthesis is the condition to be able 
 	/page 6 : (beta) Show available runewords (stats page must be opened).
 	/save : (beta) Save game without exit.
 	/listcube : (beta) Create a "cube.txt" file in save directory containing all cube's receipts.
-	/renamechar newname : (beta) Rename your character and save it.
+	/renamechar newname : (beta) Rename your character and save it, in single player only (2 to 15 letters or underscores).
 - ActiveCommands=0 		{0:Disabled; 1:Enabled}
 
 Quit D2, if PlugY failed to install all features.
@@ -969,6 +976,11 @@ Prevent Nihlathak's portal from closing.
 
 Move Cain near Harrogath waypoint.
 - MoveCainNearHarrogathWaypoint=0 {0:Disabled; 1:Enabled}
+
+Make Andariel, Duriel, Mephisto, Diablo and Baal drop their quest drop on every kill, even after you have finished their quest (1.14d only).
+The quest drop has better odds of unique, set and rare items than their normal drop, and no gold. Only the drop changes: quest items and rewards, such as Mephisto's Soulstone, are unchanged.
+It applies in single player and in the TCP/IP games you host (a joiner's own setting has no effect). With data files that give other monsters a quest treasure class (TreasureClass4 and TCQuestId in MonStats.txt, in some mods), those monsters always use it too.
+- AlwaysQuestDrops=0 {0:Disabled; 1:Enabled}
 
 
 * Color list values (color code greater than 12 is black in 1.14d fullscreen):
