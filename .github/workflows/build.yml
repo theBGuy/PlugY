@@ -61,7 +61,7 @@ jobs:
         run: pwsh -NoProfile -File .github/scripts/install-nsis.ps1
 
       # -Test also builds and runs the native update-check, updater, session-log, save-transfer,
-      # moved-items-page, released-connections, stat-bonus and server-message suites;
+      # moved-items-page, released-connections, stat-bonus, server-message and ini-section suites;
       # no --live, so the job never depends on the GitHub API.
       - name: Build and test (Release, x86)
         shell: pwsh

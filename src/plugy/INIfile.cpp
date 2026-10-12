@@ -13,6 +13,7 @@
 ******************************************************************************/
 
 #include "INIfile.h"
+#include "iniSection.h"
 #include "common.h"
 #include <stdio.h>
 
@@ -298,20 +299,12 @@ int INIFile::GetPrivateProfileString(const char *section, const char *key, const
 		{
 			strncpy(m_currentSection, section, MAX_SECTIONNAME_LENGTH);
 
-			char headerString[MAX_SECTIONNAME_LENGTH];
-			ZeroMemory((void *)headerString, sizeof(headerString));
-//			_snprintf(headerString, MAX_SECTIONNAME_LENGTH, "[%s]\r\n", section);
-			_snprintf(headerString, MAX_SECTIONNAME_LENGTH, "[%s]", section);
-
-			// Locate section start in buffer
-			m_sectionStart = strstri(m_cache, headerString);
+			// Keys start right after the header's "]"
+			m_sectionStart = (char*)findIniSection(m_cache, section);
 
 			// We found the start section
 			if(m_sectionStart)
 			{
-				// Keys start after the "[" + section + "]" header
-				m_sectionStart += strlen(section) + 2;
-
 				// Locate section end in buffer
 				m_sectionEnd = strstr(m_sectionStart, "\r\n[");
 
@@ -569,19 +562,12 @@ int INIFileW::GetPrivateProfileString(LPCWSTR section, LPCWSTR key, LPCWSTR def,
 		{
 			wcsncpy(m_currentSection, section, MAX_SECTIONNAME_LENGTH);
 
-			WCHAR headerString[MAX_SECTIONNAME_LENGTH];
-			ZeroMemory((void *)headerString, sizeof(headerString));
-			//			_snprintf(headerString, MAX_SECTIONNAME_LENGTH, "[%s]\r\n", section);
-			_snwprintf(headerString, MAX_SECTIONNAME_LENGTH, L"[%s]", section);
-
-			// Locate section start in buffer
-			m_sectionStart = strstri(m_cache, headerString);
+			// Keys start right after the header's "]"
+			m_sectionStart = findIniSection(m_cache, section);
 
 			// We found the start section
 			if (m_sectionStart)
 			{
-				// Keys start after the "[" + section + "]" header
-				m_sectionStart += wcslen(section) + 2;
 				// Locate section end in buffer
 				m_sectionEnd = wcsstr(m_sectionStart, L"\r\n[");
 				// If no next section is found, then use end of buffer
