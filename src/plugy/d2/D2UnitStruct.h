@@ -259,7 +259,7 @@ struct D2Stat
 
 struct Stats				//sizeof(Stats)=0x64
 {
-	DWORD	nUnitId;				//+00
+	DWORD	uk00;					//+00	not the owner's id (that is nItemNum)
 	Unit*	ptUnit;					//+04
 	DWORD	nUnitType;				//+08
 	DWORD	nItemNum;				//+0C
