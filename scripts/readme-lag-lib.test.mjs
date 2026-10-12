@@ -77,7 +77,7 @@ test("zhReadmeLag lists the English commits after the translated-to commit, rele
     return "f8\tfeat: both readmes\nr9\tchore(release): v2.0.0\nc3\tcatch-up subject\ne2\tdocs: English only";
   };
   assert.deepEqual(zhReadmeLag(git), {
-    since: "c3",
+    catchUp: "c3",
     translatedTo: "e1full",
     behind: [
       { sha: "f8", subject: "feat: both readmes" },
@@ -92,7 +92,11 @@ test("zhReadmeLag lists the English commits after the translated-to commit, rele
 
 test("zhReadmeLag reports each way it can't measure", () => {
   const zhOk = `c3\t${CATCH_UP} e1abcde`;
-  const failing = (which) => (...args) => (args[0] === which || args.includes(which) ? null : args[0] === "log" && args.includes(ZH_README) ? zhOk : args[0] === "rev-parse" ? "e1full" : "");
+  const failing = (which) => (...args) => {
+    if (args.includes(which)) return null;
+    if (args[0] === "log" && args.includes(ZH_README)) return zhOk;
+    return args[0] === "rev-parse" ? "e1full" : "";
+  };
   assert.match(zhReadmeLag(() => null).error, /git log failed for .*讀我檔案/);
   assert.match(zhReadmeLag(() => "f1\tfeat: both").error, /no catch-up commit yet/);
   assert.match(zhReadmeLag(failing("rev-parse")).error, /c3 names e1abcde, which is not a commit here/);
@@ -132,7 +136,7 @@ test("zhReadmeLag on a real repository: partial edits, a merge race and a revert
     // The catch-up translates e1, but e2 merges before it does.
     const e2 = commit("docs: more English", { [EN_README]: "en 3" });
     const c1 = commit(`${CATCH_UP} ${e1.slice(0, 7)} (#5)`, { [ZH_README]: "zh 2" });
-    assert.deepEqual(lag(), { since: c1, translatedTo: e1, behind: [{ sha: e2, subject: "docs: more English" }], editedSince: [] });
+    assert.deepEqual(lag(), { catchUp: c1, translatedTo: e1, behind: [{ sha: e2, subject: "docs: more English" }], editedSince: [] });
     // A later zh-TW edit is no catch-up, and is listed for the releaser to check.
     const typo = commit("docs(readme): fix a typo in the Traditional Chinese readme", { [ZH_README]: "zh 2b" });
     assert.deepEqual(shas(lag().behind), [e2]);
@@ -144,7 +148,7 @@ test("zhReadmeLag on a real repository: partial edits, a merge race and a revert
     // Reverting it brings back the previous catch-up and everything after that one.
     assert.equal(run("revert", "--no-edit", "HEAD").status, 0);
     const revert = git("rev-parse", "HEAD");
-    assert.equal(lag().since, c1);
+    assert.equal(lag().catchUp, c1);
     assert.deepEqual(shas(lag().behind), [revert, c2, e2]);
     assert.deepEqual(shas(lag().editedSince), [revert, c2, typo]);
     commit(`${CATCH_UP} ${revert.slice(0, 7)}`, { [ZH_README]: "zh 3c" });

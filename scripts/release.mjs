@@ -375,7 +375,7 @@ async function main() {
     warn(`could not tell how far the Traditional Chinese readme lags: ${zhLag.error}`);
     zhQuestion = "Release without that check?";
   } else {
-    const catchUp = zhLag.since.slice(0, 7);
+    const catchUp = zhLag.catchUp.slice(0, 7);
     const basis = `${zhLag.translatedTo.slice(0, 7)}, which the last Traditional Chinese catch-up (${catchUp}) translates`;
     const list = (commits) => {
       for (const c of commits) say(`    ${dim(`${c.sha.slice(0, 7)} ${c.subject}`)}`);

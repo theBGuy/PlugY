@@ -49,7 +49,7 @@ export function lastCatchUp(zhLog) {
 
 /**
  * The English readme commits after the last catch-up's translated-to commit, newest first, as
- * { since, translatedTo, behind, editedSince }; { error } when git fails, no catch-up exists yet, or the
+ * { catchUp, translatedTo, behind, editedSince }; { error } when git fails, no catch-up exists yet, or the
  * commit it names is not an ancestor of HEAD. The catch-up's own English edits count as translated.
  * `git(...args)` returns trimmed stdout, or null when the command fails.
  */
@@ -69,5 +69,5 @@ export function zhReadmeLag(git) {
   const enLog = parseLog(git("log", "--format=%H%x09%s", `${translatedTo}..HEAD`, "--", EN_README));
   if (enLog === null) return { error: `git log failed for ${EN_README}` };
   const behind = enLog.filter((entry) => !isReleaseCommit(entry) && entry.sha !== catchUp.sha);
-  return { since: catchUp.sha, translatedTo, behind, editedSince: catchUp.editedSince };
+  return { catchUp: catchUp.sha, translatedTo, behind, editedSince: catchUp.editedSince };
 }
