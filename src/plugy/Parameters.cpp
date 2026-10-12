@@ -24,6 +24,8 @@ const char* PARAM_DEFAULT_FILENAME = "PlugY\\PlugYDefault.ini";
 #include "mainScreen.h"
 #include "skillPerLevelUp.h"
 #include "statPerLevelUp.h"
+#include "statBonus.h"
+#include "statBonusRules.h"
 #include "savePath.h"
 #include "bigStash.h"
 #include "skillsPoints.h"
@@ -180,6 +182,11 @@ const char* S_posYUnassignSkillBtn = "PosYUnassignSkillBtn";
 const char* S_SKILL_ON_LEVEL_UP = "SKILL ON LEVEL UP";
 const char* S_active_SkillPerLevelUpChange = "ActiveSkillPerLevelUp";
 const char* S_skillPerLevelUp = "SkillPerLevelUp";
+
+const char* S_STAT_BONUS = "STAT BONUS";
+const char* S_active_StatBonus = "ActiveStatBonus";
+const char* S_statBonusMagicFind = "MagicFind";
+const char* S_statBonusGoldFind = "GoldFind";
 
 const char* S_WORLD_EVENT = "WORLD EVENT";
 const char* S_active_WorldEvent = "ActiveWorldEvent";
@@ -912,6 +919,30 @@ void init_SkillPerLevelUp(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniD
 	log_msg("\n");
 }
 
+void init_StatBonus(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFile, char* buffer, DWORD maxSize)
+{
+	GET_PRIVATE_PROFILE_STRING(S_STAT_BONUS, S_active_StatBonus, "0");
+	active_StatBonus = atoi(buffer) != 0;
+	// The load hook has a 1.14d address only.
+	if (active_StatBonus && version_D2Common != V114d) {
+		active_StatBonus = 0;
+		log_msg("active_StatBonus\t\t\t= %d (Warning : this feature is only for version 1.14d, so it's automatically disabled)\n", active_StatBonus);
+	} else
+		log_msg("active_StatBonus\t\t\t= %d\n", active_StatBonus);
+
+	if (active_StatBonus)
+	{
+		GET_PRIVATE_PROFILE_STRING(S_STAT_BONUS, S_statBonusMagicFind, "0");
+		statBonusMagicFind = parseStatBonus(buffer);
+		log_msg("statBonusMagicFind\t\t\t= %d\n", statBonusMagicFind);
+
+		GET_PRIVATE_PROFILE_STRING(S_STAT_BONUS, S_statBonusGoldFind, "0");
+		statBonusGoldFind = parseStatBonus(buffer);
+		log_msg("statBonusGoldFind\t\t\t= %d\n", statBonusGoldFind);
+	}
+	log_msg("\n");
+}
+
 void init_WorldEvent(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFile, char* buffer, DWORD maxSize)
 {
 	GET_PRIVATE_PROFILE_STRING(S_WORLD_EVENT, S_active_WorldEvent, "0");
@@ -1208,6 +1239,7 @@ void loadParameters()
 			init_StatPerLevelUp(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
 			init_SkillsPoints(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
 			init_SkillPerLevelUp(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
+			init_StatBonus(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
 			init_WorldEvent(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
 			init_UberQuest(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
 			init_NewInterfaces(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);

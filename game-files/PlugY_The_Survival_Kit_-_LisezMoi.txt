@@ -45,6 +45,7 @@ Toutes ces fonctions peuvent être activé/désactivé via PlugY.ini (voir "COMM
 - D2 peut charger tout les fichiers, même ceux ouvert par Microsoft Excel (désactivé par defaut).
 - Affiche la valeur courante des caractéristiques (sans les bonus magiques).
 - Permet de lancer en mode fenêtré.
+- Bonus de stats (1.14d, un cheat, désactivé par défaut) : ajoute du MF (chances de trouver des objets magiques) et du GF (or supplémentaire) à tous les personnages des parties que vous lancez.
 - Ajout des commandes suivantes (voir "COMMENTAIRES SUR LE FICHIER DE CONFIGURATION") :
 	/lockmouse : Bloque le curseur de la souris dans la fenêtre.
 	/lock : Identique à /lockmouse.
@@ -787,6 +788,18 @@ Change le nombre de points de skills reçus lors d'un gain de niveau.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveSkillPerLevelUp=0		{0:Désactivé; 1:Activé}
 - SkillPerLevelUp=1				{0:aucun points gagnés;  3:trois points gagnés)
+
+
+[STAT BONUS]
+ATTENTION : CHEAT, NE PAS UTILISER EN PARTIE NORMAL.
+Donne à vos personnages un bonus de MF (chances de trouver des objets magiques) et de GF (or supplémentaire) qui s'ajoute au MF et au GF de leur équipement (1.14d uniquement).
+Ce bonus fonctionne comme le MF et le GF des objets ; le MF garde ses rendements décroissants habituels pour les objets uniques, de set et rares.
+Le serveur de jeu l'ajoute chaque fois qu'un personnage entre dans une partie : en monojoueur, et pour chaque personnage d'une partie TCP/IP que vous hébergez (les valeurs MagicFind et GoldFind propres à un joueur qui rejoint la partie n'ont aucun effet). Avec les fichiers de données d'origine du jeu, il n'est jamais sauvegardé dans le fichier du personnage.
+La page de stats supplémentaire de PlugY (/page 2, avec ActiveNewStatsInterface=1) affiche le total. Dans une partie TCP/IP, un joueur qui rejoint la partie le voit sur cette page s'il utilise cette version de PlugY4Kolbot avec ActiveMultiPageStash=1 ou ActiveStatBonus=1.
+Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
+- ActiveStatBonus=0		{0:Désactivé; 1:Activé}
+- MagicFind=0			{0:aucun bonus; 999:999% de MF en plus; maximum 10000}
+- GoldFind=0			{0:aucun bonus; 200:200% de GF en plus; maximum 10000}
 
 
 [WORLD EVENT]

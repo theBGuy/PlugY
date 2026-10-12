@@ -45,6 +45,7 @@ Jedes Feature kann via PlugY.ini an/ausgeschaltet werden (siehe "Kommentare aus 
 - Diablo kann nun auf Text-Dateien laden die von Microsoft Excel geöffnet sind. (Standardmäßig deaktiviert).
 - Die Basiswerte der Statuspunkte werden angezeigt (Ohne Boni von magischen Gegenständen).
 - Das Spiel kann im Fenstermodus gestartet werden.
+- Stat-Bonus (1.14d, ein Cheat, standardmäßig deaktiviert): extra Magic Find und Gold Find für jeden Charakter in den Spielen, die man selbst startet oder hostet.
 - Folgende Befehle hinzugefügt (siehe "Kommentare aus der Konfigurationsdatei") :
 	/lockmouse : Begrenzt den Mauszeiger auf das Fenster.
 	/lock: Siehe /lockmouse.
@@ -899,6 +900,18 @@ Beispiel :
 - SkillPerLevelUp=0 (man bekommt keinen Punkt beim LevelUp)
 - SkillPerLevelUp=1 (Standard)
 - SkillPerLevelUp=2 (2 Fertigkeitspunkte beim LevelUp)
+
+
+[STAT BONUS]
+ACHTUNG: CHEAT, NICHT IM NORMALEN SPIEL BENUTZEN.
+Gibt deinen Charakteren zusätzlich zu ihrer Ausrüstung mehr Magic Find und Gold Find (nur 1.14d).
+Der Bonus wirkt wie Magic Find und Gold Find von Gegenständen; Magic Find unterliegt dabei wie gewohnt dem abnehmenden Nutzen (Diminishing Returns) bei einzigartigen, Set- und seltenen Gegenständen.
+Der Spielserver rechnet ihn jedes Mal hinzu, wenn ein Charakter ein Spiel betritt: im Singleplayer und für jeden Charakter in einem TCP/IP-Spiel, das du hostest (die eigenen Werte MagicFind und GoldFind eines beitretenden Spielers haben keine Wirkung). Mit den originalen Datendateien des Spiels wird er nie in der Spielstanddatei des Charakters gespeichert.
+Die extra Spielerinfo-Seite von PlugY (/page 2, mit ActiveNewStatsInterface=1) zeigt den Gesamtwert. In einem TCP/IP-Spiel sieht ein beigetretener Spieler ihn dort, wenn er diese Version von PlugY4Kolbot mit ActiveMultiPageStash=1 oder ActiveStatBonus=1 nutzt.
+Im folgenden die Standardwerte und in {} einige Beispiel Werte mit Beschreibungen:
+- ActiveStatBonus=0		{0:Deaktiviert; 1:Aktiviert}
+- MagicFind=0			{0:kein Bonus; 999:999% extra Magic Find; maximal 10000}
+- GoldFind=0			{0:kein Bonus; 200:200% extra Gold Find; maximal 10000}
 
 
 [WORLD EVENT]

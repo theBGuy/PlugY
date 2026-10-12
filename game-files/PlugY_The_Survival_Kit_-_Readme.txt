@@ -45,6 +45,7 @@ Each features can be turn on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURATI
 - D2 can load all files, even those opened with Microsoft Excel (disabled by default).
 - Display the current stats value (without magical bonus).
 - Can launch game in windowed mode.
+- Stat bonus (1.14d, a cheat, off by default): extra magic find and gold find for every character in the games you run.
 - Add following commands (see "COMMENTS ON THE CONFIGURATION FILE") :
 	/lockmouse : Lock mouse cursor in the window.
 	/lock : Same as /lockmouse.
@@ -857,6 +858,18 @@ Change the number of Skills Points you receive when your character gains a level
 Following are default values, between {} are some examples values with descriptions :
 - ActiveSkillPerLevelUp=0		{0:Disabled; 1:Enabled}
 - SkillPerLevelUp=1			{0:no point gained;  3:three points gained)
+
+
+[STAT BONUS]
+WARNING : CHEAT, DON'T USE IN NORMAL GAME.
+Give your characters extra magic find and gold find on top of their gear (1.14d only).
+It works like magic find and gold find from items; magic find keeps its usual diminishing returns for unique, set and rare items.
+The game server adds it each time a character enters a game: in single player, and for every character in a TCP/IP game you host (a joiner's own MagicFind and GoldFind have no effect). With the game's own data files it is never saved in the character file.
+PlugY's extra stats page (/page 2, with ActiveNewStatsInterface=1) shows the total. In a TCP/IP game, a joiner sees it there when it runs this version of PlugY4Kolbot with ActiveMultiPageStash=1 or ActiveStatBonus=1.
+Following are default values, between {} are some examples values with descriptions :
+- ActiveStatBonus=0		{0:Disabled; 1:Enabled}
+- MagicFind=0			{0:no bonus; 999:999% extra magic find; maximum 10000}
+- GoldFind=0			{0:no bonus; 200:200% extra gold find; maximum 10000}
 
 
 [WORLD EVENT]
