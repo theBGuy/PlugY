@@ -56,7 +56,7 @@ static void testHeaders()
 
 static void testNotHeaders()
 {
-	// A comment that names a section, as the shipped PlugY.ini's [GENERAL] did: the real header comes later.
+	// A comment line that names a later section in brackets: the real header comes later.
 	const char* comment = "[GENERAL]\r\n;1: show (needs [MAIN SCREEN] ActivePrintPlugYVersion=1)\r\nk=1\r\n\r\n[MAIN SCREEN]\r\nActivePrintPlugYVersion=0";
 	const char* real = strstr(comment, "\r\n[MAIN SCREEN]") + 2;
 	CHECK(findIniSection(comment, "MAIN SCREEN") == real + strlen("[MAIN SCREEN]"));
@@ -113,6 +113,7 @@ static void testShippedWideFile(const char* path, const wchar_t* text)
 			{
 				wchar_t name[64] = L"";
 				size_t nameLen = close - line - 1;
+				CHECK(nameLen < sizeof(name) / sizeof(name[0]));	// a longer header would go unchecked
 				if (nameLen < sizeof(name) / sizeof(name[0]))
 				{
 					wmemcpy(name, line + 1, nameLen);
@@ -132,8 +133,8 @@ static void testShippedWideFile(const char* path, const wchar_t* text)
 	printf("  %s: %d section headers (UTF-16)\n", path, headers);
 }
 
-// Every header line of a shipped INI is found at that very line, and no other line names a section in brackets, as
-// the [GENERAL] comment once did: a simpler INI reader (an older PlugY, a script) would take it for the header.
+// Every header line of a shipped INI is found at that very line, and no other line names a section in brackets: a
+// simpler INI reader (an older PlugY, a script) would take it for the header.
 static void testShippedFile(const char* path)
 {
 	char* text = readFile(path);
@@ -162,6 +163,7 @@ static void testShippedFile(const char* path)
 			{
 				char name[64] = "";
 				size_t nameLen = close - line - 1;
+				CHECK(nameLen < sizeof(name));	// a longer header would go unchecked
 				if (nameLen < sizeof(name))
 				{
 					memcpy(name, line + 1, nameLen);
