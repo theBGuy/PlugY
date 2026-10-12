@@ -25,6 +25,7 @@ import {
   renderGroupBlocks,
   validateFragments,
 } from "./changelog-lib.mjs";
+import { zhReadmeLag } from "./readme-lag-lib.mjs";
 import {
   assessCandidate,
   BANNER_FILES,
@@ -365,6 +366,24 @@ async function main() {
     );
   }
   ok("changelog fragments valid");
+
+  // Pull requests leave the zh-TW readme behind (git merges its UTF-16 as binary); a release catches it up.
+  // A check that cannot measure asks too: it must never pass a stale readme silently.
+  const zhLag = zhReadmeLag(git);
+  let zhQuestion = null;
+  if (zhLag.error) {
+    warn(`could not tell how far the Traditional Chinese readme lags: ${zhLag.error}`);
+    zhQuestion = "Release without that check?";
+  } else if (zhLag.behind.length === 0) {
+    ok("the English readme has not changed since the Traditional Chinese readme's last catch-up");
+  } else {
+    warn(
+      `the English readme changed in ${zhLag.behind.length} commit(s) since the Traditional Chinese readme's last catch-up (${zhLag.since.slice(0, 7)}); update it before releasing, or release it behind:`,
+    );
+    for (const c of zhLag.behind) say(`    ${dim(`${c.sha.slice(0, 7)} ${c.subject}`)}`);
+    zhQuestion = "Release with the Traditional Chinese readme behind?";
+  }
+  if (zhQuestion && !dryRun && !(await confirm(zhQuestion, false))) abort();
 
   // === 2. Context ===========================================================
   say("");
