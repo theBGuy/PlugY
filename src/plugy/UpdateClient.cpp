@@ -24,7 +24,7 @@ void updateClient(Unit* ptChar, DWORD mFunc, DWORD p1, DWORD p2, DWORD p3)
 	packet.mType = 0x9D;
 	packet.mFunc = (BYTE)mFunc;
 	packet.mSize = sizeof(DataPacket);
-	packet.mPlayerID = ptChar->nUnitId;
+	packet.mPlayerID = ptChar->nItemNum;
 	packet.mParam1 = p1;
 	packet.mParam2 = p2;
 	packet.mParam3 = p3;
@@ -45,7 +45,7 @@ void updateClient(Unit* ptChar, DWORD mFunc, char* msg)
 	packet.mType = 0x9D;
 	packet.mFunc = (BYTE)mFunc;
 	packet.mSize = sizeof(DataPacket);
-	packet.mPlayerID = ptChar->nUnitId;
+	packet.mPlayerID = ptChar->nItemNum;
 	if (msg != NULL && strlen(msg) > 20)
 		return;
 	if (msg != NULL)
