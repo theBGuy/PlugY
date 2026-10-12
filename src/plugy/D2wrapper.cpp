@@ -19,6 +19,7 @@
 #include "bigStash.h"			// Install_BigStash()
 #include "skillPerLevelUp.h"	// Install_SkillPerLevelUp()
 #include "statPerLevelUp.h"		// Install_StatPerLevelUp()
+#include "statBonus.h"			// Install_StatBonus()
 #include "statsPoints.h"		// Install_StatsPoints() Install_StatsLimitShiftClick()
 #include "skillsPoints.h"		// Install_SkillsPoints()
 #include "infinityStash.h"		// Install_MultiPageStash()
@@ -475,6 +476,9 @@ extern "C" __declspec(dllexport) void* __stdcall Init(LPSTR IniName)
 
 	if (active_StatPerLevelUpChange)
 		Install_StatPerLevelUp();
+
+	if (active_StatBonus)
+		Install_StatBonus();
 
 	if (active_multiPageStash)
 		Install_MultiPageStash();

@@ -10,6 +10,7 @@
 #include "updateClient.h"
 #include "infinityStash.h"
 #include "stashProtocol.h"
+#include "statBonus.h"
 #include "commands.h"
 #include "common.h"
 
@@ -75,6 +76,7 @@ DWORD FASTCALL handleClientUpdate(DataPacket* packet)
 	case UC_ITEM_MOVED : applyItemMovedClient((BYTE*)packet); return 1;
 	case UC_STASH_PAGE : return 1;	// for scripts, like UC_ACK
 	case UC_PAGE_OP : applyPageOpClient((BYTE*)packet); return 1;
+	case UC_ADD_STAT : applyStatBonusClient(packet); return 1;
 	default : return 0;
 	}
 }

@@ -1204,8 +1204,9 @@ void selectStash(Unit* ptChar, Stash* newStash, bool forceUpdate)
 ///// public functions
 bool hasCurrentStash(Unit* ptChar)
 {
-	// PCPY is an offset into PlayerData, so a NULL PlayerData is what makes it invalid.
-	return ptChar && PCPlayerData && PCPY->currentStash;
+	// PCPY is an offset into PlayerData, valid only when PlayerCustomData extended it. The stat bonus installs the
+	// 0x9D handler without it, so a stash message must not assume it.
+	return hasStashData(ptChar) && PCPY->currentStash;
 }
 
 void toggleToSelfStash(Unit* ptChar)
