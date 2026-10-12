@@ -203,7 +203,6 @@ void Install_DisplayItemLevel()
 /****************************************************************************************************/
 
 char* msgNBPlayersString = "players %u";
-DWORD* infoEnabledSendPlayersCommand;
 void SendPlayersCommand()
 {
 	if (!needToInit || onRealm) return;
@@ -221,7 +220,7 @@ void SendPlayersCommand()
 	} data;
 	#pragma pack()
 
-	DWORD info = *infoEnabledSendPlayersCommand;
+	DWORD info = ClientGameMode;
 	if ((info != 0) && (info != 1) && (info != 6) && (info != 8)) return;
 
 	if (!active_multiPageStash)
@@ -262,7 +261,6 @@ void Install_SendPlayersCommand()
 
 	log_msg("Patch D2Client for init default nb /players. (SendPlayersCommand)\n");
 
-	infoEnabledSendPlayersCommand = (DWORD*)R8(D2Client, 111D60, 110BC0, 107960, 11BFBC, 11C2AC, 11BFF8, 11C394, 11D1DC, 3A0610);
 	if ( version_D2Client >= V110 )
 		msgNBPlayersString = (char*)R8(D2Client, 0000, 0000, D8448, D06A8, D4748, D4680, D4E00, D470C, 2D7374);
 

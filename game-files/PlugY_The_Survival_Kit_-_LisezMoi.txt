@@ -77,7 +77,7 @@ Toutes ces fonctions peuvent être activé/désactivé via PlugY.ini (voir "COMM
 	/page 6 : (beta) Affiche la page des mots runiques actifs (la page des stats doit être ouverte).
 	/save : (beta) Sauvegarde la partie sans quitter.
 	/listcube : (beta) Crée un fichier "cube.txt" dans le répertoire de sauvegarde contenant toutes les formules du cube.
-	/renamechar newname : (beta) Renomme la personnage et le sauvegarde.
+	/renamechar newname : (beta) Renomme le personnage et le sauvegarde, en solo uniquement (2 à 15 lettres ou tirets bas).
 
 Changements apportés par la v14.03 :
 - Corrige un bug d'affichage d'objects quand une seule page du coffre est remplit.
@@ -602,7 +602,7 @@ Active les nouvelles commandes de PlugY.
 	/page 6 : (beta) Affiche la page des mots runiques actifs (la page des stats doit être ouverte).
 	/save : (beta) Sauvegarde la partie sans quitter.
 	/listcube : (beta) Crée un fichier "cube.txt" dans le répertoire de sauvegarde contenant toutes les formules du cube.
-	/renamechar newname : (beta) Renomme la personnage et le sauvegarde.
+	/renamechar newname : (beta) Renomme le personnage et le sauvegarde, en solo uniquement (2 à 15 lettres ou tirets bas).
 - ActiveCommands=0 		{0:Désactivé; 1:Activé}
 
 Quitte D2, si PlugY échoue à installer toutes les fonctions.

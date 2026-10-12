@@ -34,7 +34,8 @@
     After the five binaries, also build tests/UpdateCheckTests.cpp,
     tests/UpdaterTests.cpp, tests/SessionLogTests.cpp,
     tests/SaveTransferTests.cpp, tests/MovedItemsPageTests.cpp,
-    tests/ReleasedConnectionsTests.cpp and tests/StatBonusTests.cpp into
+    tests/ReleasedConnectionsTests.cpp, tests/StatBonusTests.cpp and
+    tests/ServerMessageRulesTests.cpp into
     build/out/<Config>/tests/ (console, static CRT) and run them. Exits 1 when a
     test fails.
 
@@ -477,6 +478,19 @@ try {
             LinkExtra = @()
         }
         Build-Target $StatBonusTests
+        $ServerMessageRulesTests = @{
+            Key       = 'servermessagetests'
+            Sources   = @('tests\ServerMessageRulesTests.cpp')
+            Rc        = $null
+            Out       = 'tests\ServerMessageRulesTests.exe'
+            Pdb       = 'tests\ServerMessageRulesTests.pdb'
+            ClFlags   = @('/nologo', '/c', '/W3', '/EHsc') + $StaticOpt
+            Defines   = @('WIN32', $NDebug, '_CONSOLE', '_MBCS', '_CRT_SECURE_NO_WARNINGS')
+            RcFlags   = @()
+            LinkFlags = $ConsoleLink
+            LinkExtra = @()
+        }
+        Build-Target $ServerMessageRulesTests
 
         $testArguments = @('--fixtures', (Join-Path $RepoRoot 'tests\fixtures'),
                            '--scratch', (Join-Path (Join-Path $OutDir 'tests') 'scratch'))
@@ -502,10 +516,13 @@ try {
         Write-Log ''
         Write-Log '=== StatBonusTests.exe'
         Invoke-Tool (Join-Path $OutDir $StatBonusTests.Out) @()
+        Write-Log ''
+        Write-Log '=== ServerMessageRulesTests.exe'
+        Invoke-Tool (Join-Path $OutDir $ServerMessageRulesTests.Out) @()
     }
 
     $warnings = @(Get-Content -LiteralPath $LogFile | Where-Object { $_ -match ': warning [A-Z]+\d+' }).Count
-    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections and stat-bonus tests passed' } else { '' }
+    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections, stat-bonus and server-message tests passed' } else { '' }
     Write-Host ''
     $defined = if ($Define.Count) { ', PlugY.dll with ' + ($Define -join ' ') } else { '' }
     Write-Host "Built PlugY.dll, PlugY.exe, PatchD2File.exe, RestoreD2File.exe, PlugY4KolbotUpdater.exe ($Config, /$Crt$defined) with $warnings warning(s) in $OutDir$tested" -ForegroundColor Green

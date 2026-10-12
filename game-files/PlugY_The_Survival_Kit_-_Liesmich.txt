@@ -77,7 +77,7 @@ Jedes Feature kann via PlugY.ini an/ausgeschaltet werden (siehe "Kommentare aus 
 	/page 6 : (Beta) Zeigt alle verfügbaren Runenwörter (Die Spielerinfo-Seite muss geöffnet sein).
 	/save: (Beta) Speichert das Spiel ohne es zu beenden.
 	/listcube: (Beta) Erstellt eine "cube.txt" Datei im Savegame-Verzeichnis mit allen Würfelrezepten.
-	/renamechar newname: (Beta) Speichert und benennt den Char um.
+	/renamechar newname: (Beta) Speichert und benennt den Char um, nur im Einzelspielermodus (2 bis 15 Buchstaben oder Unterstriche).
 
 v14.03 Änderungen :
 - Behebung eines Fehlers bei der Anzeige von Gegenständen, wenn nur eine Stash-Seite gefüllt ist.
@@ -705,7 +705,7 @@ Neue Kommandos in PlugY hinzugefügt, diese können während des Spiels genutzt 
 	/page 6 : (beta) Show available runewords (stats page must be opened).
 	/save : (beta) Save game without exit.
 	/listcube : (beta) Create a "cube.txt" file in save directory containing all cube's receipts.
-	/renamechar newname : (beta) Rename your character and save it.
+	/renamechar newname : (beta) Rename your character and save it, in single player only (2 to 15 letters or underscores).
 - ActiveCommands=0 (0=Aus; 1=Ein)
 
 Beendet D2, wenn PlugY nicht alle Features installieren konnte.
