@@ -476,9 +476,9 @@ section "D2File Patcher" du fichier anglais PlugY_The_Survival_Kit_-_Readme.txt.
 - Fermer toutes les parties de Diablo II, puis lancer PlugY4KolbotUpdater.exe depuis le répertoire de PlugY
   (celui qui contient PlugY.exe) ; l'installeur ajoute aussi le raccourci "Check for PlugY4Kolbot updates"
   dans le menu démarrer. PlugY4KolbotUpdater.exe vérifie le téléchargement avec SHA256SUMS.txt et l'empreinte
-  SHA-256 fournie par GitHub, et conserve votre PlugY.ini. Pour une installation faite par l'installeur, il
-  lance le nouvel installeur pour cette seule installation, qui ajoute aussi les options qui manquent à
-  PlugY.ini (voir INSTALLATION) ; sinon, il sauvegarde chaque fichier qu'il remplace dans
+  SHA-256 fournie par GitHub, et conserve votre PlugY.ini, en y ajoutant les options qui lui manquent (voir
+  INSTALLATION). Pour une installation faite par l'installeur, il lance le nouvel installeur pour cette
+  seule installation ; sinon, il sauvegarde chaque fichier qu'il remplace, et PlugY.ini, dans
   PlugY4Kolbot-backup\.
 - Options pour les scripts : --check ne fait qu'informer, --yes installe sans rien demander, et --prerelease
   propose aussi les versions alpha, beta et rc (comme UpdateChannel=prerelease).

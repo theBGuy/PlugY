@@ -536,9 +536,9 @@ D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can
   that holds PlugY.exe); the installer also adds the Start-menu shortcut "Check for PlugY4Kolbot
   updates". It verifies the download against SHA256SUMS.txt and GitHub's SHA-256 digest, and
   keeps your PlugY.ini (a pre-release's installer turns ActiveLogFile=0 into 1: see
-  ActiveLogFile below). For an install the installer made, it runs the new installer for that
-  install alone, which also adds the options PlugY.ini lacks (see INSTALLATION); otherwise it
-  backs up each file it replaces under PlugY4Kolbot-backup\.
+  ActiveLogFile below), adding the options it lacks (see INSTALLATION). For an install the
+  installer made, it runs the new installer for that install alone; otherwise it backs up each
+  file it replaces, and PlugY.ini, under PlugY4Kolbot-backup\.
 - Options, for scripts: --check only reports, --yes installs without asking, and --prerelease
   also offers alpha, beta and rc builds (the same as UpdateChannel=prerelease).
 Exit codes: 0 updated or up to date, 1 error, 2 update available (--check), 3 files in use,

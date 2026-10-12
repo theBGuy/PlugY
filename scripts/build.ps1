@@ -364,7 +364,7 @@ try {
     # Windows from virtualizing its writes to Program Files; it elevates itself when needed.
     $Update = @{
         Key       = 'update'
-        Sources   = @('src\updater\PlugYUpdate.cpp', 'src\updater\UpdaterLogic.cpp',
+        Sources   = @('src\updater\PlugYUpdate.cpp', 'src\updater\UpdaterLogic.cpp', 'src\updater\UpdaterIniMerge.cpp',
                       'src\common\UpdateCheck.cpp', 'src\common\UpdateDownload.cpp')
         Rc        = 'src\updater\PlugYUpdate.rc'
         Out       = 'PlugY4KolbotUpdater.exe'
@@ -401,7 +401,7 @@ try {
         Build-Target $Tests
         $UpdaterTests = @{
             Key       = 'updtests'
-            Sources   = @('tests\UpdaterTests.cpp', 'src\updater\UpdaterLogic.cpp')
+            Sources   = @('tests\UpdaterTests.cpp', 'src\updater\UpdaterLogic.cpp', 'src\updater\UpdaterIniMerge.cpp')
             Rc        = $null
             Out       = 'tests\UpdaterTests.exe'
             Pdb       = 'tests\UpdaterTests.pdb'

@@ -180,8 +180,8 @@ enum eUpdaterPlan
 
 /* What to do with one staged file (rel is relative to the staging folder).
    Every file is installed except the root PlugY.ini, which is copied only
-   when the target has none: it holds the user's settings, and PlugY takes
-   options missing from it from PlugY\PlugYDefault.ini. */
+   when the target has none: it holds the user's settings. The update then
+   adds the options it lacks (UpdaterIniMerge.h). */
 int UpdaterPlanFile(const wchar_t* rel, bool targetHasIni);
 bool UpdaterIsUserIni(const wchar_t* rel);
 /* The root PlugY.dll, which is replaced after every other file: the installed
