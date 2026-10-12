@@ -99,6 +99,11 @@ struct PYPlayerData
 	// Client player: the PY_PROTO_* flags of the server's last UC_PROTO, 0 until one arrives (an older or protocol-off
 	// host): with PY_PROTO_SERVER_PAGE_OPS this client asks for page insert/delete and the server's UC_PAGE_OP does it.
 	DWORD	serverProtoFlags;
+	// Server player: the page swap (US_SWAP3..0, a byte each) and page name (US_PAGENAME, a character each) its client
+	// is sending. Per player, so another client's messages can't mix into them.
+	DWORD	pageSwap;
+	BYTE	pageNameLength;
+	char	pageName[21];
 };
 
 void Install_PlayerCustomData();

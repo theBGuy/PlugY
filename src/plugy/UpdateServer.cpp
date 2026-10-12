@@ -13,6 +13,7 @@
 #include "infinityStash.h"
 #include "stashProtocol.h"
 #include "commands.h"
+#include "serverMessageRules.h"
 #include "common.h"
 
 
@@ -23,11 +24,14 @@ void updateServer(WORD p)
 }
 
 
-int renameIndex = 0;
-char renameString[21];
-DWORD PageSwap;
+// Only single player runs US_RENAME, so these hold its one client's name: a stream starts over when another unit pointer
+// sends one, and keeps one character past a name's length so an over-long name is refused, not cut.
+static Unit* renameUnit = NULL;
+static int renameIndex = 0;
+static char renameString[RENAME_NAME_MAX + 2];
 
-// Any client can send these packets, so a command is only run when the feature that owns it is active.
+// Any client can send these packets, so a message runs only when the feature that owns it is active, and a message
+// no feature owns is refused.
 static bool isServerUpdateAllowed(Unit* ptChar, int type)
 {
 	switch(type)
@@ -75,12 +79,16 @@ static bool isServerUpdateAllowed(Unit* ptChar, int type)
 		case US_PY_CLIENT_HELLO :
 		case US_PY_CLIENT_GRID :		return true;
 
-		case US_MAXGOLD :				return ptChar && PCPlayerData;
 		// Shared gold is saved with the shared stash, so it moves only while that stash is loaded.
 		case US_PUTGOLD :
-		case US_TAKEGOLD :				return ptChar && PCPlayerData && PCPY->sharedStashIsOpened;
+		case US_TAKEGOLD :				return active_sharedGold && hasStashData(ptChar) && PCPY->sharedStashIsOpened;
 
-		default :						return true;
+		case US_SAVE :					return ptChar && active_savegame;
+		// The game indexes each multiplayer client by the name it joined with and finds it by its current name when it
+		// leaves (1.14d disassembly), so a rename there ends the host or leaves a stale entry.
+		case US_RENAME :				return ptChar && PCPlayerData && isSinglePlayerGameMode(ClientGameMode);
+
+		default :						return false;
 	}
 }
 
@@ -117,12 +125,22 @@ int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 {
 	int type = param & 0xFF;
 	DWORD arg = (param & 0xFF00) >> 8;
+	if (isVanillaServerMessage(type))
+		return 0;
 	log_msg("Received custom message: type=%i, arg=%i\n", type, arg);
 	if (!isServerUpdateAllowed(ptChar, type))
 	{
-		if (type >= US_SWAP3 && type <= US_SWAP0_TOGGLE)
-			PageSwap = 0;
-		log_msg("Custom message refused: type=%i (feature disabled or no current stash)\n", type);
+		// A refused message ends the stream it belongs to, so the next one starts clean.
+		if (type == US_RENAME)
+			renameIndex = 0;
+		else if (hasStashData(ptChar))
+		{
+			if (type >= US_SWAP3 && type <= US_SWAP0_TOGGLE)
+				PCPY->pageSwap = 0;
+			if (type == US_PAGENAME)
+				PCPY->pageNameLength = 0;
+		}
+		log_msg("Custom message refused: type=%i (unknown, feature disabled, no current stash or not single player, game mode %u)\n", type, ClientGameMode);
 		return 1;
 	}
 	switch(type)
@@ -176,27 +194,31 @@ int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 		case US_TEST2 :					testOverlapStashItem(ptChar, arg, false); return 1;
 #endif
 
-		case US_MAXGOLD :				maxGold(ptChar); return 1;
 		case US_PUTGOLD :				putGold(ptChar, 0); return 1;
 		case US_TAKEGOLD :				takeGold(ptChar, 0); return 1;
-		case US_SWAP3 :					PageSwap = arg << 24; return 1;
-		case US_SWAP2 :					PageSwap |= arg << 16; return 1;
-		case US_SWAP1 :					PageSwap |= arg << 8; return 1;
-		case US_SWAP0:					swapStash(ptChar, PageSwap | arg, false); PageSwap = 0; return 1;
-		case US_SWAP0_TOGGLE :			swapStash(ptChar, PageSwap | arg, true); PageSwap = 0; return 1;
+		case US_SWAP3 :					PCPY->pageSwap = arg << 24; return 1;
+		case US_SWAP2 :					PCPY->pageSwap |= arg << 16; return 1;
+		case US_SWAP1 :					PCPY->pageSwap |= arg << 8; return 1;
+		case US_SWAP0:					swapStash(ptChar, PCPY->pageSwap | arg, false); PCPY->pageSwap = 0; return 1;
+		case US_SWAP0_TOGGLE :			swapStash(ptChar, PCPY->pageSwap | arg, true); PCPY->pageSwap = 0; return 1;
 		case US_RENAME :
+			if (renameUnit != ptChar)
+			{
+				renameUnit = ptChar;
+				renameIndex = 0;
+			}
 			if (renameIndex == 0)
 				ZeroMemory(renameString, sizeof(renameString));
-			if (arg != NULL && renameIndex < 15)
+			if (arg != NULL && renameIndex < RENAME_NAME_MAX + 1)
 				renameString[renameIndex++] = (char)arg;
 			if (arg == NULL)
 			{
 				renameString[renameIndex] = NULL;
 				renameIndex = 0;
-				// US_PAGENAME shares renameString and accepts longer strings than the name fields hold.
-				if (strlen(renameString) >= sizeof(PCPlayerData->name))
+				// The client checks the name the same way, so only a crafted message lands here.
+				if (!isRenameCharName(renameString))
 				{
-					log_msg("Rename on Server refused : name too long\n");
+					log_msg("Rename on Server refused : '%s' is not 2 to 15 letters or underscores\n", renameString);
 					return 1;
 				}
 				log_msg("Rename on Server : %s -> %s\n", PCPlayerData->name, renameString);
@@ -205,16 +227,16 @@ int STDCALL handleServerUpdate(Unit* ptChar, WORD param)
 			}
 			return 1;
 		case US_PAGENAME:
-			if (renameIndex == 0)
-				ZeroMemory(renameString, sizeof(renameString));
-			if (arg != NULL && renameIndex < 20)
-				renameString[renameIndex++] = (char)arg;
+			if (PCPY->pageNameLength == 0)
+				ZeroMemory(PCPY->pageName, sizeof(PCPY->pageName));
+			if (arg != NULL && PCPY->pageNameLength < sizeof(PCPY->pageName) - 1)
+				PCPY->pageName[PCPY->pageNameLength++] = (char)arg;
 			if (arg == NULL)
 			{
-				renameString[renameIndex] = NULL;
-				renameIndex = 0;
-				log_msg("Rename current page on Server : %s -> %s\n", PCPY->currentStash->name, renameString);
-				renameCurrentStash(ptChar, renameString);
+				PCPY->pageName[PCPY->pageNameLength] = NULL;
+				PCPY->pageNameLength = 0;
+				log_msg("Rename current page on Server : %s -> %s\n", PCPY->currentStash->name, PCPY->pageName);
+				renameCurrentStash(ptChar, PCPY->pageName);
 			}
 			return 1;
 		default :

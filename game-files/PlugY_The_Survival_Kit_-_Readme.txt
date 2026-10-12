@@ -77,7 +77,7 @@ Each features can be turn on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURATI
 	/page 6 : (beta) Show available runewords (stats page must be opened).
 	/save : (beta) Save game without exit.
 	/listcube : (beta) Create a "cube.txt" file in save directory containing all cube's receipts.
-	/renamechar newname : (beta) Rename your character and save it.
+	/renamechar newname : (beta) Rename your character and save it, in single player only (2 to 15 letters or underscores).
 
 v14.03 changes :
 - Fix a items diplay bug when only one stash page is filled.
@@ -683,7 +683,7 @@ Activate some new commands in PlugY. In parenthesis is the condition to be able 
 	/page 6 : (beta) Show available runewords (stats page must be opened).
 	/save : (beta) Save game without exit.
 	/listcube : (beta) Create a "cube.txt" file in save directory containing all cube's receipts.
-	/renamechar newname : (beta) Rename your character and save it.
+	/renamechar newname : (beta) Rename your character and save it, in single player only (2 to 15 letters or underscores).
 - ActiveCommands=0 		{0:Disabled; 1:Enabled}
 
 Quit D2, if PlugY failed to install all features.
