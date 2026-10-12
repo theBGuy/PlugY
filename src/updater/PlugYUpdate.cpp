@@ -1648,11 +1648,22 @@ static bool writeNewFile(const wchar_t* path, const void* data, DWORD len)
 	return true;
 }
 
+// Replaces the whole content of the open file h with len bytes.
+static bool rewriteFile(HANDLE h, const void* data, DWORD len)
+{
+	LARGE_INTEGER start;
+	start.QuadPart = 0;
+	DWORD written = 0;
+	return SetFilePointerEx(h, start, NULL, FILE_BEGIN) && WriteFile(h, data, len, &written, NULL) && written == len
+		&& SetEndOfFile(h) && FlushFileBuffers(h);
+}
+
 /* Adds the options the kept PlugY.ini lacks (UpdaterAddMissingOptions) to a copy in the private staging folder, then
    writes the result back through the handle that read the file, so it keeps its ACL and attributes. A PlugY.ini that
    is a link, has other hard links or is read-only is neither read nor written: an elevated run could be pointed at
    another file, and the installer leaves a read-only one alone too. The backup gets the file as it was first.
-   Returns the options added, or -1 with why set, PlugY.ini unchanged unless why says to restore it. */
+   Returns the options added, or -1 with why set and PlugY.ini unchanged (a failed write-back puts the original bytes
+   back), or -2 when even that failed, so PlugY.ini may be damaged and only the backup holds the original. */
 static int mergeKeptIni(const Target* t, const wchar_t* staging, const wchar_t* backupDir, const wchar_t** why)
 {
 	wchar_t work[MAX_PATH];
@@ -1704,15 +1715,15 @@ static int mergeKeptIni(const Target* t, const wchar_t* staging, const wchar_t* 
 			{
 				DWORD mergedLen = 0;
 				char* merged = readSmallFile(work, 2 * 1024 * 1024, &mergedLen);
-				LARGE_INTEGER start;
-				start.QuadPart = 0;
-				DWORD written = 0;
-				if (!merged || !SetFilePointerEx(ini, start, NULL, FILE_BEGIN) || !WriteFile(ini, merged, mergedLen, &written, NULL)
-					|| written != mergedLen || !SetEndOfFile(ini) || !FlushFileBuffers(ini))
+				if (!merged)
 				{
 					added = -1;
-					*why = merged ? L"writing the new options failed: if it looks damaged, copy it back from the backup"
-						: L"the working copy could not be read";
+					*why = L"the working copy could not be read";
+				}
+				else if (!rewriteFile(ini, merged, mergedLen))
+				{
+					added = rewriteFile(ini, data, len) ? -1 : -2;
+					*why = L"writing the new options failed, so it was put back as it was";
 				}
 				free(merged);
 			}
@@ -1857,6 +1868,9 @@ static int applyStaged(const Target* t, const wchar_t* staging, const char* inst
 			say(L"  Your PlugY.ini was kept, and %d new option(s) were added to it, set to the values PlugY was already using.\n", added);
 		else if (added == 0)
 			say(L"  Your PlugY.ini was kept; it already has every option the release's PlugY.ini lists.\n");
+		else if (added == -2)
+			say(L"  Writing the new options into your PlugY.ini failed, and it could not be put back as it was.\n"
+				L"  If it looks damaged, copy %ls\\PlugY.ini over it.\n", backupDir);
 		else
 			say(L"  Your PlugY.ini was kept without its new options (%ls); they take their defaults from PlugY\\PlugYDefault.ini.\n", why);
 	}
