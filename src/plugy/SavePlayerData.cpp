@@ -374,8 +374,34 @@ struct s_dataToSend
 	int		curShared;
 	BYTE*	dataShared;
 	bool	init;
+	DWORD	memoryPool;		// the pool of the game whose save the buffers hold
 };
+// Nodes come from pool 0: client ids restart in every game, so a node outlives the game it was made in.
 s_dataToSend* ptDataToSend=NULL;
+
+static void freeDataToSendBuffers(s_dataToSend* dataToSend)
+{
+	if (dataToSend->dataExtended)
+		D2FreeMem(dataToSend->memoryPool, dataToSend->dataExtended,__FILE__,__LINE__,0);
+	if (dataToSend->dataShared)
+		D2FreeMem(dataToSend->memoryPool, dataToSend->dataShared,__FILE__,__LINE__,0);
+	dataToSend->dataExtended = NULL;
+	dataToSend->dataShared = NULL;
+}
+
+void discardClientSaveTransfer(DWORD clientID)
+{
+	s_dataToSend** link = &ptDataToSend;
+	while (*link && ((DWORD)(*link)->clientID != clientID))
+		link = &(*link)->next;
+	s_dataToSend* dataToSend = *link;
+	if (!dataToSend) return;
+	if (dataToSend->dataExtended || dataToSend->dataShared)
+		log_msg("Discard the save files not yet sent to client %u\n", clientID);
+	freeDataToSendBuffers(dataToSend);
+	*link = dataToSend->next;
+	D2FreeMem(0, dataToSend,__FILE__,__LINE__,0);
+}
 
 /*
 void sendDataToSave(DWORD clientID, BYTE* data, DWORD size, bool isShared)
@@ -435,11 +461,14 @@ void STDCALL SendSaveFilesToSave( Unit* ptChar )
 		dataToSend = dataToSend->next;
 	if (!dataToSend)
 	{
-		dataToSend = (s_dataToSend*) D2AllocMem(PCGame->memoryPool, sizeof(s_dataToSend), __FILE__, __LINE__, 0);
+		dataToSend = (s_dataToSend*) D2AllocMem(0, sizeof(s_dataToSend), __FILE__, __LINE__, 0);
 		ZeroMemory(dataToSend, sizeof(s_dataToSend));
 		dataToSend->next = ptDataToSend;
 		ptDataToSend = dataToSend;
 	}
+	// This save replaces one not yet sent, which vanilla makes when it saves twice in a row (a player leaving).
+	freeDataToSendBuffers(dataToSend);
+	dataToSend->memoryPool = PCGame->memoryPool;
 
 	//Sending savefiles
 	dataToSend->clientID = ptClient->clientID;
@@ -500,7 +529,7 @@ DWORD STDCALL ManageNextPacketToSend(NetClient* ptClient)
 		{
 			dataToSend->sizeExtended = 0;
 			dataToSend->curExtended = 0;
-			D2FreeMem(PClientGame->memoryPool, dataToSend->dataExtended,__FILE__,__LINE__,0);
+			D2FreeMem(dataToSend->memoryPool, dataToSend->dataExtended,__FILE__,__LINE__,0);
 			dataToSend->dataExtended = NULL;
 		}
 		log_msg("ManageNextPacketToSend : End\n");
@@ -527,7 +556,7 @@ DWORD STDCALL ManageNextPacketToSend(NetClient* ptClient)
 		{
 			dataToSend->sizeShared = 0;
 			dataToSend->curShared = 0;
-			D2FreeMem(PClientGame->memoryPool, dataToSend->dataShared,__FILE__,__LINE__,0);
+			D2FreeMem(dataToSend->memoryPool, dataToSend->dataShared,__FILE__,__LINE__,0);
 			dataToSend->dataShared = NULL;
 		}
 		log_msg("ManageNextPacketToSend : End\n");
