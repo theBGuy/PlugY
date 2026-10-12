@@ -27,6 +27,7 @@ Each features can be turned on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURA
 * Stash requests for bots and scripts (1.14d): show any page, see what every page holds, and move items between pages without leaving the page shown (see [docs/stash-protocol.md](docs/stash-protocol.md)).
 * Pinned items (1.14d), the Horadric Cube by default, stay on their page when you swap stash pages.
 * Stat bonus (1.14d, a cheat, off by default): extra magic find and gold find for every character in the games you run.
+* Quest drops on every boss kill (1.14d, off by default): Andariel, Duriel, Mephisto, Diablo and Baal always drop their quest drop, even after you have finished their quest.
 * Change the save path directory.
 * Always display Mana and Life values above the globes.
 * D2 can load all files, even those opened with Microsoft Excel (disabled by default).

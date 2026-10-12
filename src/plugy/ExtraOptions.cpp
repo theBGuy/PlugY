@@ -24,6 +24,7 @@ bool active_EnabledCowPortalWhenCowKingWasKill = false;
 bool active_DoNotCloseNihlathakPortal = false;
 bool active_MoveCainNearHarrogathWaypoint = false;
 bool active_RemoveExperienceDiminushingReturn = false;
+bool active_AlwaysQuestDrops = false;
 
 /****************************************************************************************************/
 
@@ -955,6 +956,30 @@ void Install_RemoveExperienceDiminushingReturn()
 	mem_seek R8(D2Common, 00000, 00000, 00000, 00000, 00000, 00000, 00000, 00000, 213E42);
 	MEMC_REF4( D2CompileTxtFile, caller_modifExperienceBin);
 	//00613E41  |. E8 AAE4FFFF    CALL Game.006122F0                       ; \Game.006122F0
+
+	log_msg("\n");
+
+	isInstalled = true;
+}
+
+/****************************************************************************************************/
+
+void Install_AlwaysQuestDrops()
+{
+	static int isInstalled = false;
+	if (isInstalled) return;
+
+	log_msg("Patch D2Game to always drop from the quest treasure class of monsters that have one. (AlwaysQuestDrops)\n");
+
+	// In a dying monster's treasure class choice (Find Item shares it, but can't select the act bosses' corpses), jumps
+	// over the killer and quest state checks to the quest treasure class load. TCQuestId and the quest treasure class are
+	// already tested non-zero there, so other monsters keep theirs; EDI (MonStats row) and EBX (difficulty) are set.
+	mem_seek R8(D2Game, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 1A6721);
+	memt_byte( 0x8B, 0xE9); // JMP
+	MEMT_REF4( 0xC0851445, R8(D2Game, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 1A67E9));
+	//005A6721  |. 8B45 14        MOV EAX,DWORD PTR SS:[EBP+14]
+	//005A6724  |. 85C0           TEST EAX,EAX
+	//005A67E9  |. 0FB78CDF 8C000000 MOVZX ECX,WORD PTR DS:[EDI+EBX*8+8C]
 
 	log_msg("\n");
 

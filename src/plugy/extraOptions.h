@@ -22,6 +22,7 @@ extern bool active_EnabledCowPortalWhenCowKingWasKill;
 extern bool active_DoNotCloseNihlathakPortal;
 extern bool active_MoveCainNearHarrogathWaypoint;
 extern bool active_RemoveExperienceDiminushingReturn;
+extern bool active_AlwaysQuestDrops;
 
 void Install_DisplayItemLevel();
 void Install_SendPlayersCommand();
@@ -35,5 +36,6 @@ void Install_EnabledCowPortalWhenCowKingWasKill();
 void Install_DoNotCloseNihlathakPortal();
 void Install_MoveCainNearHarrogathWaypoint();
 void Install_RemoveExperienceDiminushingReturn();
+void Install_AlwaysQuestDrops();
 
 /*================================= END OF FILE =================================*/
