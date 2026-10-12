@@ -207,6 +207,17 @@ void freeCurrentCF(DWORD memoryPool, s_MPSaveFile** curSF)
 	*curSF = NULL;
 }
 
+void discardClientSaveFiles(DWORD clientID)
+{
+	s_MPSaveFile* curSF = receivedSaveFiles;
+	while (curSF && (clientID != curSF->clientID))
+		curSF = curSF->next;
+	if (!curSF) return;
+	log_msg("Discard the save files received from client %u\n", clientID);
+	// Pool 0, the pool ReceiveSaveFiles allocates the entry from.
+	freeCurrentCF(0, &curSF);
+}
+
 
 void sendData(BYTE* data, DWORD size, bool isShared)
 {

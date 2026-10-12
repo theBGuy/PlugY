@@ -29,6 +29,7 @@
 #include "language.h"			// Install_LanguageManagement()
 #include "windowed.h"			// installed with Install_PrintPlugYVersion()
 #include "savePlayerData.h"		// Install_SavePlayerData()
+#include "hostJoin.h"			// Install_HostJoin()
 #include "customLibraries.h"
 #include "common.h"
 
@@ -431,6 +432,8 @@ extern "C" __declspec(dllexport) void* __stdcall Init(LPSTR IniName)
 
 	Install_PlugYFiles();
 	Install_VariableOnRealm();
+	// Not behind a feature switch: it fixes vanilla's TCP/IP host.
+	Install_HostJoin();
 
 	if (active_Commands)
 		Install_Commands();
