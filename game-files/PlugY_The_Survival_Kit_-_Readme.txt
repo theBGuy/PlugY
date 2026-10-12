@@ -46,6 +46,7 @@ Each features can be turn on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURATI
 - Display the current stats value (without magical bonus).
 - Can launch game in windowed mode.
 - Stat bonus (1.14d, a cheat, off by default): extra magic find and gold find for every character in the games you run.
+- Quest drops on every boss kill (1.14d, off by default): Andariel, Duriel, Mephisto, Diablo and Baal always drop their quest drop, even after you have finished their quest.
 - Add following commands (see "COMMENTS ON THE CONFIGURATION FILE") :
 	/lockmouse : Lock mouse cursor in the window.
 	/lock : Same as /lockmouse.
@@ -974,6 +975,11 @@ Prevent Nihlathak's portal from closing.
 
 Move Cain near Harrogath waypoint.
 - MoveCainNearHarrogathWaypoint=0 {0:Disabled; 1:Enabled}
+
+Make Andariel, Duriel, Mephisto, Diablo and Baal drop their quest drop on every kill, even after you have finished their quest (1.14d only).
+The quest drop has better odds of unique, set and rare items than their normal drop, and no gold. Only the drop changes: quest items and rewards, such as Mephisto's Soulstone, are unchanged.
+It applies in single player and in the TCP/IP games you host (a joiner's own setting has no effect). With data files that give other monsters a quest treasure class (TreasureClass4 and TCQuestId in MonStats.txt, in some mods), those monsters always use it too.
+- AlwaysQuestDrops=0 {0:Disabled; 1:Enabled}
 
 
 * Color list values (color code greater than 12 is black in 1.14d fullscreen):
