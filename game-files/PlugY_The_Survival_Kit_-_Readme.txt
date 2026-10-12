@@ -449,11 +449,6 @@ Normal Installation :
 note : With the patch, or with a copy of Diablo II other than the one Windows has registered, every
 file goes in the Diablo II folder. Otherwise you choose the PlugY folder ("Mod PlugY" by default).
 
-note : Installing over an existing install keeps your PlugY.ini settings, and adds each option a
-new install's PlugY.ini has that yours lacks (such as a new feature's section), set to the value
-PlugY was already using, from PlugY\PlugYDefault.ini. The [LAUNCHING] section, which only
-PlugY.exe reads, stays as it is.
-
 Silent installation : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installs without showing its pages, for the Diablo II folder that /D2= names (a full path, in quotes).
 It exits with 2, installing nothing, when /D2= is not a full path or the folder holds no Game.exe.
@@ -462,6 +457,11 @@ runs), PlugY4Kolbot is still installed and the installer exits with 3. Without /
 follows the note above ("Mod PlugY" for the copy Windows has registered). To update an install
 silently, also give its PlugY folder as /D=<folder>, last and without quotes: it is updated
 where it is, its patch included.
+
+note : Installing over an existing install keeps your PlugY.ini settings, and adds each option a
+new install's PlugY.ini has that yours lacks (such as a new feature's section), set to the value
+PlugY was already using, from PlugY\PlugYDefault.ini. The [LAUNCHING] section, which only
+PlugY.exe reads, stays as it is.
 
 Installation in another mod:
 - Copy PlugY.ini, PlugY.exe and PlugY folder (+its contents) in the targeted mod folder.

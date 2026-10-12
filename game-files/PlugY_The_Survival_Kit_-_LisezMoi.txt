@@ -394,11 +394,6 @@ note : Avec le patch, ou avec une copie de Diablo II autre que celle que Windows
 tous les fichiers vont dans le répertoire de Diablo II. Sinon, vous choisissez le répertoire de
 PlugY ("Mod PlugY" par défaut).
 
-note : Installer par-dessus une installation existante conserve les réglages de votre PlugY.ini, et y
-ajoute chaque option que contient le fichier PlugY.ini d'une nouvelle installation et qui manque au vôtre
-(comme la section d'une nouvelle fonction), réglée sur la valeur que PlugY utilisait déjà, celle de
-PlugY\PlugYDefault.ini. La section [LAUNCHING], que seul PlugY.exe lit, reste telle quelle.
-
 Installation silencieuse : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installe sans afficher l'assistant, pour le répertoire de Diablo II indiqué par /D2= (un chemin complet,
 entre guillemets). L'installeur se termine avec le code de sortie 2, sans rien installer, si /D2= n'est
@@ -409,6 +404,11 @@ sortie 3. Sans /PATCH, une nouvelle installation suit la note ci-dessus ("Mod Pl
 Windows a enregistrée). Pour mettre à jour une installation en mode silencieux, indiquer aussi son
 répertoire PlugY avec /D=<répertoire>, en dernier et sans guillemets : elle est mise à jour là où elle se
 trouve, patch compris.
+
+note : Installer par-dessus une installation existante conserve les réglages de votre PlugY.ini, et y
+ajoute chaque option que contient le fichier PlugY.ini d'une nouvelle installation et qui manque au vôtre
+(comme la section d'une nouvelle fonction), réglée sur la valeur que PlugY utilisait déjà, celle de
+PlugY\PlugYDefault.ini. La section [LAUNCHING], que seul PlugY.exe lit, reste telle quelle.
 
 Installation dans un autre mod
 - Copier PlugY.ini, PlugY.exe et le répertoire PlugY\ (+son sontenu) dans le répertoire du mod ciblé.
@@ -477,7 +477,8 @@ section "D2File Patcher" du fichier anglais PlugY_The_Survival_Kit_-_Readme.txt.
 - Fermer toutes les parties de Diablo II, puis lancer PlugY4KolbotUpdater.exe depuis le répertoire de PlugY
   (celui qui contient PlugY.exe) ; l'installeur ajoute aussi le raccourci "Check for PlugY4Kolbot updates"
   dans le menu démarrer. PlugY4KolbotUpdater.exe vérifie le téléchargement avec SHA256SUMS.txt et l'empreinte
-  SHA-256 fournie par GitHub, et conserve votre PlugY.ini, en y ajoutant les options qui lui manquent (voir
+  SHA-256 fournie par GitHub, et conserve votre PlugY.ini (l'installeur d'une préversion passe ActiveLogFile=0
+  à 1 : voir ActiveLogFile plus bas), en y ajoutant les options qui lui manquent (voir
   INSTALLATION). Pour une installation faite par l'installeur, il lance le nouvel installeur pour cette
   seule installation ; sinon, il sauvegarde dans PlugY4Kolbot-backup\ chaque fichier qu'il remplace,
   ainsi que PlugY.ini avant d'y chercher les options à ajouter.
@@ -564,6 +565,7 @@ Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs signifi
 
 Chaque lancement du jeu écrit son propre log dans le dossier PlugY\logs, par exemple PlugY_2026-10-10_20-44-47_287472.log (date et heure de lancement, numéro du processus). Chaque ligne non vide commence par l'heure.
 Les logs de plus de 7 jours sont supprimés, et au plus les 500 plus récents sont gardés. Si le dossier du jeu est en lecture seule, les logs vont dans %LOCALAPPDATA%\PlugY4Kolbot\logs.
+L'installeur d'une préversion (aussi quand PlugY4KolbotUpdater.exe met à jour une installation faite par l'installeur) passe un ActiveLogFile=0 existant à 1 à chaque installation ou mise à jour, pour que les logs des testeurs couvrent toute la session.
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveLogFile=1 		{0:seul le démarrage de PlugY est enregistré; 1:toute la session est enregistrée}
 
