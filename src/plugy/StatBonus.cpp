@@ -2,8 +2,9 @@
 	Stat bonus: the game server adds the [STAT BONUS] magic find and gold find to every character it loads into a
 	game. 1.14d only.
 
-	Both are base stats the .d2s never saves (no CSvBits), so each load starts without them, and the game never
-	sends them to the client (not Saved), so the server mirrors each value with UC_ADD_STAT.
+	Both are base stats the .d2s never saves with the game's own ItemStatCost (no CSvBits), so each load starts
+	without them, and the game never sends them to the client (not Saved), so the server mirrors each value with
+	UC_ADD_STAT.
 
 =================================================================*/
 
