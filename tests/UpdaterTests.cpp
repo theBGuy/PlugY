@@ -758,6 +758,20 @@ static void testAddMissingOptions()
 	CHECK_WSTR(iniValue(L"user2.ini", L"launching", L"Library"), L"<missing>");
 	CHECK_STR(readBytes(L"user2.ini"), "[NEW]\r\nD=1\r\nC=5\r\n\r\n[LAST]\r\nL=9\r\n");
 
+	// An empty default is a value: a missing SavePath gets PlugYDefault.ini's empty one, not the release's "Mod PlugY".
+	CHECK(writeBytes(L"templ3.ini", "[SAVEPATH]\r\nActiveSavePathChange=0\r\nSavePath=Mod PlugY\r\n"));
+	CHECK(writeBytes(L"defaults3.ini", "[SAVEPATH]\r\nActiveSavePathChange=0\r\nSavePath=\r\n"));
+	CHECK(writeBytes(L"user3.ini", "[SAVEPATH]\r\nActiveSavePathChange=1\r\n"));
+	{
+		wchar_t user3[MAX_PATH], templ3[MAX_PATH], defaults3[MAX_PATH];
+		mergePath(user3, L"user3.ini");
+		mergePath(templ3, L"templ3.ini");
+		mergePath(defaults3, L"defaults3.ini");
+		CHECK_EQ(UpdaterAddMissingOptions(user3, templ3, defaults3), 1);
+	}
+	CHECK_WSTR(iniValue(L"user3.ini", L"SAVEPATH", L"SavePath"), L"");
+	CHECK_STR(readBytes(L"user3.ini"), "[SAVEPATH]\r\nActiveSavePathChange=1\r\nSavePath=\r\n");
+
 	// No release file to read, or a file that can't be written: -1, and nothing changes.
 	wchar_t ini[MAX_PATH], missing[MAX_PATH], defaults[MAX_PATH];
 	mergePath(ini, L"empty-value.ini");
@@ -774,7 +788,7 @@ static void testAddMissingOptions()
 	SetFileAttributesW(readonlyPath, FILE_ATTRIBUTE_NORMAL);
 
 	const wchar_t* names[] = { L"templ.ini", L"defaults.ini", L"user.ini", L"empty-value.ini", L"blank.ini", L"readonly.ini",
-		L"templ2.ini", L"user2.ini" };
+		L"templ2.ini", L"user2.ini", L"templ3.ini", L"defaults3.ini", L"user3.ini" };
 	for (size_t i = 0; i < _countof(names); i++)
 	{
 		wchar_t path[MAX_PATH];

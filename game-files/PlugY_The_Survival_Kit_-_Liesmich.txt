@@ -440,9 +440,9 @@ kommen alle Dateien in das Diablo II-Verzeichnis. Sonst wählst du das PlugY-Ver
 als Standard).
 
 Hinweis: Eine Installation über eine bestehende behält die Einstellungen deiner PlugY.ini und ergänzt
-jede Option, die ihr fehlt (etwa den Abschnitt einer neuen Funktion), mit dem Wert, den PlugY schon
-verwendet hat, aus PlugY\PlugYDefault.ini. Der Abschnitt [LAUNCHING], den nur PlugY.exe liest, bleibt, wie er
-ist.
+jede Option, die die PlugY.ini einer neuen Installation hat und deiner fehlt (etwa den Abschnitt einer
+neuen Funktion), mit dem Wert, den PlugY schon verwendet hat, aus PlugY\PlugYDefault.ini. Der
+Abschnitt [LAUNCHING], den nur PlugY.exe liest, bleibt, wie er ist.
 
 Unbeaufsichtigte Installation : PlugY4Kolbot_v<version>_Installer.exe /S /D2="C:\Games\Diablo II" /PATCH
 installiert, ohne seine Seiten anzuzeigen, für das Diablo II-Verzeichnis, das /D2= angibt (ein vollständiger
@@ -527,8 +527,8 @@ englischen Datei PlugY_The_Survival_Kit_-_Readme.txt.
   for PlugY4Kolbot updates" an. Der Updater prüft den Download anhand der SHA256SUMS.txt und der
   SHA-256-Prüfsumme von GitHub und behält deine PlugY.ini, die er um die fehlenden Optionen ergänzt (siehe
   INSTALLATION). Bei einer Installation, die das Installationsprogramm angelegt hat, führt er das neue
-  Installationsprogramm nur für diese Installation aus; sonst sichert er jede Datei, die er ersetzt, und
-  die PlugY.ini unter PlugY4Kolbot-backup\.
+  Installationsprogramm nur für diese Installation aus; sonst sichert er jede Datei, die er ersetzt, unter
+  PlugY4Kolbot-backup\, und auch die PlugY.ini, bevor er nach fehlenden Optionen sucht.
 - Optionen für Skripte: --check meldet nur, --yes installiert ohne Rückfrage, und --prerelease bietet
   auch Alpha-, Beta- und RC-Builds an (wie UpdateChannel=prerelease).
 Exitcodes: 0 aktualisiert oder bereits aktuell, 1 Fehler, 2 Update verfügbar (--check), 3 Dateien in
