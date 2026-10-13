@@ -16,5 +16,6 @@ extern BYTE colorOfPlugYVersion;
 
 void Install_PrintPlugYVersion();
 void Install_VersionChange();
+void updateNoticeFrame();
 
 /*================================= END OF FILE =================================*/

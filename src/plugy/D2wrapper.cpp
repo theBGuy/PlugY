@@ -498,8 +498,9 @@ extern "C" __declspec(dllexport) void* __stdcall Init(LPSTR IniName)
 	if (active_alwaysRegenMapInSP)
 		Install_AlwaysRegenMapInSP();
 
-	if (nbPlayersCommandByDefault)
-		Install_SendPlayersCommand();
+	// The in-game update notice prints only on 1.14d (D2PrintGameString).
+	if (nbPlayersCommandByDefault || (active_CheckForUpdates && version_D2Client == V114d))
+		Install_InGameFrame();
 
 	if (active_DisplayItemLevel)
 		Install_DisplayItemLevel();

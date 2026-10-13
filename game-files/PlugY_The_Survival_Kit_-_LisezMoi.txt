@@ -472,8 +472,10 @@ section "D2File Patcher" du fichier anglais PlugY_The_Survival_Kit_-_Readme.txt.
 
 
 ******** MISE A JOUR ********
-- En jeu : quand une version plus récente est sortie, le menu principal affiche "Update: X.Y.Z" en vert
-  (avec ActivePrintPlugYVersion=1). CheckForUpdates et UpdateChannel dans PlugY.ini règlent la vérification.
+- En jeu : quand une version plus récente est sortie, le menu principal affiche "Update available" et la
+  nouvelle version (avec ActivePrintPlugYVersion=1) ; sous 1.14d, la première partie qui la connaît affiche
+  aussi une ligne dans le chat qui invite à lancer PlugY4KolbotUpdater.exe. CheckForUpdates et UpdateChannel
+  dans PlugY.ini règlent la vérification.
 - Fermer toutes les parties de Diablo II, puis lancer PlugY4KolbotUpdater.exe depuis le répertoire de PlugY
   (celui qui contient PlugY.exe) ; l'installeur ajoute aussi le raccourci "Check for PlugY4Kolbot updates"
   dans le menu démarrer. PlugY4KolbotUpdater.exe vérifie le téléchargement avec SHA256SUMS.txt et l'empreinte
@@ -617,10 +619,11 @@ Quitte D2, si PlugY échoue à installer toutes les fonctions.
 Désactivez-le uniquement si vous savez ce que vous faites.
 - ActiveCheckMemory=1 		{0:Désactivé; 1:Activé}
 
-Affiche "Update: <version>" en vert au-dessus de la version de PlugY dans le menu principal quand une version
-plus récente de PlugY4Kolbot existe sur GitHub (nécessite ActivePrintPlugYVersion=1 dans [MAIN SCREEN]). Une
-vérification qui doit interroger GitHub s'exécute en arrière-plan, et son résultat s'affiche à la prochaine
-ouverture du menu principal.
+Affiche "Update available" et la nouvelle version au-dessus de la version de PlugY dans le menu principal
+quand une version plus récente de PlugY4Kolbot existe sur GitHub (nécessite ActivePrintPlugYVersion=1 dans
+[MAIN SCREEN]) ; sous 1.14d, la première partie qui la connaît affiche aussi une ligne dans le chat, une fois
+par lancement, quel que soit ActivePrintPlugYVersion. Une vérification qui doit interroger GitHub s'exécute en
+arrière-plan ; son résultat s'affiche à la prochaine ouverture du menu principal, et en jeu sous 1.14d.
 Confidentialité : la vérification envoie au plus une requête par jour, par utilisateur Windows et par canal de
 mise à jour (une par heure après une vérification échouée), à api.github.com avec le User-Agent
 "PlugY4Kolbot/<version>" ; rien d'autre n'est envoyé.

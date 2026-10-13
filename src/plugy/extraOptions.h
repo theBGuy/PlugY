@@ -25,7 +25,7 @@ extern bool active_RemoveExperienceDiminushingReturn;
 extern bool active_AlwaysQuestDrops;
 
 void Install_DisplayItemLevel();
-void Install_SendPlayersCommand();
+void Install_InGameFrame();
 void Install_AlwaysRegenMapInSP();
 void Install_RunLODs();
 void Install_AlwaysDisplayLifeMana();
