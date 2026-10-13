@@ -11,6 +11,7 @@
 #include "windowed.h"
 #include "common.h"
 #include "../common/UpdateCheck.h"
+#include "updateNoticeRules.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -106,11 +107,11 @@ static const char* newerCachedVersion(const UpdateCache* cache)
 	return cache->latestTag[0] == 'v' ? cache->latestTag + 1 : cache->latestTag;
 }
 
-/* Called by each menu build and, on 1.14d, each in-game frame. The first call decides from the cache
-   file alone; only a stale or missing cache starts the one check thread, whose answer shows from the
-   next menu build or in-game frame on, because a request can take minutes and the main thread must
-   never wait on the network. A stale cache's newer release shows at once, whatever its last check's
-   status, so a bot that never returns to the main menu still sees it. */
+/* Called by each menu build and, on 1.14d, by each in-game frame until the in-game line has printed.
+   The first call decides from the cache file alone; only a stale or missing cache starts the one check
+   thread, whose answer shows at the next of those calls, because a request can take minutes and the
+   main thread must never wait on the network. A stale cache's newer release shows at once, whatever its
+   last check's status, so a bot that never returns to the main menu still sees it. */
 static void pollUpdateCheck()
 {
 	if (updateThreadRunning)
@@ -176,11 +177,6 @@ static void pollUpdateCheck()
 		log_msg("Update check: up to date\n");
 }
 
-// The load screen still covers the first frames after the client player appears.
-#define UPDATE_GAME_NOTICE_DELAY_MS 2000
-// The draw step stops between games, so a longer gap between two calls means a new game is loading.
-#define UPDATE_GAME_FRAME_GAP_MS 1000
-
 /* The in-game half of the notice, called from the in-game draw step on the main menu's thread. A bot
    leaves the menu at once, and a check can answer after the menu was built, so the first game that
    knows a newer release prints one local chat line, once per process. 1.14d only: the one client
@@ -188,26 +184,12 @@ static void pollUpdateCheck()
 void updateNoticeFrame()
 {
 	static bool shown = false;
-	static bool waiting = false;
-	static DWORD showAt, lastFrame;
+	static UpdateGameNoticeTimer timer = {};
 	if (shown || version_D2Client != V114d)
 		return;
 	pollUpdateCheck();
-	DWORD now = GetTickCount();
-	bool newGame = now - lastFrame > UPDATE_GAME_FRAME_GAP_MS;
-	lastFrame = now;
-	if (!updateGameVersion[0] || !D2GetClientPlayer())
-	{
-		waiting = false;
-		return;
-	}
-	if (!waiting || newGame)
-	{
-		waiting = true;
-		showAt = now + UPDATE_GAME_NOTICE_DELAY_MS;
-		return;
-	}
-	if ((LONG)(now - showAt) < 0)
+	// The player lookup runs only once a newer release is known.
+	if (!updateGameNoticeStep(&timer, GetTickCount(), updateGameVersion[0] && D2GetClientPlayer()))
 		return;
 	WCHAR line[128];
 	_snwprintf(line, 127, L"PlugY4Kolbot %hs is available. Run PlugY4KolbotUpdater.exe to update.", updateGameVersion);
