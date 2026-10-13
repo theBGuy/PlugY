@@ -71,6 +71,15 @@ export function commitsSince(git, from, to, path) {
   return log === null ? null : log.filter((entry) => !isReleaseCommit(entry));
 }
 
+// A revision to its full commit hash, or null; cached, since the marker history repeats the same few hashes.
+function commitResolver(git) {
+  const resolved = new Map();
+  return (rev) => {
+    if (!resolved.has(rev)) resolved.set(rev, git("rev-parse", "--verify", "--quiet", `${rev}^{commit}`));
+    return resolved.get(rev);
+  };
+}
+
 /**
  * What the zh-TW readme lags behind at HEAD, as { english, zhTw, englishSetBy, zhSetBy, behind, editedSince }:
  * the two marks as full hashes, the oldest commit that set each, the English readme commits after the english mark
@@ -84,11 +93,7 @@ export function zhReadmeLag(git) {
   if (text === null) return { error: `no ${ZH_MARKER} at HEAD` };
   const marks = parseMarker(text);
   if (marks.error) return marks;
-  const resolved = new Map();
-  const resolve = (hash) => {
-    if (!resolved.has(hash)) resolved.set(hash, git("rev-parse", "--verify", "--quiet", `${hash}^{commit}`));
-    return resolved.get(hash);
-  };
+  const resolve = commitResolver(git);
   const full = {};
   for (const [key, field] of Object.entries(KEYS)) {
     const named = `${ZH_MARKER} names ${marks[field]} (${key})`;
@@ -141,11 +146,7 @@ function markSetters(git, resolve, wanted, rev = "HEAD") {
  * "english" or "zh"; `commit` names the target, by default the branch's base on origin/master.
  */
 export function planMark(git, { current, mode, commit }) {
-  const resolved = new Map();
-  const resolve = (hash) => {
-    if (!resolved.has(hash)) resolved.set(hash, git("rev-parse", "--verify", "--quiet", `${hash}^{commit}`));
-    return resolved.get(hash);
-  };
+  const resolve = commitResolver(git);
   const master = resolve("origin/master");
   if (master === null) return { error: "no origin/master here: run git fetch origin first" };
   const branchBase = git("merge-base", "HEAD", master);

@@ -117,3 +117,22 @@ test("zh-readme-mark lists what it covers, asks, and writes only on yes", () => 
     cleanup();
   }
 });
+
+test("zh-readme-mark --english-only and --zh-only each move only their own mark", () => {
+  const { run, commit, mark, marker, cleanup } = makeRepo();
+  try {
+    const base = commit("feat: both readmes", { [EN_README]: "en 1", [ZH_README]: "zh 1" });
+    commit("build: add the marker", { [ZH_MARKER]: formatMarker({ english: base, zhTw: base }) });
+    const later = commit("docs: an English change", { [EN_README]: "en 2" });
+    assert.equal(run("update-ref", "refs/remotes/origin/master", later).status, 0);
+    const zhOnly = mark("", "--zh-only", "--yes");
+    assert.equal(zhOnly.status, 0, zhOnly.stderr);
+    assert.deepEqual(parseMarker(marker()), { english: base, zhTw: later });
+    assert.equal(run("checkout", "HEAD", "--", ZH_MARKER).status, 0);
+    const englishOnly = mark("", "--english-only", "--yes");
+    assert.equal(englishOnly.status, 0, englishOnly.stderr);
+    assert.deepEqual(parseMarker(marker()), { english: later, zhTw: base });
+  } finally {
+    cleanup();
+  }
+});
