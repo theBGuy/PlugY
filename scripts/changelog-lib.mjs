@@ -309,12 +309,14 @@ export function lastStableVersion(lines) {
   return null;
 }
 
-// What a pre-release installer does to an existing PlugY.ini: keep in step with
-// the PRERELEASE_ID block in installer/PlugY.nsi's Core section.
-export const PRERELEASE_LOGS =
-  "Its installer also turns on full session logs (`ActiveLogFile=1`) in an existing `PlugY.ini`, " +
-  "including when the updater updates an install the installer made, so your bug reports can include " +
-  "the whole session; to log only PlugY's startup, set it back to `0` after each install or update.";
+// What a pre-release installer does to PlugY.ini: keep in step with the
+// PRERELEASE_ID block in installer/PlugY.nsi's Core section.
+export const PRERELEASE_SETTINGS =
+  "Its installer also sets two options in `PlugY.ini` at every install, including when the updater updates " +
+  "an install the installer made: full session logs (`ActiveLogFile=1`), so your bug reports can include the " +
+  "whole session, and the pre-release update channel (`UpdateChannel=prerelease`), so the game tells you " +
+  "when the next pre-release is out. To log only PlugY's startup or hear only about releases, set them " +
+  "back to `0` and `stable` after each install or update.";
 
 /**
  * The paragraph a pre-release's notes open with, in its GitHub release and in
@@ -326,7 +328,7 @@ export const prereleaseIntro = (base, withEntries, lastStable) => {
   const scope = withEntries
     ? `these notes cover everything since ${since}`
     : `no changes are recorded since ${since}`;
-  return `Pre-release of ${base} for testing; ${scope}. ${PRERELEASE_LOGS}`;
+  return `Pre-release of ${base} for testing; ${scope}. ${PRERELEASE_SETTINGS}`;
 };
 
 /**

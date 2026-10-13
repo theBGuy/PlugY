@@ -98,8 +98,8 @@ quoted game text can keep its own.
   paragraph and bullet lines joined. A pre-release's notes, like its packaged
   `CHANGELOG.md`, open with a paragraph that names the newest stable version in
   `CHANGELOG.md` (or "the last stable release" when it has none) and says that
-  the pre-release's installer turns on full session logs (`PRERELEASE_LOGS` in
-  `scripts/changelog-lib.mjs`).
+  the pre-release's installer turns on full session logs and the pre-release
+  update channel (`PRERELEASE_SETTINGS` in `scripts/changelog-lib.mjs`).
 - `node scripts/changelog-package.mjs <pre-release version> <output file>`
   writes the `CHANGELOG.md` a pre-release's zip and installer ship: the
   repository's file plus a section for that version built from the pending

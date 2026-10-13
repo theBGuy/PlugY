@@ -452,7 +452,9 @@ als letzten Parameter und ohne Anführungszeichen: sie wird dort aktualisiert, w
 Hinweis: Eine Installation über eine bestehende behält die Einstellungen deiner PlugY.ini und ergänzt
 jede Option, die die PlugY.ini einer neuen Installation hat und deiner fehlt (etwa den Abschnitt einer
 neuen Funktion), mit dem Wert, den PlugY schon verwendet hat, aus PlugY\PlugYDefault.ini. Der
-Abschnitt [LAUNCHING], den nur PlugY.exe liest, bleibt, wie er ist.
+Abschnitt [LAUNCHING], den nur PlugY.exe liest, bleibt, wie er ist. Das Installationsprogramm einer
+Vorabversion setzt außerdem ActiveLogFile=0 auf 1 und UpdateChannel auf prerelease (siehe beide weiter
+unten).
 
 Installation in einem anderen Mod :
 - Entpacke alle Dateien in dein Diablo Verzeichnis.
@@ -526,10 +528,11 @@ englischen Datei PlugY_The_Survival_Kit_-_Readme.txt.
   (dem, das PlugY.exe enthält); das Installationsprogramm legt außerdem die Startmenüverknüpfung "Check
   for PlugY4Kolbot updates" an. Der Updater prüft den Download anhand der SHA256SUMS.txt und der
   SHA-256-Prüfsumme von GitHub und behält deine PlugY.ini (das Installationsprogramm einer Vorabversion
-  setzt ActiveLogFile=0 auf 1: siehe ActiveLogFile weiter unten), die er um die fehlenden Optionen ergänzt (siehe
-  INSTALLATION). Bei einer Installation, die das Installationsprogramm angelegt hat, führt er das neue
-  Installationsprogramm nur für diese Installation aus; sonst sichert er jede Datei, die er ersetzt, unter
-  PlugY4Kolbot-backup\, und auch die PlugY.ini, bevor er nach fehlenden Optionen sucht.
+  setzt ActiveLogFile=0 auf 1 und UpdateChannel auf prerelease: siehe beide weiter unten), die er um die
+  fehlenden Optionen ergänzt (siehe INSTALLATION). Bei einer Installation, die das Installationsprogramm
+  angelegt hat, führt er das neue Installationsprogramm nur für diese Installation aus; sonst sichert er
+  jede Datei, die er ersetzt, unter PlugY4Kolbot-backup\, und auch die PlugY.ini, bevor er nach
+  fehlenden Optionen sucht.
 - Optionen für Skripte: --check meldet nur, --yes installiert ohne Rückfrage, und --prerelease bietet
   auch Alpha-, Beta- und RC-Builds an (wie UpdateChannel=prerelease).
 Exitcodes: 0 aktualisiert oder bereits aktuell, 1 Fehler, 2 Update verfügbar (--check), 3 Dateien in
@@ -726,6 +729,10 @@ abfragen muss, läuft im Hintergrund, und ihr Ergebnis erscheint beim nächsten 
 Datenschutz: Die Prüfung sendet höchstens eine Anfrage pro Tag, Windows-Benutzer und Update-Kanal (nach einer
 fehlgeschlagenen Prüfung eine pro Stunde) an api.github.com, mit dem User-Agent "PlugY4Kolbot/<version>";
 sonst wird nichts gesendet. Mit 0 nimmt PlugY nie Kontakt zu GitHub auf.
+Das Installationsprogramm einer Vorabversion (auch wenn der Updater eine Installation aktualisiert, die
+das Installationsprogramm angelegt hat) setzt bei jeder Installation oder jedem Update
+UpdateChannel=prerelease, damit Tester von der nächsten Vorabversion erfahren; eine spätere
+Release-Installation behält das bei, setze es also auf stable zurück, um nur von Releases zu erfahren.
 - CheckForUpdates=1		{0:Nie prüfen; 1:Nach einem neueren Release suchen}
 - UpdateChannel=stable	{stable:Nur Releases; prerelease:Auch Alpha-, Beta- und RC-Builds}
 

@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { buildReleaseNotes, MAX_BYTES, unwrapMarkdown } from "./changelog-extract.mjs";
-import { PRERELEASE_LOGS } from "./changelog-lib.mjs";
+import { PRERELEASE_SETTINGS } from "./changelog-lib.mjs";
 
-const intro = (line) => `${line} ${PRERELEASE_LOGS}`;
+const intro = (line) => `${line} ${PRERELEASE_SETTINGS}`;
 
 const empty = { Added: [], Changed: [], Fixed: [] };
 
