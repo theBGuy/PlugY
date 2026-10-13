@@ -172,8 +172,6 @@ static bool allOrNothingLeaveSave = false;
 #define SAVE_READ_RETRIES 100
 #define LEAVING_LOCK_WAIT 2000
 #define COMMIT_RETRY_INTERVAL 2000
-// Larger save files are refused as unreadable rather than allocated.
-#define MAX_COMMIT_FILE_SIZE 0x10000000
 
 #ifdef PLUGY_TEST_HOOKS
 // The rig's kill matrix: PLUGY_KILL_AT=KP_START..KP_DONE ends the process right after that commit step.
@@ -232,7 +230,10 @@ struct PendingSave
 	char name[COMMIT_NAME_SIZE];
 	BYTE* d2xPost;	// malloc'd: it must not depend on the game's memory pool
 	DWORD d2xPostSize;
-	bool stashWritten;	// PENDING_PLAIN: the entry hook already saved the .d2x or the shared stash
+	// PENDING_PLAIN: the entry hook wrote the .d2x or changed the shared stash file, so the character file is the one
+	// still missing if the late hook can't write it.
+	bool stashWritten;
+	Game* game;	// NULL when no entry hook ran
 };
 static PendingSave pendingSave;
 
@@ -266,7 +267,7 @@ static DWORD tickFrame = 0;
 // character of the same name made later in this process (SoloPlay deletes and remakes characters) is a new one.
 static char playedName[COMMIT_NAME_SIZE] = "";
 static DWORD playedGeneration = 0;
-// A load can run before the tick first sees its game: that tick moves the load's mark to the new count.
+// A load or a first save can run before the tick first sees its game: that tick moves the mark to the new count.
 static Game* playedLoadGame = NULL;
 
 // A box stalls the game: a save shows one at most per game, and only at the leaving save.
@@ -286,15 +287,27 @@ static void copyName(char* out, const char* name)
 	out[COMMIT_NAME_SIZE - 1] = NULL;
 }
 
-static void markPlayed(const char* name)
+// A game the tick has not reached yet is a new one, even at a reused address: its frame counter restarted.
+static bool tickSawGame(Game* game)
+{
+	return game == tickGame && game->gameFrame >= tickFrame;
+}
+
+// game NULL (no entry hook ran): the mark belongs to the game the tick last saw.
+static void markPlayed(const char* name, Game* game)
 {
 	copyName(playedName, name);
 	playedGeneration = gameGeneration;
+	playedLoadGame = game && !tickSawGame(game) ? game : NULL;
 }
 
-static bool isPlayedHere(const char* name)
+static bool isPlayedHere(const char* name, Game* game)
 {
-	return playedName[0] && playedGeneration == gameGeneration && !_stricmp(playedName, name);
+	if (!playedName[0] || _stricmp(playedName, name))
+		return false;
+	if (game && !tickSawGame(game))
+		return playedLoadGame == game;
+	return playedGeneration == gameGeneration;
 }
 
 // Every server frame, from the tick.
@@ -338,6 +351,8 @@ static CommitFileState readDiskFile(const char* path, BYTE** data, DWORD* size, 
 		}
 		Sleep(50);
 	}
+	// An open that succeeds on a retry leaves the failed attempt's error behind; the reads below test *error.
+	*error = 0;
 	DWORD sizeHigh = 0;
 	DWORD fileSize = GetFileSize(hFile, &sizeHigh);
 	if (fileSize == INVALID_FILE_SIZE)
@@ -347,7 +362,8 @@ static CommitFileState readDiskFile(const char* path, BYTE** data, DWORD* size, 
 		fileSize = maxRead;
 		sizeHigh = 0;
 	}
-	else if (sizeHigh || fileSize > MAX_COMMIT_FILE_SIZE)
+	// Larger files are refused as unreadable rather than allocated.
+	else if (sizeHigh || fileSize > COMMIT_MAX_FILE_SIZE)
 		*error = ERROR_FILE_TOO_LARGE;
 	BYTE* buffer = !*error && fileSize ? (BYTE*)malloc(fileSize) : NULL;
 	if (!*error && fileSize && !buffer)
@@ -403,8 +419,17 @@ static bool deleteIfPresent(const char* path)
 static bool archiveFile(const char* path, const char* suffix)
 {
 	char archive[MAX_PATH];
-	if (!suffix[0] || !formatPath(archive, MAX_PATH, "%s%s", path, suffix))
+	// The caller logs GetLastError, so the failures before MoveFileEx set their own.
+	if (!suffix[0])
+	{
+		SetLastError(ERROR_INVALID_PARAMETER);
 		return false;
+	}
+	if (!formatPath(archive, MAX_PATH, "%s%s", path, suffix))
+	{
+		SetLastError(ERROR_FILENAME_EXCED_RANGE);
+		return false;
+	}
 	if (!MoveFileExA(path, archive, MOVEFILE_WRITE_THROUGH))
 		return false;
 	log_msg("%s archived as %s\n", path, archive);
@@ -603,12 +628,13 @@ static void releaseSessionLock()
 	sessionLockOwner = NULL;
 }
 
-bool acquireSessionLock(const char* name, DWORD waitMs, bool* waited, DWORD* error)
+// Opens <name>.pylive as a lock without touching the held one. True: *handle is the open lock, or INVALID_HANDLE_VALUE
+// when the character goes on without one (see below). False: another game holds it, or it can't be opened.
+static bool openSessionLockFile(const char* name, DWORD waitMs, HANDLE* handle, bool* waited, DWORD* error)
 {
+	*handle = INVALID_HANDLE_VALUE;
 	*waited = false;
 	*error = 0;
-	if (holdsSessionLock(name))
-		return true;
 	char path[MAX_PATH];
 	if (!getSaveFilePath(path, MAX_PATH, name, ".pylive"))
 	{
@@ -616,28 +642,35 @@ bool acquireSessionLock(const char* name, DWORD waitMs, bool* waited, DWORD* err
 		return false;
 	}
 	DWORD start = GetTickCount();
+	bool recheckedMissing = false;
 	for (;;)
 	{
 		// Share mode 0 makes the lock; reading is enough to hold it, so a .pylive frozen read-only with the saves opens.
 		HANDLE hLock = CreateFileA(path, GENERIC_READ, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hLock != INVALID_HANDLE_VALUE)
 		{
-			releaseSessionLock();
-			sessionLock = hLock;
-			copyName(sessionLockName, name);
-			log_msg("Session lock of %s taken%s\n", name, *waited ? " once another game released it" : "");
+			*handle = hLock;
+			*error = 0;
 			return true;
 		}
 		*error = GetLastError();
-		// A read-only file is never pending deletion, so its access denied is a permission no other game holds: the
-		// character goes on without the lock rather than staying refused for good.
+		// Access denied on a read-only file, or with no file at all (a save folder that refuses new files), is a
+		// permission no other game holds: the character goes on without the lock rather than staying refused for good.
 		if (*error == ERROR_ACCESS_DENIED)
 		{
 			DWORD attributes = GetFileAttributesA(path);
-			if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY))
+			bool missing = attributes == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND;
+			// A file pending deletion denies access too and can be gone by now: one more open tells it apart.
+			if (missing && !recheckedMissing)
 			{
-				log_msg("Can't open the read-only session lock %s (error %u): %s goes on without it\n", path, *error, name);
-				releaseSessionLock();
+				recheckedMissing = true;
+				continue;
+			}
+			if (missing || (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY)))
+			{
+				log_msg("Can't %s the session lock %s (error %u): %s goes on without it\n", missing ? "create" : "open the read-only",
+					path, *error, name);
+				*error = 0;
 				return true;
 			}
 		}
@@ -650,6 +683,30 @@ bool acquireSessionLock(const char* name, DWORD waitMs, bool* waited, DWORD* err
 		*waited = true;
 		Sleep(50);
 	}
+}
+
+// Makes hLock (INVALID_HANDLE_VALUE: none) the one session lock, under name.
+static void adoptSessionLock(const char* name, HANDLE hLock, bool waited)
+{
+	releaseSessionLock();
+	if (hLock == INVALID_HANDLE_VALUE)
+		return;
+	sessionLock = hLock;
+	copyName(sessionLockName, name);
+	log_msg("Session lock of %s taken%s\n", name, waited ? " once another game released it" : "");
+}
+
+bool acquireSessionLock(const char* name, DWORD waitMs, bool* waited, DWORD* error)
+{
+	*waited = false;
+	*error = 0;
+	if (holdsSessionLock(name))
+		return true;
+	HANDLE hLock;
+	if (!openSessionLockFile(name, waitMs, &hLock, waited, error))
+		return false;
+	adoptSessionLock(name, hLock, *waited);
+	return true;
 }
 
 void releaseSessionLockUnlessNamed(const char* name)
@@ -675,19 +732,32 @@ void releaseSessionLockOf(PlayerData* playerData)
 
 void markCharacterLoaded(const char* name, Game* ptGame)
 {
-	markPlayed(name);
-	playedLoadGame = ptGame;
+	markPlayed(name, ptGame);
 	// The load's own recovery resolved this character's journal; another character's waits for its own next load.
 	retryPending = false;
+	// A new game: no result or seq of the previous one may be read as this game's.
+	lastSaveState = COMMIT_RESULT_DONE;
+	lastSaveSeq = 0;
 }
 
+// The new name's lock, taken by characterRenameAllowed before any file moves: a rename whose saves could never take
+// their lock is refused instead. INVALID_HANDLE_VALUE with renameLockReady: the new name goes on without a lock.
+static HANDLE renameLock = INVALID_HANDLE_VALUE;
+static bool renameLockReady = false;
+
+void cancelCharacterRename()
+{
+	if (renameLock != INVALID_HANDLE_VALUE)
+		CloseHandle(renameLock);
+	renameLock = INVALID_HANDLE_VALUE;
+	renameLockReady = false;
+}
+
+// An unfinished save always leaves its .pyj on disk (a retry runs only while the journal is believed there), so the
+// journal files are the test, with the new name's lock.
 bool characterRenameAllowed(const char* oldName, const char* newName)
 {
-	if (lastSaveState == COMMIT_RESULT_COMMITTED_INCOMPLETE || retryPending)
-	{
-		log_msg("Rename Character refused : the last save of %s is not finished on disk yet\n", oldName);
-		return false;
-	}
+	cancelCharacterRename();
 	const char* names[2] = {oldName, newName};
 	for (int i = 0; i < 2; i++)
 	{
@@ -700,6 +770,15 @@ bool characterRenameAllowed(const char* oldName, const char* newName)
 			return false;
 		}
 	}
+	// A rename that only changes case keeps the lock this process already holds on that file.
+	bool waited;
+	DWORD error;
+	if (!holdsSessionLock(newName) && !openSessionLockFile(newName, 0, &renameLock, &waited, &error))
+	{
+		log_msg("Rename Character refused : the lock of %s is held by another game or can't be opened (error %u)\n", newName, error);
+		return false;
+	}
+	renameLockReady = true;
 	return true;
 }
 
@@ -712,23 +791,36 @@ void renameCharacterCommitFiles(const char* oldName, const char* newName)
 		log_msg("%s moved to %s\n", oldPath, newPath);
 
 	bool heldOld = holdsSessionLock(oldName);
-	PlayerData* owner = heldOld ? sessionLockOwner : NULL;
-	if (heldOld)
-		releaseSessionLock();
-	if (getSaveFilePath(oldPath, MAX_PATH, oldName, ".pylive"))
-		DeleteFileA(oldPath);
-	bool waited;
-	DWORD error;
-	if (acquireSessionLock(newName, 0, &waited, &error))
+	// The load sets the owner even when the character runs without a lock, so it is kept either way.
+	PlayerData* owner = sessionLockOwner;
+	if (holdsSessionLock(newName))
+		copyName(sessionLockName, newName);
+	else
+	{
+		if (heldOld)
+			releaseSessionLock();
+		if (getSaveFilePath(oldPath, MAX_PATH, oldName, ".pylive"))
+			DeleteFileA(oldPath);
+		if (renameLockReady)
+			adoptSessionLock(newName, renameLock, false);
+		else
+		{
+			bool waited;
+			DWORD error;
+			acquireSessionLock(newName, 0, &waited, &error);
+		}
+		renameLock = INVALID_HANDLE_VALUE;
 		sessionLockOwner = owner;
-	if (isPlayedHere(oldName))
+	}
+	renameLockReady = false;
+	if (isPlayedHere(oldName, NULL))
 		copyName(playedName, newName);
 }
 
 // C2 step 0, before this save reads or writes any file: the session lock, then the character's journal resolved by the
 // verdict table. The lock comes first so a journal is only ever resolved by the game that holds the character. False
-// skips the save: another game holds the character, or a journal stays open.
-static bool commitStepZero(const char* name, bool isLeaving, PlayerData* owner)
+// skips the save: another game holds the character, or a journal stays open. game: NULL when no entry hook ran.
+static bool commitStepZero(const char* name, bool isLeaving, PlayerData* owner, Game* game)
 {
 	if (!holdsSessionLock(name))
 	{
@@ -745,7 +837,7 @@ static bool commitStepZero(const char* name, bool isLeaving, PlayerData* owner)
 		sessionLockOwner = owner;
 	}
 	CharacterRecovery recovery;
-	if (!recoverCharacterFiles(name, isPlayedHere(name), &recovery))
+	if (!recoverCharacterFiles(name, isPlayedHere(name, game), &recovery))
 	{
 		log_msg("Save of %s skipped: its save journal stays open (%s)\n", name, CommitVerdictName(recovery.verdict));
 		if (isLeaving && firstLeavingBoxThisGame())
@@ -871,6 +963,9 @@ static bool saveSPPlayerFiles(Unit* ptChar, bool isLeaving, PendingSave* collect
 		if (active_sharedStash && PCPY->sharedStashIsOpened)
 		{
 			bool sharedSaved = false;
+			// The shared writer records the file's hash only when it replaces the file; its other true returns write nothing.
+			DWORD sharedDiskHash = PCPY->sharedDiskHash;
+			DWORD sharedDiskExisted = PCPY->sharedDiskExisted;
 			DWORD curSizeShr = 0;
 			DWORD maxSizeShr = 0x4000;
 			BYTE* dataShr = (BYTE *)D2AllocMem(PCGame->memoryPool, maxSizeShr,__FILE__,__LINE__,0);
@@ -883,7 +978,7 @@ static bool saveSPPlayerFiles(Unit* ptChar, bool isLeaving, PendingSave* collect
 				D2FreeMem(PCGame->memoryPool, dataShr,__FILE__,__LINE__,0);
 			}
 			skipSave = !sharedSaved && !isLeaving;
-			if (collector && sharedSaved)
+			if (collector && (PCPY->sharedDiskHash != sharedDiskHash || PCPY->sharedDiskExisted != sharedDiskExisted))
 				collector->stashWritten = true;
 			// A .d2x that can't be put back stays, and the character is saved with it: only moves to or from the shared
 			// stash since the last save can then differ, where skipping would also undo moves between it and the inventory.
@@ -929,13 +1024,14 @@ DWORD STDCALL SaveSPPlayerCustomData_114(Unit* ptChar, DWORD isLeaving)
 
 	// Step 0 comes first on every path: no file of this save is read or written before a journal left open is resolved.
 	dropPendingSave();
-	if (!commitStepZero(PCPlayerData->name, isLeaving != 0, PCPlayerData))
+	if (!commitStepZero(PCPlayerData->name, isLeaving != 0, PCPlayerData, PCGame))
 	{
 		setSaveResult(COMMIT_RESULT_ABORTED, lastSaveSeq);
 		return 0;
 	}
 	pendingSave.kind = PENDING_PLAIN;
 	pendingSave.isLeaving = isLeaving != 0;
+	pendingSave.game = PCGame;
 	copyName(pendingSave.name, PCPlayerData->name);
 	if (!saveSPPlayerFiles(ptChar, isLeaving != 0, &pendingSave))
 	{
@@ -955,12 +1051,14 @@ static void showLeavingSaveLost(const char* name, const char* file, const char* 
 		log_box("PlugY could not save %s when leaving the game: %s %s.\nThis game's progress since its last save was not saved.", name, file, reason);
 }
 
-// stashWritten: this save already wrote the .d2x or the shared stash, so only the character file is missing.
-static void writePlainSave(const char* name, const char* d2sPath, const BYTE* d2s, DWORD d2sSize, bool isLeaving, bool stashWritten)
+// stashWritten: this save already wrote the .d2x or changed the shared stash file, so only the character file is missing.
+// game: NULL when no entry hook ran.
+static void writePlainSave(const char* name, const char* d2sPath, const BYTE* d2s, DWORD d2sSize, bool isLeaving,
+	bool stashWritten, Game* game)
 {
 	if (writeFileAtomic(d2sPath, d2s, d2sSize))
 	{
-		markPlayed(name);
+		markPlayed(name, game);
 		setSaveResult(COMMIT_RESULT_DONE, committedSeq);
 	}
 	else
@@ -987,7 +1085,7 @@ static void writeStashThenCharacter(char* name, const char* d2sPath, const BYTE*
 		setSaveResult(COMMIT_RESULT_ABORTED, committedSeq);
 		return;
 	}
-	writePlainSave(name, d2sPath, d2s, d2sSize, isLeaving, extendedSaved);
+	writePlainSave(name, d2sPath, d2s, d2sSize, isLeaving, extendedSaved, pendingSave.game);
 }
 
 // C2 steps 2 to 7, from txn->next on. A failure at or before the commit point resolves the journal from the disk at
@@ -1090,7 +1188,8 @@ static void commitJournaledSave(const char* d2sPath, const BYTE* d2s, DWORD d2sS
 			prepared = journal && fenced && CommitJournalEncode(&in, journal, journalSize)
 				&& CommitFence(d2xPre, d2xPreSize, fenced, fencedSize);
 			if (!prepared)
-				log_msg("Crash-safe save of %s: its journal can't be built\n", name);
+				log_msg("Crash-safe save of %s: its journal can't be built (.d2s %u bytes, .d2x %u then %u bytes, limit %u)\n",
+					name, d2sSize, d2xPreSize, pendingSave.d2xPostSize, COMMIT_MAX_FILE_SIZE);
 		}
 	}
 	CharacterRecovery recovery;
@@ -1105,7 +1204,7 @@ static void commitJournaledSave(const char* d2sPath, const BYTE* d2s, DWORD d2sS
 
 	setSaveResult(txn.result, txn.seq);
 	if (txn.result != COMMIT_RESULT_ABORTED)
-		markPlayed(name);
+		markPlayed(name, pendingSave.game);
 	if (txn.result == COMMIT_RESULT_DONE)
 		log_msg("Crash-safe save of %s done (seq %u)\n", name, txn.seq);
 	if (txn.journalOnDisk)
@@ -1168,10 +1267,10 @@ void STDCALL CharacterCommit_114(const char* d2sPath, const BYTE* d2s, DWORD d2s
 			log_msg("Crash-safe save: no character name in %s, nothing saved\n", d2sPath);
 			setSaveResult(COMMIT_RESULT_ABORTED, lastSaveSeq);
 		}
-		else if (!commitStepZero(name, isLeaving != 0, NULL))
+		else if (!commitStepZero(name, isLeaving != 0, NULL, NULL))
 			setSaveResult(COMMIT_RESULT_ABORTED, lastSaveSeq);
 		else
-			writePlainSave(name, d2sPath, d2s, d2sSize, isLeaving != 0, false);
+			writePlainSave(name, d2sPath, d2s, d2sSize, isLeaving != 0, false, NULL);
 		return;
 	}
 	// Recovery finds the .d2s by name in the save folder, so a journal must name the file the game writes.
@@ -1185,7 +1284,7 @@ void STDCALL CharacterCommit_114(const char* d2sPath, const BYTE* d2s, DWORD d2s
 		writeStashThenCharacter(pendingSave.name, d2sPath, d2s, d2sSize, pendingSave.isLeaving);
 	}
 	else
-		writePlainSave(pendingSave.name, d2sPath, d2s, d2sSize, pendingSave.isLeaving, pendingSave.stashWritten);
+		writePlainSave(pendingSave.name, d2sPath, d2s, d2sSize, pendingSave.isLeaving, pendingSave.stashWritten, pendingSave.game);
 	dropPendingSave();
 }
 

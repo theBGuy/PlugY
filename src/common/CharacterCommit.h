@@ -18,6 +18,9 @@
 #define COMMIT_HEADER_SIZE 48
 #define COMMIT_NAME_SIZE 16
 #define COMMIT_GUID_SIZE 16
+// The largest journal built or parsed, and the largest .d2s/.d2x that crash-safe saves and recovery read (plain loads
+// keep their own reads): a journal recovery could not read is never written. It also keeps every size sum in a DWORD.
+#define COMMIT_MAX_FILE_SIZE 0x10000000
 
 // Each part: type DWORD, length DWORD (of the body), flags DWORD, body. A .d2s body is { preHash, preSize, postHash,
 // postSize, post bytes }; a .d2x body adds the pre bytes before the post bytes so a rollback restores them exactly.
@@ -156,9 +159,11 @@ bool CommitIsCommitted(const CommitJournal* journal, const CommitDiskFile* d2s, 
 enum CommitVerdict
 {
 	COMMIT_VERDICT_NONE,               // no journal, no fence: nothing to do
-	COMMIT_VERDICT_READ_ERROR,         // journal or a target unreadable: abort the save, refuse a load once (no box)
+	COMMIT_VERDICT_READ_ERROR,         // journal or a target unreadable: abort the save, refuse the load (a box unless a
+	                                   // brief sharing/lock violation met once; the leaving save boxes)
 	COMMIT_VERDICT_QUARANTINE,         // keep every file, refuse (box: load at once, save only at the leaving save)
-	COMMIT_VERDICT_SKIP,               // the .d2s of the character this process plays vanished: skip the save, log
+	COMMIT_VERDICT_SKIP,               // the .d2s of the character the current game plays vanished: skip the save, log
+	                                   // (the leaving save boxes)
 	COMMIT_VERDICT_ORPHAN_DELETED,     // journal of a deleted character: archive it and its .d2x, then go on
 	COMMIT_VERDICT_ORPHAN_SUPERSEDED,  // another incarnation owns the files: archive the journal only, then go on
 	COMMIT_VERDICT_ROLL_FORWARD,       // committed: write the unfinished targets in order, delete the journal
@@ -203,14 +208,18 @@ struct CommitRecovery
 };
 
 // The verdict table, at load (before the custom data loads), at a save's step 0, after a failed commit step and at
-// each retry. loadedHere: this process loaded the character; false at load-time recovery and at the first save of
-// a character that never loaded. journalState ABSENT/UNREADABLE ignores journal/journalSize. When there is no
+// each retry. loadedHere: the current game loaded or saved the character; false at load-time recovery and at the
+// first save of a character that never loaded. journalState ABSENT/UNREADABLE ignores journal/journalSize. When there is no
 // journal the .d2s is never consulted, and an unreadable .d2x counts as unfenced.
 void CommitDecideRecovery(CommitFileState journalState, const BYTE* journal, DWORD journalSize, bool loadedHere,
 	const CommitDiskFile* d2s, const CommitDiskFile* d2x, CommitRecovery* out);
 // Whether the save or load may go on, once every action of the plan succeeded.
 bool CommitVerdictProceeds(CommitVerdict verdict);
 const char* CommitVerdictName(CommitVerdict verdict);
+// After a load's recovery succeeded: whether the .d2s the game already read may be stale, so the load refuses once.
+// True when recovery rewrote the .d2s, applied a committed journal (ROLL_FORWARD), or the lock had to be waited for.
+// An orphan's committed journal belongs to an earlier incarnation and leaves this character's files as they were.
+bool CommitLoadRefusesOnce(CommitVerdict verdict, bool committed, bool rewroteD2s, bool lockWaited);
 
 // ".orphan-20261013-142530" (local time), appended to the archived journal and .d2x. False when out is too small.
 bool CommitOrphanSuffix(const SYSTEMTIME* t, char* out, size_t outSize);

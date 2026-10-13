@@ -436,6 +436,10 @@ static void testRoundTrip()
 	in = buildInput("Amazon", 1, present(D2S_PRE), D2S_POST, &D2X_PRE, D2X_POST, 0);
 	Bytes tooSmall(CommitJournalSize(&in) - 1);
 	CHECK_EQ(CommitJournalEncode(&in, tooSmall.data(), (DWORD)tooSmall.size()), 0);
+	in.d2xPostSize += COMMIT_MAX_FILE_SIZE - CommitJournalSize(&in);
+	CHECK_EQ(CommitJournalSize(&in), COMMIT_MAX_FILE_SIZE);
+	in.d2xPostSize++;
+	CHECK_EQ(CommitJournalSize(&in), 0);
 }
 
 // A journal assembled field by field, for the shapes the encoder never writes.
@@ -1183,6 +1187,41 @@ static void testLeaveFallback()
 	CHECK(!CommitLeaveFallbackAllowed(true, false, false, COMMIT_FAIL_SESSION_LOCK));
 }
 
+// --- Load refuse-once (C5 step 4) -----------------------------------------------------------------------------------
+
+static void testLoadRefusal()
+{
+	printf("Load refuse-once\n");
+	Bytes j = journalOf(COMMIT_COMMITTED, present(D2S_PRE), present(D2X_PRE));
+	CommitRecovery r;
+
+	// A committed journal applied at load: the .d2s the game read may be the old one.
+	Disk disk = {present(D2S_POST), present(fenced(D2X_PRE)), present(j), absent(), absent()};
+	decide(disk, false, &r);
+	CHECK_EQ(r.verdict, COMMIT_VERDICT_ROLL_FORWARD);
+	CHECK(!r.rewritesD2s);
+	CHECK(CommitLoadRefusesOnce(r.verdict, r.committed, r.rewritesD2s, false));
+	disk.d2s = present(D2S_PRE);
+	decide(disk, false, &r);
+	CHECK(r.rewritesD2s);
+	CHECK(CommitLoadRefusesOnce(r.verdict, r.committed, r.rewritesD2s, false));
+
+	// A committed journal of an earlier incarnation is only archived: this character's files stay as the game read them.
+	disk.d2s = present(D2S_OTHER);
+	disk.d2x = present(D2X_OTHER);
+	decide(disk, false, &r);
+	CHECK_EQ(r.verdict, COMMIT_VERDICT_ORPHAN_SUPERSEDED);
+	CHECK(r.committed);
+	CHECK(!CommitLoadRefusesOnce(r.verdict, r.committed, r.rewritesD2s, false));
+	CHECK(CommitLoadRefusesOnce(r.verdict, r.committed, r.rewritesD2s, true));
+
+	// No journal, or a prepared one rolled back: refused only after waiting for the lock.
+	CHECK(!CommitLoadRefusesOnce(COMMIT_VERDICT_NONE, false, false, false));
+	CHECK(CommitLoadRefusesOnce(COMMIT_VERDICT_NONE, false, false, true));
+	CHECK(!CommitLoadRefusesOnce(COMMIT_VERDICT_ROLL_BACK, false, false, false));
+	CHECK(!CommitLoadRefusesOnce(COMMIT_VERDICT_ORPHAN_DELETED, true, false, false));
+}
+
 int main()
 {
 	testFnv();
@@ -1196,6 +1235,7 @@ int main()
 	testOrphans();
 	testTxn();
 	testLeaveFallback();
+	testLoadRefusal();
 	printf("%d passed, %d failed\n", nbPassed, nbFailed);
 	return nbFailed ? 1 : 0;
 }

@@ -344,7 +344,10 @@ bool renameCharacter(Unit* ptChar, char* newName)
 		strcpy(&szCurrentFile[curLen], "d2s");
 		strcpy(&szNewFile[newLen], "d2s");
 		if (!MoveFile(szCurrentFile, szNewFile))
+		{
+			cancelCharacterRename();
 			return 0;
+		}
 		strcpy(&szCurrentFile[curLen], "d2x");
 		strcpy(&szNewFile[newLen], "d2x");
 		MoveFile(szCurrentFile, szNewFile);

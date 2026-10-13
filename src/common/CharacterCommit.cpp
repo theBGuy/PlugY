@@ -20,9 +20,6 @@
 // preHash, preSize, postHash, postSize: the fixed start of every part body.
 #define PART_FIXED_SIZE 16
 
-// Larger journals are refused outright, so every size sum below fits a DWORD.
-#define MAX_JOURNAL_SIZE 0x40000000
-
 static DWORD getWord(const BYTE* p)
 {
 	return p[0] | (p[1] << 8);
@@ -150,7 +147,7 @@ DWORD CommitJournalSize(const CommitBuildInput* in)
 	unsigned __int64 size = (unsigned __int64)COMMIT_HEADER_SIZE
 		+ COMMIT_PART_HEADER_SIZE + PART_FIXED_SIZE + in->d2sPostSize
 		+ COMMIT_PART_HEADER_SIZE + PART_FIXED_SIZE + in->d2xPreSize + in->d2xPostSize;
-	return size > MAX_JOURNAL_SIZE ? 0 : (DWORD)size;
+	return size > COMMIT_MAX_FILE_SIZE ? 0 : (DWORD)size;
 }
 
 static BYTE* putPartHeader(BYTE* p, DWORD type, DWORD length, bool commitPoint)
@@ -270,7 +267,7 @@ CommitParseStatus CommitJournalParse(const BYTE* data, DWORD size, CommitJournal
 		return COMMIT_PARSE_BAD_VERSION;
 	if (size < COMMIT_HEADER_SIZE)
 		return COMMIT_PARSE_TRUNCATED;
-	if (size > MAX_JOURNAL_SIZE)
+	if (size > COMMIT_MAX_FILE_SIZE)
 		return COMMIT_PARSE_MALFORMED;
 	if (CommitFnv1a(data + COMMIT_HEADER_SIZE, size - COMMIT_HEADER_SIZE) != getDword(data + OFS_PAYLOAD_HASH))
 		return COMMIT_PARSE_BAD_HASH;
@@ -489,6 +486,11 @@ bool CommitVerdictProceeds(CommitVerdict verdict)
 	return verdict == COMMIT_VERDICT_NONE || verdict == COMMIT_VERDICT_ORPHAN_DELETED
 		|| verdict == COMMIT_VERDICT_ORPHAN_SUPERSEDED || verdict == COMMIT_VERDICT_ROLL_FORWARD
 		|| verdict == COMMIT_VERDICT_ROLL_BACK;
+}
+
+bool CommitLoadRefusesOnce(CommitVerdict verdict, bool committed, bool rewroteD2s, bool lockWaited)
+{
+	return rewroteD2s || lockWaited || (committed && verdict == COMMIT_VERDICT_ROLL_FORWARD);
 }
 
 const char* CommitVerdictName(CommitVerdict verdict)

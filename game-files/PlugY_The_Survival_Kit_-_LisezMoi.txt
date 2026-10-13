@@ -694,7 +694,7 @@ Les fichiers de backup sont sauvegardé dans un répertoire nommé "backup" dans
 Sauvegardes protégées contre les plantages, sur la 1.14d en monojoueur uniquement.
 Une sauvegarde qui ne modifie pas le coffre partagé est écrite en entier ou pas du tout : si le jeu plante ou est
 arrêté à n'importe quel moment, le chargement suivant trouve soit la nouvelle sauvegarde complète, soit la
-précédente complète, et le personnage (.d2s) et son fichier de coffre (.d2x) correspondent toujours. Un arrêt ne
+précédente complète, et le personnage (.d2s) et son fichier de coffre (.d2x) correspondent. Un arrêt ne
 coûte que la progression depuis la dernière sauvegarde terminée.
 Une sauvegarde qui modifie le coffre partagé écrit les fichiers de coffre (.d2x et .sss) comme avant : un arrêt
 pendant cette sauvegarde peut donc encore les laisser en décalage avec le personnage ; le .d2s est quand même
@@ -711,10 +711,12 @@ Quand le .d2s est en lecture seule ou illisible (un autre programme le garde ouv
 pas le coffre partagé n'écrit ni le .d2s ni le .d2x (avec 0, le .d2x est quand même sauvegardé). Pendant la partie,
 un .d2x illisible empêche aussi une telle sauvegarde.
 Pendant la partie, une sauvegarde que PlugY ne peut pas faire est seulement notée dans le log, et la sauvegarde
-suivante réessaie. Quand la sauvegarde faite en quittant la partie ne peut pas se faire, une boîte de dialogue par
-partie le signale : la progression de cette partie depuis sa dernière sauvegarde n'a pas été sauvegardée. Si les
-fichiers de coffre ont été sauvegardés mais pas le fichier du personnage, la boîte le dit à la place : le personnage
-et son coffre peuvent alors ne pas correspondre jusqu'à la prochaine sauvegarde réussie.
+suivante réessaie. Quand la sauvegarde faite en quittant la partie ne peut pas se faire, une boîte d'échec de
+sauvegarde de PlugY par partie le signale : la progression de cette partie depuis sa dernière sauvegarde n'a pas
+été sauvegardée (une boîte au sujet d'un fichier de coffre, comme un conflit du coffre partagé, peut s'y ajouter).
+Si cette sauvegarde a écrit un fichier de coffre (.d2x ou .sss) mais n'a pas pu écrire le fichier du personnage, la
+boîte le dit à la place : le personnage et son coffre peuvent alors ne pas correspondre jusqu'à la prochaine
+sauvegarde réussie.
 Quand PlugY refuse de charger un personnage, une boîte de dialogue indique pourquoi et quoi faire, par exemple :
 - "already running in another game" : fermez l'autre partie, puis chargez à nouveau le personnage. Le chargement
   attend d'abord jusqu'à 5 secondes environ que l'autre partie libère le personnage.
@@ -740,9 +742,11 @@ PlugY garde deux fichiers par personnage à côté des sauvegardes :
   que le nouveau personnage reparte de zéro ; quand seuls ses fichiers ont été remplacés par d'autres, seul le .pyj
   est renommé.
 - <nom>.pylive, le verrou du personnage en cours de jeu : tant qu'une partie utilise un personnage, aucune autre
-  partie ne peut le charger ni le sauvegarder. Le fichier reste ensuite sur le disque, sans effet. Un .pylive en
-  lecture seule (dans un dossier de sauvegarde mis en lecture seule, par exemple) n'est pas utilisé : le personnage
-  se charge alors sans le verrou.
+  partie ne peut le charger ni le sauvegarder. Avec le coffre à pages multiples (ActiveMultiPageStash=1), le verrou
+  prend fin avec la partie ; sans lui, un Game.exe revenu au menu garde le verrou de son dernier personnage jusqu'à
+  ce qu'il charge un autre personnage ou se ferme. Le fichier reste ensuite sur le disque, sans effet ; un .pylive
+  en lecture seule sert quand même de verrou. Si le fichier de verrou ne peut pas être créé (par exemple dans un
+  dossier de sauvegarde qui refuse les nouveaux fichiers), le personnage est joué sans le verrou.
 - ActiveCrashSafeSaves=1	{0:Sauvegardes écrites à l'ancienne; 1:Activé}
 
 

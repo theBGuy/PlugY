@@ -798,7 +798,7 @@ The backup will be store in a folder name "backup" in the save folder.
 Absturzsichere Spielstände, unter 1.14d nur im Einzelspieler.
 Ein Speichervorgang, der den gemeinsamen Goldschatz nicht ändert, wird ganz oder gar nicht geschrieben: Stürzt das
 Spiel in irgendeinem Moment ab oder wird es beendet, findet das nächste Laden entweder den vollständigen neuen oder
-den vollständigen vorherigen Spielstand, und der Charakter (.d2s) und seine Goldschatz-Datei (.d2x) passen immer
+den vollständigen vorherigen Spielstand, und der Charakter (.d2s) und seine Goldschatz-Datei (.d2x) passen
 zusammen. Ein Abbruch kostet nur den Fortschritt seit dem letzten abgeschlossenen Speichern.
 Ein Speichervorgang, der den gemeinsamen Goldschatz ändert, schreibt die Goldschatz-Dateien (.d2x und .sss) wie
 bisher; nach einem Abbruch währenddessen können sie daher weiterhin nicht zum Charakter passen. Die .d2s wird
@@ -816,9 +816,11 @@ der den gemeinsamen Goldschatz nicht ändert, weder die .d2s noch die .d2x (mit 
 gespeichert). Während des Spiels überspringt PlugY einen solchen Speichervorgang auch bei einer nicht lesbaren .d2x.
 Während des Spiels wird ein Speichervorgang, den PlugY nicht ausführen kann, nur ins Log geschrieben, und der
 nächste versucht es erneut. Kann das Speichern beim Verlassen des Spiels nicht ausgeführt werden, meldet das ein
-Meldungsfenster pro Spiel: Der Fortschritt dieses Spiels seit dem letzten Speichern wurde nicht gespeichert. Wurden
-die Goldschatz-Dateien gespeichert, die Charakterdatei aber nicht, sagt das Meldungsfenster stattdessen das: Der
-Charakter und sein Goldschatz passen dann bis zum nächsten erfolgreichen Speichern womöglich nicht zusammen.
+PlugY-Meldungsfenster für Speicherfehler pro Spiel: Der Fortschritt dieses Spiels seit dem letzten Speichern wurde
+nicht gespeichert (ein Meldungsfenster zu einer Goldschatz-Datei, etwa zu einem Konflikt beim gemeinsamen
+Goldschatz, kann zusätzlich erscheinen). Hat dieses Speichern eine Goldschatz-Datei (.d2x oder .sss) geschrieben,
+die Charakterdatei aber nicht, sagt das Meldungsfenster stattdessen das: Der Charakter und sein Goldschatz passen
+dann bis zum nächsten erfolgreichen Speichern womöglich nicht zusammen.
 Verweigert PlugY das Laden eines Charakters, nennt ein Meldungsfenster den Grund und was zu tun ist, zum Beispiel:
 - "already running in another game": Beende das andere Spiel und lade den Charakter dann erneut. Das Laden wartet
   vorher bis zu etwa 5 Sekunden, bis das andere Spiel den Charakter freigibt.
@@ -846,9 +848,11 @@ PlugY legt pro Charakter zwei Dateien neben den Spielständen an:
   <Name>.d2x.orphan-<YYYYMMDD-HHMMSS>, damit der neue Charakter sauber beginnt; wurden nur seine Dateien durch
   andere ersetzt, wird nur die .pyj umbenannt.
 - <Name>.pylive, die Sperre des laufenden Charakters: Solange ein Spiel einen Charakter ausführt, kann ihn kein
-  anderes Spiel laden oder speichern. Die Datei bleibt danach liegen und schadet nicht. Eine schreibgeschützte
-  .pylive (zum Beispiel in einem schreibgeschützten Spielstand-Ordner) wird nicht verwendet: Der Charakter lädt
-  dann ohne die Sperre.
+  anderes Spiel laden oder speichern. Mit dem Mehrfachseiten-Goldschatz (ActiveMultiPageStash=1) endet die Sperre
+  mit dem Spiel; ohne ihn behält ein Game.exe, das ins Menü zurückgekehrt ist, die Sperre seines letzten
+  Charakters, bis es einen anderen Charakter lädt oder beendet wird. Die Datei bleibt danach liegen und schadet
+  nicht; auch eine schreibgeschützte .pylive wirkt als Sperre. Lässt sich die Sperrdatei nicht anlegen (zum
+  Beispiel in einem Spielstand-Ordner, der keine neuen Dateien zulässt), läuft der Charakter ohne die Sperre.
 - ActiveCrashSafeSaves=1	{0:Speichern auf die alte Weise; 1:Aktiviert}
 
 

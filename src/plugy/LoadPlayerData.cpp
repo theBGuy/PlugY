@@ -139,8 +139,9 @@ static char readErrorName[COMMIT_NAME_SIZE] = "";
 static DWORD prepareSPCharacterLoad(Unit* ptChar)
 {
 	char* name = PCPlayerData->name;
-	// D2Bot reuses Game.exe: the character played before keeps its lock until this load, never only until its leaving
-	// save, so no other game can load it while its last save may still run.
+	// D2Bot reuses Game.exe. With the multi-page stash, the character played before already released its lock when its
+	// server PlayerData was freed, after its last save; without it, that lock lasts until this process loads another
+	// character (here) or exits. It is never released by a leaving save, which may still be running.
 	releaseSessionLockUnlessNamed(name);
 	bool waited = false;
 	DWORD error = 0;
@@ -178,10 +179,10 @@ static DWORD prepareSPCharacterLoad(Unit* ptChar)
 	deleteJournalTempFiles(name);
 	// The .d2s vanilla read before this hook may predate the save just finished on disk, or the one another game
 	// finished while this load waited for the lock: the game must not start from it. The next load reads the new files.
-	if (recovery.rewroteD2s || recovery.committed || waited)
+	if (CommitLoadRefusesOnce(recovery.verdict, recovery.committed, recovery.rewroteD2s, waited))
 	{
 		log_msg("Load of %s refused once (%s): loading it again uses the finished save\n", name,
-			recovery.rewroteD2s ? "its interrupted save was finished" : recovery.committed ? "its interrupted save was committed" : "another game released it meanwhile");
+			recovery.rewroteD2s ? "its interrupted save was finished" : waited ? "another game released it meanwhile" : "its interrupted save was committed");
 		return 0xE;
 	}
 	markCharacterLoaded(name, PCGame);

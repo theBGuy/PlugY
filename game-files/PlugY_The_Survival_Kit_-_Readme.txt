@@ -766,7 +766,7 @@ The backup will be store in a folder name "backup" in the save folder.
 Crash-safe saves, on 1.14d in single player only.
 A save that doesn't change the shared stash lands whole: if the game crashes or is killed at any moment, the next
 load finds either the complete new save or the complete previous one, with the character (.d2s) and its stash file
-(.d2x) always matching. A kill costs only the progress since the last finished save.
+(.d2x) matching. A kill costs only the progress since the last finished save.
 A save that changes the shared stash writes the stash files (.d2x and .sss) as before, so a kill during that save
 can still leave them out of step with the character; the .d2s is still written whole.
 On for new installs and for upgrades: a PlugY.ini without this line uses 1. With 0, saves are written the old way,
@@ -779,8 +779,9 @@ When the .d2s is read-only or can't be read (another program holds it), a save t
 writes neither the .d2s nor the .d2x (with 0, the .d2x is still saved). During a game, a .d2x that can't be read
 skips such a save too.
 During a game, a save PlugY can't make is only written to the log, and the next save tries again. When the save made
-as you leave the game can't be made, one message box per game says so: that game's progress since its last save was
-not saved. When the stash files were saved but the character file couldn't be, the box says that instead: the
+as you leave the game can't be made, one PlugY save-failure box per game says so: that game's progress since its
+last save was not saved (a box about a stash file, such as a shared-stash conflict, can come as well). When that
+save wrote a stash file (.d2x or .sss) but couldn't write the character file, the box says that instead: the
 character and its stash may not match until the next successful save.
 When PlugY refuses to load a character, a message box says why and what to do, for example:
 - "already running in another game": close the other game, then load the character again. A load first waits up
@@ -803,8 +804,10 @@ PlugY keeps two files per character next to the saves:
   <name>.pyj.orphan-<YYYYMMDD-HHMMSS> and its leftover .d2x, if any, to <name>.d2x.orphan-<YYYYMMDD-HHMMSS>, so the
   new character starts clean; when only its files were replaced by other ones, only the .pyj is renamed.
 - <name>.pylive, the running-character lock: while one game runs a character, no other game can load or save it.
-  The file stays on disk afterwards and does no harm. A read-only .pylive (in a save folder made read-only, for
-  example) is not used: the character then loads without the lock.
+  With the multi-page stash (ActiveMultiPageStash=1) the lock ends with the game; without it, a Game.exe back at
+  the menu keeps its last character's lock until it loads another character or exits. The file stays on disk
+  afterwards and does no harm; a read-only .pylive still works as the lock. If the lock file can't be created (for
+  example in a save folder that refuses new files), the character runs without the lock.
 - ActiveCrashSafeSaves=1	{0:Saves are written the old way; 1:Enabled}
 
 

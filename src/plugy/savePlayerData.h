@@ -58,8 +58,11 @@ void releaseSessionLockOf(PlayerData* playerData);
 // After a load passed its checks: the game being loaded plays the character.
 void markCharacterLoaded(const char* name, Game* ptGame);
 
-// /renamechar: journals and locks are found by name, so a rename waits until no journal of either name is open.
+// /renamechar: journals and locks are found by name, so a rename waits until no journal of either name is open, and
+// takes the new name's lock before any file moves. Once allowed, the rename ends with renameCharacterCommitFiles after
+// the moves, or with cancelCharacterRename when a move fails (the old lock stays).
 bool characterRenameAllowed(const char* oldName, const char* newName);
 void renameCharacterCommitFiles(const char* oldName, const char* newName);
+void cancelCharacterRename();
 
 /*================================= END OF FILE =================================*/
