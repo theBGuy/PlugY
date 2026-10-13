@@ -33,6 +33,7 @@ Each features can be turn on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURATI
 - Move Deckar Cain near the waypoint in Harrogath.
 - Unassign assigned skills and stats points.
 - Auto backup save files before saving.
+- Crash-safe saves (1.14d, single player, on by default): a save that doesn't change the shared stash lands whole, so after a crash or kill the character and its stash load from the same complete save.
 - Change the selected language.
 - Always regenerate maps in SinglePlayer like in MultiPlayer.
 - Automatically execute /players X when you launch a new game.
@@ -762,6 +763,50 @@ The backup will be store in a folder name "backup" in the save folder.
 - ActiveAutoBackup=0		{0:Disabled; 1:Enabled}
 - MaxBackupPerCharacter=20	{20: Number of backup to keep before delete; 0:No backup purge}
 
+Crash-safe saves, on 1.14d in single player only.
+A save that doesn't change the shared stash lands whole: if the game crashes or is killed at any moment, the next
+load finds either the complete new save or the complete previous one, with the character (.d2s) and its stash file
+(.d2x) always matching. A kill costs only the progress since the last finished save.
+A save that changes the shared stash writes the stash files (.d2x and .sss) as before, so a kill during that save
+can still leave them out of step with the character; the .d2s is still written whole.
+On for new installs and for upgrades: a PlugY.ini without this line uses 1. With 0, saves are written the old way,
+but PlugY still finishes a save that a crash interrupted and still refuses a character that another game runs.
+A kill early in a save is undone without a word: the character loads its previous save as usual. After a kill late
+in a save (once the save was committed), or when the load had to wait for another game to release the character,
+the next load finishes the save and stops once at "Unable to enter game", without a message box, so the game never
+starts from an outdated copy. Load the character again; D2Bot retries by itself.
+When the .d2s is read-only or can't be read (another program holds it), a save that doesn't change the shared stash
+writes neither the .d2s nor the .d2x (with 0, the .d2x is still saved). During a game, a .d2x that can't be read
+skips such a save too.
+During a game, a save PlugY can't make is only written to the log, and the next save tries again. When the save made
+as you leave the game can't be made, one message box per game says so: that game's progress since its last save was
+not saved. When the stash files were saved but the character file couldn't be, the box says that instead: the
+character and its stash may not match until the next successful save.
+When PlugY refuses to load a character, a message box says why and what to do, for example:
+- "already running in another game": close the other game, then load the character again. A load first waits up
+  to about 5 seconds for the other game to release the character.
+- "can't be read": close the program that holds that file, or fix its permissions. A file another program holds
+  for a moment only refuses the load once, without a box; the box comes if it happens twice in a row.
+- "finishing its interrupted save needs to change <file>, which failed": that file is read-only, locked by another
+  program, or the disk is full. Fix it, then load the character again.
+- "its stash file ... is marked as being saved, but no save journal is left": restore the .d2x from a backup.
+- "its save journal ... can't be read back": delete that .pyj only if you accept losing the save it holds.
+- "the character files match neither side of the save in its journal": restore the character from a backup, or
+  delete the .pyj only if you accept losing the save it holds.
+These boxes follow ShowErrorMessageBox (see [GENERAL]).
+PlugY keeps two files per character next to the saves:
+- <name>.pyj, the journal of a save in progress. It stays only while a save runs, or until a file it must replace
+  can be written (PlugY retries about every 2 seconds during the game, and at the character's next save or load);
+  one left by a crash is finished or undone at the character's next load or save. While it exists, older PlugY
+  versions may refuse to load the character instead of loading half a save.
+  When a character was deleted and made again under the same name, its old .pyj is renamed to
+  <name>.pyj.orphan-<YYYYMMDD-HHMMSS> and its leftover .d2x, if any, to <name>.d2x.orphan-<YYYYMMDD-HHMMSS>, so the
+  new character starts clean; when only its files were replaced by other ones, only the .pyj is renamed.
+- <name>.pylive, the running-character lock: while one game runs a character, no other game can load or save it.
+  The file stays on disk afterwards and does no harm. A read-only .pylive (in a save folder made read-only, for
+  example) is not used: the character then loads without the lock.
+- ActiveCrashSafeSaves=1	{0:Saves are written the old way; 1:Enabled}
+
 
 [MAIN SCREEN]
 Change the version text in the main menu (first menu)(instead of "v 1.10")
@@ -950,6 +995,7 @@ For example, modder can test multiplayer game for their mod.
 To start the second game, you must start it with "game.exe" and not "Diablo II.exe".
 Warning : Don't start games with the same savepath when you use the Shared Stash.
 	  Don't use the same character in same time.
+	  On 1.14d in single player, PlugY refuses to load a character that another game is running (see [SAVEPATH]).
 Following are default values, between {} are some examples values with descriptions :
 - ActiveLaunchAnyNumberOfLOD=0		{0:Disabled; 1:Enabled}
 

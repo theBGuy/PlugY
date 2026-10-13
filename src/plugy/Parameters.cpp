@@ -92,6 +92,7 @@ const char* S_active_changingSavePath = "ActiveSavePathChange";
 const char* S_savePath = "SavePath";
 const char* S_active_AutoBackup = "ActiveAutoBackup";
 const char* S_maxBackupPerCharacter = "MaxBackupPerCharacter";
+const char* S_active_CrashSafeSaves = "ActiveCrashSafeSaves";
 
 const char* S_MAIN_SCREEN = "MAIN SCREEN";
 const char* S_active_VersionTextChange = "ActiveVersionTextChange";
@@ -485,6 +486,11 @@ void init_SavePath(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultF
 	GET_PRIVATE_PROFILE_STRING3(S_SAVEPATH, S_active_changingSavePath, "0");
 	active_changingSavePath = atoi(buffer) != 0;
 	log_msg("active_changingSavePath\t\t= %u\n", active_changingSavePath);
+
+	// Read before the save path, whose invalid value returns early. An ini without the key (an upgrade) gets 1.
+	GET_PRIVATE_PROFILE_STRING3(S_SAVEPATH, S_active_CrashSafeSaves, "1");
+	active_CrashSafeSaves = atoi(buffer) != 0;
+	log_msg("active_CrashSafeSaves\t\t= %u\n", active_CrashSafeSaves);
 
 	if (active_changingSavePath)
 	{

@@ -35,8 +35,8 @@
     tests/UpdaterTests.cpp, tests/SessionLogTests.cpp,
     tests/SaveTransferTests.cpp, tests/MovedItemsPageTests.cpp,
     tests/ReleasedConnectionsTests.cpp, tests/StatBonusTests.cpp,
-    tests/ServerMessageRulesTests.cpp, tests/UpdateNoticeRulesTests.cpp and
-    tests/IniSectionTests.cpp into
+    tests/ServerMessageRulesTests.cpp, tests/UpdateNoticeRulesTests.cpp,
+    tests/IniSectionTests.cpp and tests/CharacterCommitTests.cpp into
     build/out/<Config>/tests/ (console, static CRT) and run them. Exits 1 when a
     test fails.
 
@@ -132,6 +132,7 @@ $DllSources = @(
     'src\common\VersionInfo.cpp'
     'src\common\UpdateCheck.cpp'
     'src\common\SessionLog.cpp'
+    'src\common\CharacterCommit.cpp'
 )
 
 function Write-Log([string]$Text) {
@@ -518,6 +519,19 @@ try {
             LinkExtra = @()
         }
         Build-Target $IniSectionTests
+        $CharacterCommitTests = @{
+            Key       = 'committests'
+            Sources   = @('tests\CharacterCommitTests.cpp', 'src\common\CharacterCommit.cpp')
+            Rc        = $null
+            Out       = 'tests\CharacterCommitTests.exe'
+            Pdb       = 'tests\CharacterCommitTests.pdb'
+            ClFlags   = @('/nologo', '/c', '/W3', '/EHsc') + $StaticOpt
+            Defines   = @('WIN32', $NDebug, '_CONSOLE', '_MBCS', '_CRT_SECURE_NO_WARNINGS')
+            RcFlags   = @()
+            LinkFlags = $ConsoleLink
+            LinkExtra = @()
+        }
+        Build-Target $CharacterCommitTests
 
         $testArguments = @('--fixtures', (Join-Path $RepoRoot 'tests\fixtures'),
                            '--scratch', (Join-Path (Join-Path $OutDir 'tests') 'scratch'))
@@ -556,10 +570,13 @@ try {
             (Join-Path $RepoRoot 'game-files\PlugY\PlugYDefault.ini'),
             (Join-Path $RepoRoot 'game-files\PlugY\PlugYFixed.ini'),
             (Join-Path $RepoRoot 'game-files\PlugY\LocalizedStrings.ini'))
+        Write-Log ''
+        Write-Log '=== CharacterCommitTests.exe'
+        Invoke-Tool (Join-Path $OutDir $CharacterCommitTests.Out) @()
     }
 
     $warnings = @(Get-Content -LiteralPath $LogFile | Where-Object { $_ -match ': warning [A-Z]+\d+' }).Count
-    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections, stat-bonus, server-message, update-notice and ini-section tests passed' } else { '' }
+    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections, stat-bonus, server-message, update-notice, ini-section and character-commit tests passed' } else { '' }
     Write-Host ''
     $defined = if ($Define.Count) { ', PlugY.dll with ' + ($Define -join ' ') } else { '' }
     Write-Host "Built PlugY.dll, PlugY.exe, PatchD2File.exe, RestoreD2File.exe, PlugY4KolbotUpdater.exe ($Config, /$Crt$defined) with $warnings warning(s) in $OutDir$tested" -ForegroundColor Green

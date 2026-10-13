@@ -11,6 +11,7 @@
 #include "extendedSaveFile.h"
 #include "sharedSaveFile.h"
 #include "loadPlayerData.h"
+#include "savePlayerData.h"
 #include "saveTransfer.h"
 #include "common.h"
 
@@ -93,17 +94,124 @@ DWORD STDCALL LoadSPCustomData(Unit* ptChar)
 	return ret;
 }
 
-FCT_ASM (caller_LoadSPPlayerCustomData_114 )
+// A killed save can leave the temp file of a journal write behind (<name>.pyj.<pid>[.<tick>].tmp, see writeFileAtomic).
+// It is never the only copy of anything: the journal it was to replace, or the files that journal describes, hold the
+// save. Called with the session lock held and recovery done, so no game of this character is writing one now.
+static void deleteJournalTempFiles(const char* name)
+{
+	char folder[MAX_PATH];
+	char pattern[MAX_PATH];
+	char prefix[COMMIT_NAME_SIZE + 8];
+	if (!getSaveFilePath(folder, MAX_PATH, "") || !formatPath(pattern, MAX_PATH, "%s%s.pyj.*.tmp", folder, name)
+	 || !formatPath(prefix, sizeof(prefix), "%s.pyj.", name))
+		return;
+	WIN32_FIND_DATAA findData;
+	HANDLE hFind = FindFirstFileA(pattern, &findData);
+	if (hFind == INVALID_HANDLE_VALUE)
+		return;
+	size_t prefixLen = strlen(prefix);
+	int deleted = 0;
+	int kept = 0;
+	do
+	{
+		// The pattern can also match 8.3 short names: only <name>.pyj.<...>.tmp itself goes.
+		size_t len = strlen(findData.cFileName);
+		if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || len <= prefixLen + 4
+		 || _strnicmp(findData.cFileName, prefix, prefixLen) || _stricmp(findData.cFileName + len - 4, ".tmp"))
+			continue;
+		char path[MAX_PATH];
+		if (formatPath(path, MAX_PATH, "%s%s", folder, findData.cFileName) && DeleteFileA(path))
+			deleted++;
+		else
+			kept++;
+	}
+	while (FindNextFileA(hFind, &findData));
+	FindClose(hFind);
+	if (deleted || kept)
+		log_msg("Leftover journal temp files of %s: %d deleted, %d could not be deleted\n", name, deleted, kept);
+}
+
+// The character whose last load met a journal or file it could not read ("" otherwise).
+static char readErrorName[COMMIT_NAME_SIZE] = "";
+
+// Every single-player load on 1.14d, whatever ActiveCrashSafeSaves says, after vanilla read the .d2s and built the
+// player and before anything of the character is used: a save that a crash interrupted is finished or undone first.
+static DWORD prepareSPCharacterLoad(Unit* ptChar)
+{
+	char* name = PCPlayerData->name;
+	// D2Bot reuses Game.exe: the character played before keeps its lock until this load, never only until its leaving
+	// save, so no other game can load it while its last save may still run.
+	releaseSessionLockUnlessNamed(name);
+	bool waited = false;
+	DWORD error = 0;
+	if (!acquireSessionLock(name, 5000, &waited, &error))
+	{
+		char lockPath[MAX_PATH];
+		if (!getSaveFilePath(lockPath, MAX_PATH, name, ".pylive"))
+			strcpy(lockPath, "(path too long)");
+		log_box("PlugY can't load %s: this character is already running in another game (or its lock file %s can't be opened, error %u).\nClose the other game, then load the character again.", name, lockPath, error);
+		return 0xE;
+	}
+	setSessionLockOwner(PCPlayerData);
+
+	CharacterRecovery recovery;
+	if (!recoverCharacterFiles(name, false, &recovery))
+	{
+		bool readError = recovery.verdict == COMMIT_VERDICT_READ_ERROR && !recovery.actionFailed;
+		// Another program holding a file a moment is retried silently by the next load; a lasting error, or the same
+		// one twice in a row, needs the player.
+		bool transient = recovery.readError == ERROR_SHARING_VIOLATION || recovery.readError == ERROR_LOCK_VIOLATION;
+		if (!readError || !transient || !_stricmp(readErrorName, name))
+			showRecoveryRefusal(name, &recovery, true);
+		else
+			log_msg("Load of %s refused once: %s can't be read now (error %u)\n", name, recovery.file, recovery.readError);
+		if (readError)
+		{
+			strncpy(readErrorName, name, sizeof(readErrorName) - 1);
+			readErrorName[sizeof(readErrorName) - 1] = NULL;
+		}
+		else
+			readErrorName[0] = NULL;
+		return 0xE;
+	}
+	readErrorName[0] = NULL;
+	deleteJournalTempFiles(name);
+	// The .d2s vanilla read before this hook may predate the save just finished on disk, or the one another game
+	// finished while this load waited for the lock: the game must not start from it. The next load reads the new files.
+	if (recovery.rewroteD2s || recovery.committed || waited)
+	{
+		log_msg("Load of %s refused once (%s): loading it again uses the finished save\n", name,
+			recovery.rewroteD2s ? "its interrupted save was finished" : recovery.committed ? "its interrupted save was committed" : "another game released it meanwhile");
+		return 0xE;
+	}
+	markCharacterLoaded(name, PCGame);
+	return 0;
+}
+
+DWORD STDCALL LoadSPCharacter_114(Unit* ptChar)
+{
+	if (ptChar && ptChar->nUnitType == UNIT_PLAYER && PCPlayerData)
+	{
+		DWORD ret = prepareSPCharacterLoad(ptChar);
+		if (ret)
+			return ret;
+	}
+	return active_PlayerCustomData ? LoadSPCustomData(ptChar) : 0;
+}
+
+// Replaces MOV EDI,EAX / TEST EDI,EDI / JNZ 0x534493 after the player is built (EAX 0) from the .d2s: a nonzero result
+// takes vanilla's failure exit 0x534493 with the code in EDI. Installed by Install_CharacterCommit.
+FCT_ASM (caller_LoadSPCharacter_114 )
 	MOV EDI,EAX
 	TEST EDI,EDI
-	JNZ JMP_LoadSPPlayerCustomData
+	JNZ JMP_LoadSPCharacter
 	PUSH DWORD PTR SS:[ESP+0x1C]
-	CALL LoadSPCustomData
+	CALL LoadSPCharacter_114
 	MOV EDI,EAX
 	TEST EDI,EDI
-	JNZ JMP_LoadSPPlayerCustomData
+	JNZ JMP_LoadSPCharacter
 	RETN
-JMP_LoadSPPlayerCustomData:
+JMP_LoadSPCharacter:
 	ADD DWORD PTR SS:[ESP],0x14
 	RETN
 }}
@@ -612,11 +720,14 @@ void Install_LoadPlayerData()
 
 	log_msg("Patch D2Game & D2Client for load Player's custom data. (LoadPlayerData)\n");
 
-	// Load SP player custom data.
-	mem_seek R8(D2Game, 5046F, 5086F, 5CB0F, BB8ED, 278CD, 465BD, 5638D, 3BCCD, 13447A);
-	memt_byte( 0x8B, 0xE8); // CALL caller_LoadSPPlayerCustomData
-	MEMT_REF4( version_D2Game >= V114d ? 0x75FF85F8 : 0x75F685F0 , version_D2Game >= V114d ? caller_LoadSPPlayerCustomData_114 : caller_LoadSPPlayerCustomData);
-	memt_byte( version_D2Game >= V114d ? 0x13 : 0x16, 0x90); // NOP
+	// Load SP player custom data. On 1.14d Install_CharacterCommit owns this site: its stub loads the custom data too.
+	if (version_D2Game != V114d)
+	{
+		mem_seek R8(D2Game, 5046F, 5086F, 5CB0F, BB8ED, 278CD, 465BD, 5638D, 3BCCD, 0000);
+		memt_byte( 0x8B, 0xE8); // CALL caller_LoadSPPlayerCustomData
+		MEMT_REF4( 0x75F685F0, caller_LoadSPPlayerCustomData);
+		memt_byte( 0x16, 0x90); // NOP
+	}
 	//6FC8CB0F   8BF0             MOV ESI,EAX
 	//6FC8CB11   85F6             TEST ESI,ESI
 	//6FC8CB13   75 16            JNZ SHORT D2Game.6FC8CB2B
@@ -635,9 +746,6 @@ void Install_LoadPlayerData()
 	//6FC5BCCD  |> 8BF0           MOV ESI,EAX
 	//6FC5BCCF  |. 85F6           TEST ESI,ESI
 	//6FC5BCD1  |. 75 16          JNZ SHORT D2Game.6FC5BCE9
-	//0053447A  |. 8BF8           MOV EDI,EAX
-	//0053447C  |. 85FF           TEST EDI,EDI
-	//0053447E  |. 75 13          JNZ SHORT Game.00534493
 
 	// Load MP player custom data.
 	mem_seek R8(D2Game, 50790, 50B90, 5CC66, BB777, 27757, 46447, 56217, 3BB57, 134572);

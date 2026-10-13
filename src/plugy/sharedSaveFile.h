@@ -19,6 +19,12 @@ void initSharedStashBaseline(Unit* ptChar, DWORD diskHash, bool diskExisted);
 // isLeaving: the save made when the player leaves the game, the only one that writes a conflict file or shows a box.
 // Returns true when the file holds this game's shared items.
 bool writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isHardcore, bool isLeaving);
+// Whether this save leaves the shared stash file as it is, by the same decision writeSharedSaveFileIfChanged makes;
+// "changed" whenever an input is missing. Reads only and takes no lock.
+bool sharedSaveIsUnchanged(Unit* ptChar, bool isHardcore);
+#ifdef PLUGY_TEST_HOOKS
+void checkSharedSaveParity(Unit* ptChar, bool isHardcore);
+#endif
 
 void backupSharedSaveFile();
 

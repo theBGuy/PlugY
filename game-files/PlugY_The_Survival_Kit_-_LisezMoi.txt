@@ -33,6 +33,7 @@ Toutes ces fonctions peuvent être activé/désactivé via PlugY.ini (voir "COMM
 - Déplace Deckar Cain à coté du portail d'Harrogath.
 - Désalloue les points de capacités et de caractèristiques précédemment allouées.
 - Crée un backup des fichiers de sauvegarde avant de sauvegarder.
+- Sauvegardes protégées contre les plantages (1.14d, monojoueur, activé par défaut) : une sauvegarde qui ne modifie pas le coffre partagé est écrite en entier ou pas du tout, donc après un plantage ou un arrêt forcé, le personnage et son coffre se rechargent depuis la même sauvegarde complète.
 - Change la langue du jeu.
 - Régénère toujours la carte en monojoueur comme en multijoueur.
 - Exécute automatiquement la comande /players X au lancement d'une partie.
@@ -690,6 +691,60 @@ Les fichiers de backup sont sauvegardé dans un répertoire nommé "backup" dans
 - ActiveAutoBackup=0		{0:Désactivé; 1:Activé}
 - MaxBackupPerCharacter=20	{20: Nombre de backup à conserver avant suppression; 0:Pas de purge des backups}
 
+Sauvegardes protégées contre les plantages, sur la 1.14d en monojoueur uniquement.
+Une sauvegarde qui ne modifie pas le coffre partagé est écrite en entier ou pas du tout : si le jeu plante ou est
+arrêté à n'importe quel moment, le chargement suivant trouve soit la nouvelle sauvegarde complète, soit la
+précédente complète, et le personnage (.d2s) et son fichier de coffre (.d2x) correspondent toujours. Un arrêt ne
+coûte que la progression depuis la dernière sauvegarde terminée.
+Une sauvegarde qui modifie le coffre partagé écrit les fichiers de coffre (.d2x et .sss) comme avant : un arrêt
+pendant cette sauvegarde peut donc encore les laisser en décalage avec le personnage ; le .d2s est quand même
+toujours écrit en entier.
+Activé pour les nouvelles installations comme pour les mises à jour : un PlugY.ini sans cette ligne utilise 1.
+Avec 0, les sauvegardes sont écrites à l'ancienne, mais PlugY termine quand même une sauvegarde interrompue par un
+plantage et refuse quand même un personnage qu'une autre partie utilise déjà.
+Un arrêt au début d'une sauvegarde est annulé sans rien dire : le personnage charge sa sauvegarde précédente comme
+d'habitude. Après un arrêt à la fin d'une sauvegarde (une fois celle-ci validée), ou quand le chargement a dû
+attendre qu'une autre partie libère le personnage, le chargement suivant termine la sauvegarde et s'arrête une fois
+sur "Unable to enter game", sans boîte de dialogue, pour que la partie ne démarre jamais depuis une copie périmée.
+Chargez à nouveau le personnage ; D2Bot réessaie de lui-même.
+Quand le .d2s est en lecture seule ou illisible (un autre programme le garde ouvert), une sauvegarde qui ne modifie
+pas le coffre partagé n'écrit ni le .d2s ni le .d2x (avec 0, le .d2x est quand même sauvegardé). Pendant la partie,
+un .d2x illisible empêche aussi une telle sauvegarde.
+Pendant la partie, une sauvegarde que PlugY ne peut pas faire est seulement notée dans le log, et la sauvegarde
+suivante réessaie. Quand la sauvegarde faite en quittant la partie ne peut pas se faire, une boîte de dialogue par
+partie le signale : la progression de cette partie depuis sa dernière sauvegarde n'a pas été sauvegardée. Si les
+fichiers de coffre ont été sauvegardés mais pas le fichier du personnage, la boîte le dit à la place : le personnage
+et son coffre peuvent alors ne pas correspondre jusqu'à la prochaine sauvegarde réussie.
+Quand PlugY refuse de charger un personnage, une boîte de dialogue indique pourquoi et quoi faire, par exemple :
+- "already running in another game" : fermez l'autre partie, puis chargez à nouveau le personnage. Le chargement
+  attend d'abord jusqu'à 5 secondes environ que l'autre partie libère le personnage.
+- "can't be read" : fermez le programme qui garde ce fichier ouvert, ou corrigez ses permissions. Un fichier qu'un
+  autre programme garde ouvert un instant ne refuse le chargement qu'une fois, sans boîte ; la boîte s'affiche si
+  cela arrive deux fois de suite.
+- "finishing its interrupted save needs to change <file>, which failed" : ce fichier est en lecture seule,
+  verrouillé par un autre programme, ou le disque est plein. Corrigez-le, puis chargez à nouveau le personnage.
+- "its stash file ... is marked as being saved, but no save journal is left" : restaurez le .d2x depuis un backup.
+- "its save journal ... can't be read back" : ne supprimez ce .pyj que si vous acceptez de perdre la sauvegarde
+  qu'il contient.
+- "the character files match neither side of the save in its journal" : restaurez le personnage depuis un backup,
+  ou ne supprimez le .pyj que si vous acceptez de perdre la sauvegarde qu'il contient.
+Ces boîtes de dialogue suivent ShowErrorMessageBox (voir [GENERAL]).
+PlugY garde deux fichiers par personnage à côté des sauvegardes :
+- <nom>.pyj, le journal d'une sauvegarde en cours. Il ne reste que pendant une sauvegarde, ou jusqu'à ce qu'un
+  fichier qu'il doit remplacer puisse être écrit (PlugY réessaie environ toutes les 2 secondes pendant la partie, et
+  à la sauvegarde ou au chargement suivant du personnage) ; celui qu'un plantage a laissé est terminé ou annulé au
+  chargement ou à la sauvegarde suivante du personnage. Tant qu'il existe, les versions plus anciennes de PlugY
+  peuvent refuser de charger le personnage au lieu de charger une moitié de sauvegarde.
+  Quand un personnage a été supprimé puis recréé sous le même nom, son ancien .pyj est renommé en
+  <nom>.pyj.orphan-<YYYYMMDD-HHMMSS> et son .d2x restant, s'il existe, en <nom>.d2x.orphan-<YYYYMMDD-HHMMSS>, pour
+  que le nouveau personnage reparte de zéro ; quand seuls ses fichiers ont été remplacés par d'autres, seul le .pyj
+  est renommé.
+- <nom>.pylive, le verrou du personnage en cours de jeu : tant qu'une partie utilise un personnage, aucune autre
+  partie ne peut le charger ni le sauvegarder. Le fichier reste ensuite sur le disque, sans effet. Un .pylive en
+  lecture seule (dans un dossier de sauvegarde mis en lecture seule, par exemple) n'est pas utilisé : le personnage
+  se charge alors sans le verrou.
+- ActiveCrashSafeSaves=1	{0:Sauvegardes écrites à l'ancienne; 1:Activé}
+
 
 [MAIN SCREEN]
 Change le texte affiché dans le menu principal (premier menu) (à la place de "v 1.10")
@@ -866,6 +921,7 @@ Par exemple, les moddeurs peuvent tester leurs mod avec des parties multijoueurs
 Attention :
   Ne pas lancer des parties avec le même chemin de sauvegarde quand vous utiliser le coffre partagé.
   Ne pas utiliser le même personnage en même temps bien sûr !
+  Sur la 1.14d en monojoueur, PlugY refuse de charger un personnage qu'une autre partie utilise déjà (voir [SAVEPATH]).
 Ci-dessous, les valeurs par défauts et entre {} des exemples avec leurs significations :
 - ActiveLaunchAnyNumberOfLOD=0 		{0:Désactivé; 1:Activé}
 

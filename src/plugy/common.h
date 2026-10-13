@@ -33,7 +33,9 @@ void freeMessage(sWinMessage* msg);
 DWORD fnv1a(const BYTE* data, DWORD size, DWORD hash = FNV1A_INIT);
 bool formatPath(char* path, DWORD maxSize, const char* format, ...);
 bool getSaveFilePath(char* path, DWORD maxSize, const char* part1, const char* part2 = NULL, const char* part3 = NULL);
-bool writeFileAtomic(const char* finalPath, const BYTE* data, DWORD size);
+// retryReplace false: one replace attempt, never a wait, and the temp file is deleted on failure, for callers whose
+// data stays safe elsewhere (a commit journal) and that retry later themselves.
+bool writeFileAtomic(const char* finalPath, const BYTE* data, DWORD size, bool retryReplace = true);
 // 1: read into a D2FogMemAlloc buffer, 0: missing or empty, -1: exists but unreadable or shorter than minSize.
 int readSaveFileData(const char* path, BYTE** data, DWORD* size, DWORD minSize);
 

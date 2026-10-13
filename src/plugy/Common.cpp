@@ -123,7 +123,7 @@ static void deleteOwnOlderTempFiles(const char* finalPath)
 }
 
 
-bool writeFileAtomic(const char* finalPath, const BYTE* data, DWORD size)
+bool writeFileAtomic(const char* finalPath, const BYTE* data, DWORD size, bool retryReplace)
 {
 	char tempPath[MAX_PATH];
 	HANDLE hFile = createTempFile(tempPath, finalPath);
@@ -171,9 +171,15 @@ bool writeFileAtomic(const char* finalPath, const BYTE* data, DWORD size)
 			return true;
 		}
 		error = GetLastError();
-		if ((error != ERROR_SHARING_VIOLATION && error != ERROR_ACCESS_DENIED) || retry >= 100)
+		if (!retryReplace || (error != ERROR_SHARING_VIOLATION && error != ERROR_ACCESS_DENIED) || retry >= 100)
 			break;
 		Sleep(50);
+	}
+	if (!retryReplace)
+	{
+		DeleteFileA(tempPath);
+		log_msg("writeFileAtomic : can't replace %s now (error %u)\n", finalPath, error);
+		return false;
 	}
 	rememberKeptTemp(tempPath);
 	log_msg("writeFileAtomic : can't replace %s, the new data is kept in %s (error %u)\n", finalPath, tempPath, error);
