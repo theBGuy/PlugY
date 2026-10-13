@@ -11,6 +11,7 @@
 #include "windowed.h"
 #include "common.h"
 #include "../common/UpdateCheck.h"
+#include "updateNoticeRules.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -26,24 +27,28 @@ BYTE colorOfPlugYVersion = 4;
 // the "v 1.14d" baseline (measured on 1.14d at 800x600: rows 558-567 for both).
 DWORD newTextBoxData[]={4,0x237,0x249,0xC8,0x28,0,0,0,0,0,0,2};//type,x,y,l,h,?,?,?,?,?,?,?(0,257,C8,28)
 
-// One line above the name: text moves 1:1 with y (measured on 1.14d at 800x600: a one-line box at
-// y=0x243 draws rows 558-567 and the box above draws the name on rows 545-553), so y=0x229 draws ~532-541.
-DWORD updateTextBoxData[]={4,0x237,0x229,0xC8,0x14,0,0,0,0,0,0,2};//type,x,y,l,h,?,?,?,?,?,?,?
+// Two lines ("Update available", then the version) with a gap above the name, so the notice reads as
+// its own message. Lines start at y - h and sit 13 px apart (measured on 1.14d at 800x600: rows 506-514
+// and 519-528, the name on 545-553).
+DWORD updateTextBoxData[]={4,0x237,0x222,0xC8,0x28,0,0,0,0,0,0,2};//type,x,y,l,h,?,?,?,?,?,?,?
 
-// Measured on 1.14d at 800x600: the 21-character line "Update: 14.10.0-rc.10" (13-character version)
-// draws on one line in this 200 px box (161 px wide); valid release versions never exceed 13.
+// The version line holds the version alone. 13 characters fit this 200 px box: the 21-character line
+// "Update: 14.10.0-rc.10" drew on one line at 161 px (measured on 1.14d at 800x600), and valid release
+// versions never exceed 13.
 #define UPDATE_NOTICE_VERSION_MAX 13
 
-// Menu thread only, except updateThreadHint: the check thread writes it, then sets updateThreadDone,
-// and never touches it again, so the menu thread reads it only after seeing the flag.
+// Main thread only (the menu build and the in-game draw step), except updateThreadHint: the check thread
+// writes it, then sets updateThreadDone, and never touches it again, so it is read only after the flag.
 static bool updateCheckStarted = false;
 static bool updateThreadRunning = false;
 static char updateNoticeVersion[UPDATE_TAG_MAX] = "";	// "" while no newer release is known
+static char updateGameVersion[UPDATE_TAG_MAX] = "";		// the same release for the in-game line, which has no width cap
 static UpdateHint updateThreadHint;
 static volatile LONG updateThreadDone = 0;
 
 static void setUpdateNotice(const char* version)
 {
+	strcpy(updateGameVersion, version);
 	if (strlen(version) <= UPDATE_NOTICE_VERSION_MAX)
 		strcpy(updateNoticeVersion, version);
 	else
@@ -86,6 +91,7 @@ static void applyUpdateHint(const UpdateHint* hint)
 		else
 			log_msg("Update check: up to date\n");
 		updateNoticeVersion[0] = 0;
+		updateGameVersion[0] = 0;
 	}
 	if (hint->newer)
 		setUpdateNotice(hint->version);
@@ -101,10 +107,11 @@ static const char* newerCachedVersion(const UpdateCache* cache)
 	return cache->latestTag[0] == 'v' ? cache->latestTag + 1 : cache->latestTag;
 }
 
-/* The first call decides from the cache file alone; only a stale or missing cache starts the one
-   check thread, whose answer shows from the next menu build on, because a request can take minutes
-   and the menu thread must never wait on the network. A stale cache's newer release shows at once,
-   whatever its last check's status, so a bot that never returns to the main menu still sees it. */
+/* Called by each menu build and, on 1.14d, by each in-game frame until the in-game line has printed.
+   The first call decides from the cache file alone; only a stale or missing cache starts the one check
+   thread, whose answer shows at the next of those calls, because a request can take minutes and the
+   main thread must never wait on the network. A stale cache's newer release shows at once, whatever its
+   last check's status, so a bot that never returns to the main menu still sees it. */
 static void pollUpdateCheck()
 {
 	if (updateThreadRunning)
@@ -170,6 +177,28 @@ static void pollUpdateCheck()
 		log_msg("Update check: up to date\n");
 }
 
+/* The in-game half of the notice, called from the in-game draw step on the main menu's thread. A bot
+   leaves the menu at once, and a check can answer after the menu was built, so the first game that
+   knows a newer release prints one local chat line, once per process. 1.14d only: the one client
+   whose chat-print address is known. */
+void updateNoticeFrame()
+{
+	static bool shown = false;
+	static UpdateGameNoticeTimer timer = {};
+	if (shown || version_D2Client != V114d)
+		return;
+	pollUpdateCheck();
+	// The player lookup runs only once a newer release is known.
+	if (!updateGameNoticeStep(&timer, GetTickCount(), updateGameVersion[0] && D2GetClientPlayer()))
+		return;
+	WCHAR line[128];
+	_snwprintf(line, 127, L"PlugY4Kolbot %hs is available. Run PlugY4KolbotUpdater.exe to update.", updateGameVersion);
+	line[127] = 0;
+	D2PrintGameString(line, GREEN);
+	shown = true;
+	log_msg("Update check: version %s announced in game\n", updateGameVersion);
+}
+
 void STDCALL printPlugYVersion(void** childrens, DWORD* sgnNumChildren)
 {
 	if (active_Windowed)
@@ -191,14 +220,13 @@ void STDCALL printPlugYVersion(void** childrens, DWORD* sgnNumChildren)
 		// The notice is optional, so a full child list (the bound d2_assert enforces above) skips it.
 		if (updateNoticeVersion[0] && *sgnNumChildren < 40)
 		{
-			char notice[32];
-			_snprintf(notice, sizeof(notice) - 1, "Update: %s", updateNoticeVersion);
-			notice[sizeof(notice) - 1] = 0;
 			void* noticeBox = D2CreateTextBox(updateTextBoxData);
 			if (noticeBox)
 			{
 				childrens[(*sgnNumChildren)++] = noticeBox;
-				D2PrintLineOnTextBox(noticeBox, notice, GREEN);
+				char heading[] = "Update available";
+				D2PrintLineOnTextBox(noticeBox, heading, GREEN);
+				D2PrintLineOnTextBox(noticeBox, updateNoticeVersion, WHITE);
 			}
 		}
 	}

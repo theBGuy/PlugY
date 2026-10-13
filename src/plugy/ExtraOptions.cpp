@@ -9,6 +9,7 @@
 
 #include "common.h"
 #include "infinityStash.h"
+#include "mainScreen.h"
 #include <stdio.h>
 
 bool active_DisplayItemLevel = false;
@@ -247,19 +248,29 @@ void SendPlayersCommand()
 //	JMP D2GetResolution
 //}}
 
-FCT_ASM ( caller_SendPlayersCommand )
+// Every drawn in-game frame, on the thread that also runs the main menu. One step serves both
+// features: a second patch on this call site would fail the CheckMemory test.
+void inGameFrame()
+{
+	if (nbPlayersCommandByDefault)
+		SendPlayersCommand();
+	if (active_CheckForUpdates)
+		updateNoticeFrame();
+}
+
+FCT_ASM ( caller_inGameFrame )
 	PUSH ECX
-	CALL SendPlayersCommand
+	CALL inGameFrame
 	POP ECX
 	JMP D2PrintInterface
 }}
 
-void Install_SendPlayersCommand()
+void Install_InGameFrame()
 {
 	static int isInstalled = false;
 	if (isInstalled) return;
 
-	log_msg("Patch D2Client for init default nb /players. (SendPlayersCommand)\n");
+	log_msg("Patch D2Client for the in-game frame: default nb /players, update notice. (InGameFrame)\n");
 
 	if ( version_D2Client >= V110 )
 		msgNBPlayersString = (char*)R8(D2Client, 0000, 0000, D8448, D06A8, D4748, D4680, D4E00, D470C, 2D7374);
@@ -279,7 +290,7 @@ void Install_SendPlayersCommand()
 
 	// Set nb Player to default
 	mem_seek R8(D2Client,	90BA, 90AA, 97DA, 88E4C, 32C8C, 7CB5C, 4437C, 453CC, 4CB04);//6FB1C7B7-6FAA0000
-	MEMC_REF4( D2PrintInterface, caller_SendPlayersCommand);
+	MEMC_REF4( D2PrintInterface, caller_inGameFrame);
 	//6FAA90B9   . E8 62E10700    CALL D2Client.6FB27220
 	//6FAA90A9   . E8 F2D40700    CALL D2Client.6FB265A0
 	//6FAA97D9   . E8 92830700    CALL D2Client.6FB21B70

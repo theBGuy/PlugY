@@ -569,6 +569,7 @@ A8(STD,  D2Client,	B6670,B59F0,B7BC0,00000,00000,00000,00000,00000,00000,	DWORD,
 A8(STD,  D2Client,	B6680,B5A00,B7BD0,00000,00000,00000,00000,00000,00000,	DWORD,		D2GetMouseY, ());//6FB57BD0
 A8(STD,  D2Client,	8DC40,8CFC0,883D0,00000,00000,00000,00000,00000,63DD0,	Unit*,		D2GetClientPlayer, ());//6FB283D0
 A8(FAST, D2Client,	00000,00000,00000,00000,00000,00000,00000,00000,63990,	Unit*,		D2FindClientUnit, (DWORD unitId, DWORD unitType));//1.14d only. Read-only walk of the client's unit table for unitType (the one the item packets fill), matching Unit nItemNum
+A8(FAST, D2Client,	00000,00000,00000,00000,00000,00000,00000,00000,9E3A0,	void,		D2PrintGameString, (LPCWSTR text, DWORD color));//1.14d only. A local chat line, never sent to the server: the text is copied, plays message sound 6 and stays in the message log. Main thread only. GOLD takes a separate path, avoid it
 A8(FAST, D2Client,	 B920, B910, BF60,00000,00000,00000,00000,00000,4DA70,	void,		D2CleanStatMouseUp, ());//6FAABF60
 A8(FAST, D2Client,	 D210, D200, D990,00000,00000,00000,00000,00000,00000,	void,		D2SendToServer3, (BYTE type, WORD p));//6FAAD990
 //A8(FAST, D2Client,	00000,00000, DA20,00000,00000,00000,00000,00000,00000,	void,		D2SendToServer5, (BYTE type, DWORD p));//6FAADA20

@@ -1,7 +1,7 @@
 /*=================================================================
 	Update check: asks GitHub for the newest PlugY4Kolbot release.
 
-	Shared by PlugY.dll (main-menu hint) and the updater. Everything
+	Shared by PlugY.dll (main-menu and in-game notices) and the updater. Everything
 	here is reentrant (no globals), throws nothing and allocates only
 	bounded memory, so it can run on a background thread inside
 	Game.exe. Network access is WinHTTP only; PlugY.dll delay-loads

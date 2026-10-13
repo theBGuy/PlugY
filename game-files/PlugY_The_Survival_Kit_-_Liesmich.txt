@@ -522,8 +522,10 @@ englischen Datei PlugY_The_Survival_Kit_-_Readme.txt.
 
 
 ******** AKTUALISIERUNG ********
-- Im Spiel: Ist eine neuere Version erschienen, zeigt das Hauptmenü "Update: X.Y.Z" in Grün an (mit
-  ActivePrintPlugYVersion=1). CheckForUpdates und UpdateChannel in der PlugY.ini steuern die Prüfung.
+- Im Spiel: Ist eine neuere Version erschienen, zeigt das Hauptmenü "Update available" und die neue
+  Version an (mit ActivePrintPlugYVersion=1); unter 1.14d zeigt das erste Spiel danach außerdem eine
+  Chatzeile mit dem Hinweis, den Updater zu starten. CheckForUpdates und UpdateChannel in der PlugY.ini
+  steuern die Prüfung.
 - Schließe alle Diablo II-Spiele und starte dann PlugY4KolbotUpdater.exe aus deinem PlugY-Verzeichnis
   (dem, das PlugY.exe enthält); das Installationsprogramm legt außerdem die Startmenüverknüpfung "Check
   for PlugY4Kolbot updates" an. Der Updater prüft den Download anhand der SHA256SUMS.txt und der
@@ -723,9 +725,11 @@ Beendet D2, wenn PlugY nicht alle Features installieren konnte.
 Nur Ausschalten wenn du weist was du machst.
 - ActiveCheckMemory=1
 
-Zeigt im Hauptmenü "Update: <version>" in Grün über der PlugY-Version an, wenn es auf GitHub ein neueres
-PlugY4Kolbot-Release gibt (benötigt ActivePrintPlugYVersion=1 in [MAIN SCREEN]). Eine Prüfung, die GitHub
-abfragen muss, läuft im Hintergrund, und ihr Ergebnis erscheint beim nächsten Öffnen des Hauptmenüs.
+Zeigt im Hauptmenü "Update available" und die neue Version über der PlugY-Version an, wenn es auf GitHub
+ein neueres PlugY4Kolbot-Release gibt (benötigt ActivePrintPlugYVersion=1 in [MAIN SCREEN]); unter 1.14d
+zeigt das erste Spiel, das davon weiß, außerdem einmal pro Programmstart eine Chatzeile, unabhängig von
+ActivePrintPlugYVersion. Eine Prüfung, die GitHub abfragen muss, läuft im Hintergrund; ihr Ergebnis
+erscheint beim nächsten Öffnen des Hauptmenüs und unter 1.14d im Spiel.
 Datenschutz: Die Prüfung sendet höchstens eine Anfrage pro Tag, Windows-Benutzer und Update-Kanal (nach einer
 fehlgeschlagenen Prüfung eine pro Stunde) an api.github.com, mit dem User-Agent "PlugY4Kolbot/<version>";
 sonst wird nichts gesendet. Mit 0 nimmt PlugY nie Kontakt zu GitHub auf.
