@@ -461,7 +461,8 @@ where it is, its patch included.
 note : Installing over an existing install keeps your PlugY.ini settings, and adds each option a
 new install's PlugY.ini has that yours lacks (such as a new feature's section), set to the value
 PlugY was already using, from PlugY\PlugYDefault.ini. The [LAUNCHING] section, which only
-PlugY.exe reads, stays as it is.
+PlugY.exe reads, stays as it is. A pre-release's installer also turns ActiveLogFile=0 into 1 and
+sets UpdateChannel=prerelease (see both below).
 
 Installation in another mod:
 - Copy PlugY.ini, PlugY.exe and PlugY folder (+its contents) in the targeted mod folder.
@@ -538,10 +539,11 @@ D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can
 - Close every Diablo II game, then run PlugY4KolbotUpdater.exe from your PlugY folder (the one
   that holds PlugY.exe); the installer also adds the Start-menu shortcut "Check for PlugY4Kolbot
   updates". It verifies the download against SHA256SUMS.txt and GitHub's SHA-256 digest, and
-  keeps your PlugY.ini (a pre-release's installer turns ActiveLogFile=0 into 1: see
-  ActiveLogFile below), adding the options it lacks (see INSTALLATION). For an install the
-  installer made, it runs the new installer for that install alone; otherwise it backs up each
-  file it replaces under PlugY4Kolbot-backup\, and PlugY.ini too before it looks for options to add.
+  keeps your PlugY.ini (a pre-release's installer turns ActiveLogFile=0 into 1 and sets
+  UpdateChannel=prerelease: see both below), adding the options it lacks (see INSTALLATION). For
+  an install the installer made, it runs the new installer for that install alone; otherwise it
+  backs up each file it replaces under PlugY4Kolbot-backup\, and PlugY.ini too before it looks for
+  options to add.
 - Options, for scripts: --check only reports, --yes installs without asking, and --prerelease
   also offers alpha, beta and rc builds (the same as UpdateChannel=prerelease).
 Exit codes: 0 updated or up to date, 1 error, 2 update available (--check), 3 files in use,
@@ -699,6 +701,9 @@ menu opens, and in game on 1.14d.
 Privacy: the check sends at most one request per day per Windows user and update channel (one per hour
 after a failed check) to api.github.com with a "PlugY4Kolbot/<version>" User-Agent; nothing else is sent.
 With 0, PlugY never contacts GitHub.
+A pre-release's installer (also when the updater updates an install the installer made) sets
+UpdateChannel=prerelease at every install or update, so testers hear about the next pre-release; a
+later stable install keeps it, so set it back to stable to hear only about releases.
 - CheckForUpdates=1		{0:Never check; 1:Check for a newer release}
 - UpdateChannel=stable	{stable:Releases only; prerelease:Also alpha, beta and rc builds}
 

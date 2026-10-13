@@ -299,18 +299,20 @@ test("upper-case .MD fragments are validated as well as consumed", () => {
   });
 });
 
-test("the pre-release intro announces the installer's logging change, which the installer still makes", () => {
-  const logs =
-    " Its installer also turns on full session logs (`ActiveLogFile=1`) in an existing `PlugY.ini`, including" +
-    " when the updater updates an install the installer made, so your bug reports can include the whole" +
-    " session; to log only PlugY's startup, set it back to `0` after each install or update.";
+test("the pre-release intro announces the installer's PlugY.ini changes, which the installer still makes", () => {
+  const settings =
+    " Its installer also sets two options in `PlugY.ini` at every install, including when the updater updates" +
+    " an install the installer made: full session logs (`ActiveLogFile=1`), so your bug reports can include the" +
+    " whole session, and the pre-release update channel (`UpdateChannel=prerelease`), so the game tells you" +
+    " when the next pre-release is out. To log only PlugY's startup or hear only about releases, set them" +
+    " back to `0` and `stable` after each install or update.";
   assert.equal(
     prereleaseIntro("15.0.0", true, "14.3.0"),
-    "Pre-release of 15.0.0 for testing; these notes cover everything since 14.3.0." + logs,
+    "Pre-release of 15.0.0 for testing; these notes cover everything since 14.3.0." + settings,
   );
   assert.equal(
     prereleaseIntro("15.0.0", false, null),
-    "Pre-release of 15.0.0 for testing; no changes are recorded since the last stable release." + logs,
+    "Pre-release of 15.0.0 for testing; no changes are recorded since the last stable release." + settings,
   );
   // makensis accepts !ifdef on a symbol nothing defines, so losing the !searchparse line would
   // silently turn the feature off: pin the define as well as the block.
@@ -322,6 +324,9 @@ test("the pre-release intro announces the installer's logging change, which the 
   assert.ok(body.includes(String.raw`ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile"`));
   assert.ok(body.includes('${If} $0 == "0"'));
   assert.ok(body.includes(String.raw`WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile" "1"`));
+  assert.ok(body.includes(String.raw`ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "UpdateChannel"`));
+  assert.ok(body.includes('${If} $0 != "prerelease"'));
+  assert.ok(body.includes(String.raw`WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "UpdateChannel" "prerelease"`));
 });
 
 test("a leading UTF-8 BOM is stripped before a fragment is read or validated", () => {

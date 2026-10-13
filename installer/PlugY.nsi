@@ -584,10 +584,15 @@ Section "!$(SECTION_NAME_CORE)" Core
   File "${D2FILES}\PlugY\UnassignStatsBtns.dc6"
   Call AddMissingOptions
 !ifdef PRERELEASE_ID
-  ; Testers' bug reports need whole-session logs, so every pre-release install or update turns an
-  ; existing ActiveLogFile=0 into 1 (changelog-lib.mjs announces it), after the merge, so it sees
-  ; an ActiveLogFile the merge added too. Only an exact 0 changes; WriteINIStr keeps every other
-  ; byte but ends a file that has no final newline with CRLF.
+  ; This block runs after the merge on every pre-release install or update (changelog-lib.mjs announces
+  ; both settings), so it sees keys the merge added too; WriteINIStr keeps every other byte but ends a
+  ; file that has no final newline with CRLF. Testers hear about the next pre-release only on that
+  ; channel, so any value but "prerelease" (in any case, as LogicLib compares and the updater reads it)
+  ; becomes prerelease. Their bug reports need whole-session logs: only ActiveLogFile=0 changes.
+  ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "UpdateChannel"
+  ${If} $0 != "prerelease"
+    WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "UpdateChannel" "prerelease"
+  ${EndIf}
   ReadINIStr $0 "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile"
   ${If} $0 == "0"
     WriteINIStr "$INSTDIR\PlugY.ini" "GENERAL" "ActiveLogFile" "1"
