@@ -25,7 +25,7 @@ import {
   renderGroupBlocks,
   validateFragments,
 } from "./changelog-lib.mjs";
-import { zhReadmeLag } from "./readme-lag-lib.mjs";
+import { ZH_MARKER, zhReadmeLag } from "./readme-lag-lib.mjs";
 import {
   assessCandidate,
   BANNER_FILES,
@@ -375,24 +375,26 @@ async function main() {
     warn(`could not tell how far the Traditional Chinese readme lags: ${zhLag.error}`);
     zhQuestion = "Release without that check?";
   } else {
-    const catchUp = zhLag.catchUp.slice(0, 7);
-    const basis = `${zhLag.translatedTo.slice(0, 7)}, which the last Traditional Chinese catch-up (${catchUp}) translates`;
+    const english = zhLag.english.slice(0, 7);
+    const zhTw = zhLag.zhTw.slice(0, 7);
     const list = (commits) => {
       for (const c of commits) say(`    ${dim(`${c.sha.slice(0, 7)} ${c.subject}`)}`);
     };
     if (zhLag.behind.length === 0 && zhLag.editedSince.length === 0) {
-      ok(`no English readme change to translate since ${basis}`);
+      ok(
+        `the Traditional Chinese readme translates the English readme up to ${english} and has no edit to check after ${zhTw} (${ZH_MARKER})`,
+      );
     }
     if (zhLag.behind.length > 0) {
       warn(
-        `the English readme changed in ${zhLag.behind.length} commit(s) after ${basis}; update the Traditional Chinese readme before releasing, or release it behind:`,
+        `the English readme changed in ${zhLag.behind.length} commit(s) after ${english}, the english mark in ${ZH_MARKER}; translate them, then run node scripts/zh-readme-mark.mjs (--english-only for a change that needs no translation), or release it behind:`,
       );
       list(zhLag.behind);
       zhQuestion = "Release with the Traditional Chinese readme behind?";
     }
     if (zhLag.editedSince.length > 0) {
       warn(
-        `the Traditional Chinese readme was edited in ${zhLag.editedSince.length} commit(s) after its catch-up (${catchUp}); check that each kept the translation:`,
+        `the Traditional Chinese readme was edited in ${zhLag.editedSince.length} commit(s) after ${zhTw}, the zh-tw mark in ${ZH_MARKER}; check that each kept the translation, then run node scripts/zh-readme-mark.mjs --zh-only:`,
       );
       list(zhLag.editedSince);
       if (!zhQuestion) zhQuestion = "Release with those Traditional Chinese readme edits unchecked?";

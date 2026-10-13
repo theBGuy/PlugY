@@ -78,7 +78,9 @@ gap per file.
    and COMMENTS ON THE CONFIGURATION FILE sections (one line per INI key with its
    values). The German (`Liesmich`), French (`LisezMoi`) and Traditional Chinese
    (`讀我檔案`) readmes lag the English one; a change that doesn't update them says so
-   in the PR.
+   in the PR. A change that brings the Traditional Chinese readme up to date also runs
+   `node scripts/zh-readme-mark.mjs`, which updates `scripts/zh-readme-translated-to.txt`
+   for the check `release.mjs` makes before a release.
 3. **Shipped INI files** — a new or changed setting goes into `game-files/PlugY.ini`
    and `game-files/PlugY/PlugYDefault.ini` with the same default, plus its line in the
    English readme.
