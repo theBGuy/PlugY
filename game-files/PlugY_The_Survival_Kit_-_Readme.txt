@@ -532,8 +532,9 @@ D2gfx.dll before 1.14, missing or of another version; or a --dir folder that can
 
 
 ******** UPDATING ********
-- In game: when a newer release is out, the main menu shows "Update: X.Y.Z" in green (with
-  ActivePrintPlugYVersion=1). CheckForUpdates and UpdateChannel in PlugY.ini control the check.
+- In game: when a newer release is out, the main menu shows "Update available" and the new version
+  (with ActivePrintPlugYVersion=1); on 1.14d the first game after it is found also prints one chat
+  line saying to run the updater. CheckForUpdates and UpdateChannel in PlugY.ini control the check.
 - Close every Diablo II game, then run PlugY4KolbotUpdater.exe from your PlugY folder (the one
   that holds PlugY.exe); the installer also adds the Start-menu shortcut "Check for PlugY4Kolbot
   updates". It verifies the download against SHA256SUMS.txt and GitHub's SHA-256 digest, and
@@ -690,9 +691,11 @@ Quit D2, if PlugY failed to install all features.
 Disable it only if you know what you do.
 - ActiveCheckMemory=1
 
-Show "Update: <version>" in green above the PlugY version on the main menu when a newer PlugY4Kolbot
-release exists on GitHub (needs ActivePrintPlugYVersion=1 in [MAIN SCREEN]). A check that has to ask
-GitHub runs in the background, and its result shows the next time the main menu opens.
+Show "Update available" and the new version above the PlugY version on the main menu when a newer
+PlugY4Kolbot release exists on GitHub (needs ActivePrintPlugYVersion=1 in [MAIN SCREEN]); on 1.14d the
+first game that knows about it also prints one chat line, once per launch, whatever ActivePrintPlugYVersion
+says. A check that has to ask GitHub runs in the background; its result shows the next time the main
+menu opens, and in game on 1.14d.
 Privacy: the check sends at most one request per day per Windows user and update channel (one per hour
 after a failed check) to api.github.com with a "PlugY4Kolbot/<version>" User-Agent; nothing else is sent.
 With 0, PlugY never contacts GitHub.
