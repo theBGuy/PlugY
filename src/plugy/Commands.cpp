@@ -322,6 +322,8 @@ bool renameCharacter(Unit* ptChar, char* newName)
 	for (int i = 0; i < len; i++)
 		if (!isRenameNameChar(newName[i]))
 			return 1;
+	if (!characterRenameAllowed(PCPlayerData->name, newName))
+		return 0;
 	log_msg("Rename Character : %s -> %s\n", PCPlayerData->name, newName);
 
 	// Move current save file
@@ -342,7 +344,10 @@ bool renameCharacter(Unit* ptChar, char* newName)
 		strcpy(&szCurrentFile[curLen], "d2s");
 		strcpy(&szNewFile[newLen], "d2s");
 		if (!MoveFile(szCurrentFile, szNewFile))
+		{
+			cancelCharacterRename();
 			return 0;
+		}
 		strcpy(&szCurrentFile[curLen], "d2x");
 		strcpy(&szNewFile[newLen], "d2x");
 		MoveFile(szCurrentFile, szNewFile);
@@ -368,6 +373,8 @@ bool renameCharacter(Unit* ptChar, char* newName)
 		strcpy(&szNewFile[newLen], "map");
 		MoveFile(szCurrentFile, szNewFile);
 	}
+	// Before US_SAVE: that save runs under the new name and finds its lock already held.
+	renameCharacterCommitFiles(PCPlayerData->name, newName);
 
 	// Update server
 	for (int i = 0; i <= len; i++)

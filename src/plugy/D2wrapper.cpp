@@ -29,7 +29,7 @@
 #include "extraOptions.h"		// Install_AlwaysRegenMapInSP()
 #include "language.h"			// Install_LanguageManagement()
 #include "windowed.h"			// installed with Install_PrintPlugYVersion()
-#include "savePlayerData.h"		// Install_SavePlayerData()
+#include "savePlayerData.h"		// Install_SavePlayerData() Install_CharacterCommit()
 #include "hostJoin.h"			// Install_HostJoin()
 #include "customLibraries.h"
 #include "common.h"
@@ -435,6 +435,9 @@ extern "C" __declspec(dllexport) void* __stdcall Init(LPSTR IniName)
 	Install_VariableOnRealm();
 	// Not behind a feature switch: it fixes vanilla's TCP/IP host.
 	Install_HostJoin();
+	// Not behind a feature switch either: finishing a save a crash interrupted and the running-character lock must
+	// work whatever ActiveCrashSafeSaves says (that key only chooses the save writer).
+	Install_CharacterCommit();
 
 	if (active_Commands)
 		Install_Commands();

@@ -268,6 +268,45 @@ static const char* conflictTail(bool saved, const char* szConflictName, char* ta
 }
 
 
+// The save writes nothing to the shared file: the stash matches its load-time baseline and no conflict file was written
+// (*unchanged), no item moved while loading waits to be saved, and the file is still on disk. path NULL: no valid path.
+// writeSharedSaveFileIfChanged and sharedSaveIsUnchanged both decide through this one function, so they never drift.
+static bool sharedSaveWritesNothing(Unit* ptChar, bool canonicalValid, DWORD canonicalHash, const char* path, bool* unchanged)
+{
+	// once this game wrote a conflict file it is kept current, or merging it later could duplicate items taken back
+	*unchanged = PCPY->sharedBaselineValid && canonicalValid && canonicalHash == PCPY->sharedBaselineHash && !PCPY->sharedConflictStamp[0];
+	return *unchanged && !PCPY->sharedMovedOnLoad && path && !isSaveFileMissing(path);
+}
+
+
+bool sharedSaveIsUnchanged(Unit* ptChar, bool isHardcore)
+{
+	DWORD canonicalHash;
+	bool canonicalValid = getSharedStashCanonicalHash(ptChar, &canonicalHash);
+	char path[MAX_PATH];
+	bool unchanged;
+	return sharedSaveWritesNothing(ptChar, canonicalValid, canonicalHash, getSharedSaveFilePath(path, isHardcore) ? path : NULL, &unchanged);
+}
+
+
+#ifdef PLUGY_TEST_HOOKS
+// A dry run of writeSharedSaveFileIfChanged's no-write decision, spelled out apart from sharedSaveWritesNothing and
+// checked against sharedSaveIsUnchanged on every save; the rig fails a run that logs a mismatch.
+void checkSharedSaveParity(Unit* ptChar, bool isHardcore)
+{
+	DWORD canonicalHash;
+	bool canonicalValid = getSharedStashCanonicalHash(ptChar, &canonicalHash);
+	bool unchanged = PCPY->sharedBaselineValid && canonicalValid && canonicalHash == PCPY->sharedBaselineHash && !PCPY->sharedConflictStamp[0];
+	bool onlyMovedOnLoad = unchanged && PCPY->sharedMovedOnLoad;
+	char path[MAX_PATH];
+	bool writesNothing = getSharedSaveFilePath(path, isHardcore) && unchanged && !onlyMovedOnLoad && !isSaveFileMissing(path);
+	bool query = sharedSaveIsUnchanged(ptChar, isHardcore);
+	if (writesNothing != query)
+		log_msg("!!! SHARED SAVE PARITY MISMATCH: dry run says %s, sharedSaveIsUnchanged says %s\n", writesNothing ? "unchanged" : "changed", query ? "unchanged" : "changed");
+}
+#endif
+
+
 // Never overwrites a shared file that another process saved after this game loaded it. A save other than the leaving one
 // writes only when that is safe, and otherwise leaves the file to a later save with no conflict file and no box: a box
 // would stall a bot mid-game, and a conflict found then would turn shared moves off for the rest of the game.
@@ -278,22 +317,27 @@ bool writeSharedSaveFileIfChanged(Unit* ptChar, BYTE* data, DWORD size, bool isH
 	DWORD canonicalHash;
 	bool canonicalValid = getSharedStashCanonicalHash(ptChar, &canonicalHash);
 
-	// once this game wrote a conflict file it is kept current, or merging it later could duplicate items taken back
-	bool unchanged = PCPY->sharedBaselineValid && canonicalValid && canonicalHash == PCPY->sharedBaselineHash && !PCPY->sharedConflictStamp[0];
+	char szSaveName[MAX_PATH];
+	bool pathValid = getSharedSaveFilePath(szSaveName, isHardcore);
+	bool unchanged;
+	bool writesNothing = sharedSaveWritesNothing(ptChar, canonicalValid, canonicalHash, pathValid ? szSaveName : NULL, &unchanged);
 	// Items moved while loading are saved only over the file as it was loaded: several games loading the same file
 	// move the same items, and the first one to save stores the move for all of them.
 	bool onlyMovedOnLoad = unchanged && PCPY->sharedMovedOnLoad;
 
-	char szSaveName[MAX_PATH];
+#ifdef PLUGY_TEST_HOOKS
+	checkSharedSaveParity(ptChar, isHardcore);
+#endif
+
 	char message[1024];
 	message[0] = NULL;
 	// an unchanged stash already matches the file item for item: items moved while loading only changed places
 	bool saved = onlyMovedOnLoad;
-	if (!getSharedSaveFilePath(szSaveName, isHardcore))
+	if (!pathValid)
 	{
 		_snprintf(message, sizeof(message), "PlugY could not save the shared stash: the save path is too long.\nThe shared stash file on disk was not changed.");
 	}
-	else if (unchanged && !onlyMovedOnLoad && !isSaveFileMissing(szSaveName))
+	else if (writesNothing)
 	{
 		log_msg("shared stash unchanged since load; not rewritten\n");
 		return true;
