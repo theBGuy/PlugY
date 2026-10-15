@@ -17,7 +17,7 @@ Each features can be turned on/off via PlugY.ini (see "COMMENTS ON THE CONFIGURA
 * Move Deckard Cain near the waypoint in Harrogath.
 * Unassign assigned skills and stats points.
 * Auto backup save files before saving.
-* Crash-safe saves (1.14d, single player, on by default): a save that doesn't change the shared stash lands whole, so after a crash or a kill the character and its stash load from the same complete save; a save that changes the shared stash still writes the character file whole. `ActiveCrashSafeSaves=0` brings back the old save writer.
+* Crash-safe saves (1.14d, single player, on by default): a save that doesn't change the shared stash lands whole, so after a crash or a kill the character and its stash load from the same complete save. `ActiveCrashSafeSaves=0` brings back the old save writer; either way, PlugY refuses to load a character another game is running.
 * Change the selected language.
 * Always regenerate maps in SinglePlayer like in MultiPlayer.
 * Automatically execute /players X when you launch a new game.

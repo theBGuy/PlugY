@@ -24,11 +24,6 @@ void discardClientSaveTransfer(DWORD clientID);
 extern bool active_CrashSafeSaves;
 void Install_CharacterCommit();
 
-// The commit result of the last single-player save; seq is the journal sequence of that save.
-CommitResult getLastSaveResult(DWORD* seq = NULL);
-// Saves the game now (D2SaveGame) and returns that save's result: ABORTED when no character was saved.
-CommitResult forceCharacterSave(Game* ptGame, DWORD* seq = NULL);
-
 // One recovery run (CommitDecideRecovery and its actions) for a character's journal.
 struct CharacterRecovery
 {
@@ -38,6 +33,7 @@ struct CharacterRecovery
 	bool committed;			// the commit test held when recovery read the journal
 	bool rewroteD2s;		// an action replaced the .d2s
 	bool actionFailed;		// an action failed: everything after it, the journal included, stayed on disk
+	bool d2xFenced;			// the .d2x carries the save mark, version "0J"
 	DWORD readError;		// READ_ERROR: the open or read error of file
 	char file[MAX_PATH];	// the file a refusal names: quarantined, unreadable, or one an action could not change
 };

@@ -6,4 +6,5 @@
   stops once at "Unable to enter game"; loading again works, and D2Bot retries
   on its own. Two single-player games can't run the same character at once. On
   by default for new installs and upgrades; setting `ActiveCrashSafeSaves=0`
-  in the `[SAVEPATH]` section of `PlugY.ini` brings back the old save writer.
+  in the `[SAVEPATH]` section of `PlugY.ini` brings back the old save writer
+  and still keeps each character to one game at a time.

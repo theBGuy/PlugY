@@ -549,6 +549,7 @@ static bool runRecovery(const char* name, bool loadedHere, int readRetries, bool
 	out->cause = plan->cause;
 	out->parse = plan->parse;
 	out->committed = plan->committed;
+	out->d2xFenced = d2xFile.state == COMMIT_FILE_PRESENT && d2xFile.fenced;
 	if (plan->verdict != COMMIT_VERDICT_NONE)
 		log_msg("Crash-safe save: journal of %s: %s (%s, seq %u, %d action(s))\n", name, CommitVerdictName(plan->verdict),
 			plan->parse != COMMIT_PARSE_OK ? CommitParseStatusName(plan->parse) : plan->committed ? "committed" : "prepared",
@@ -598,8 +599,21 @@ void showRecoveryRefusal(const char* name, const CharacterRecovery* recovery, bo
 		log_box("PlugY %s %s: finishing its interrupted save needs to change %s, which failed (read-only, locked by another program, or disk full).\n%s Fix that file, then load the character again.",
 			refused, name, recovery->file, outcome);
 	else if (recovery->cause == COMMIT_QUARANTINE_FENCE_WITHOUT_JOURNAL)
-		log_box("PlugY %s %s: its stash file %s is marked as being saved, but no save journal is left to finish that save.\n%s Restore the stash file from a backup.",
+		log_box("PlugY %s %s: its stash file %s carries a save mark, but no save journal is left to finish that save.\n%s Restore the stash file from a backup, or remove the mark as the readme says: the file still holds the stash of the character's last finished save.",
 			refused, name, recovery->file, outcome);
+	else if (recovery->d2xFenced)
+	{
+		// Deleting the journal alone would leave its fenced .d2x behind, which refuses the character in turn.
+		char d2xPath[MAX_PATH];
+		if (!getSaveFilePath(d2xPath, MAX_PATH, name, ".d2x"))
+			formatPath(d2xPath, MAX_PATH, "%s.d2x", name);
+		if (recovery->cause == COMMIT_QUARANTINE_PARSE)
+			log_box("PlugY %s %s: its save journal %s can't be read back (%s).\n%s Delete that file only if you accept losing the save it holds. Its stash file %s carries a save mark, so remove that mark too (see the readme), or the character stays refused.",
+				refused, name, recovery->file, CommitParseStatusName(recovery->parse), outcome, d2xPath);
+		else
+			log_box("PlugY %s %s: the character files match neither side of the save in its journal %s.\n%s Restore the character from a backup, or delete that file only if you accept losing the save it holds. Its stash file %s carries a save mark, so remove that mark too (see the readme), or the character stays refused.",
+				refused, name, recovery->file, outcome, d2xPath);
+	}
 	else if (recovery->cause == COMMIT_QUARANTINE_PARSE)
 		log_box("PlugY %s %s: its save journal %s can't be read back (%s).\n%s Delete that file only if you accept losing the save it holds.",
 			refused, name, recovery->file, CommitParseStatusName(recovery->parse), outcome);
@@ -817,7 +831,7 @@ void renameCharacterCommitFiles(const char* oldName, const char* newName)
 		copyName(playedName, newName);
 }
 
-// C2 step 0, before this save reads or writes any file: the session lock, then the character's journal resolved by the
+// Step 0, before this save reads or writes any file: the session lock, then the character's journal resolved by the
 // verdict table. The lock comes first so a journal is only ever resolved by the game that holds the character. False
 // skips the save: another game holds the character, or a journal stays open. game: NULL when no entry hook ran.
 static bool commitStepZero(const char* name, bool isLeaving, PlayerData* owner, Game* game)
@@ -1051,6 +1065,28 @@ static void showLeavingSaveLost(const char* name, const char* file, const char* 
 		log_box("PlugY could not save %s when leaving the game: %s %s.\nThis game's progress since its last save was not saved.", name, file, reason);
 }
 
+static bool isReadOnly(const char* path)
+{
+	DWORD attributes = GetFileAttributesA(path);
+	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY);
+}
+
+// A .d2s frozen read-only on purpose would box at the end of every game: once per character per process instead. The
+// slot is its own, so this box and the .d2x writer's once-per-character box never silence each other.
+static char frozenBoxedName[COMMIT_NAME_SIZE] = "";
+
+// stashWritten: this save wrote the stash files without the character file.
+static void showLeavingSaveFrozen(const char* name, const char* d2sPath, bool stashWritten)
+{
+	if (!_stricmp(frozenBoxedName, name) || !firstLeavingBoxThisGame())
+		return;
+	copyName(frozenBoxedName, name);
+	if (stashWritten)
+		log_box("PlugY did not save %s when leaving the game: its character file %s is read-only. Its stash files were saved, so the character and its stash may not match.\nClear the read-only flag to save this character again. PlugY says this once per character until Diablo II is closed.", name, d2sPath);
+	else
+		log_box("PlugY did not save %s when leaving the game: its character file %s is read-only, so neither it nor its stash file was saved.\nClear the read-only flag to save this character again. PlugY says this once per character until Diablo II is closed.", name, d2sPath);
+}
+
 // stashWritten: this save already wrote the .d2x or changed the shared stash file, so only the character file is missing.
 // game: NULL when no entry hook ran.
 static void writePlainSave(const char* name, const char* d2sPath, const BYTE* d2s, DWORD d2sSize, bool isLeaving,
@@ -1065,7 +1101,9 @@ static void writePlainSave(const char* name, const char* d2sPath, const BYTE* d2
 	{
 		log_msg("Could not save %s\n", d2sPath);
 		setSaveResult(COMMIT_RESULT_ABORTED, committedSeq);
-		if (isLeaving && !stashWritten)
+		if (isLeaving && isReadOnly(d2sPath))
+			showLeavingSaveFrozen(name, d2sPath, stashWritten);
+		else if (isLeaving && !stashWritten)
 			showLeavingSaveLost(name, d2sPath, "can't be written (read-only, locked by another program, or disk full)");
 		else if (isLeaving && firstLeavingBoxThisGame())
 			log_box("PlugY could not save %s when leaving the game: its character file %s can't be written (read-only, locked by another program, or disk full).\nIts stash files were saved, so the character and its stash may not match until its next successful save.", name, d2sPath);
@@ -1088,7 +1126,7 @@ static void writeStashThenCharacter(char* name, const char* d2sPath, const BYTE*
 	writePlainSave(name, d2sPath, d2s, d2sSize, isLeaving, extendedSaved, pendingSave.game);
 }
 
-// C2 steps 2 to 7, from txn->next on. A failure at or before the commit point resolves the journal from the disk at
+// Steps 2 to 7, from txn->next on. A failure at or before the commit point resolves the journal from the disk at
 // once (a replace reported as failed may have landed), into *recovery; one after it leaves the rest to recovery.
 static void runCommitSteps(CommitTxn* txn, const char* name, const CommitPaths* paths, BYTE* journal,
 	DWORD journalSize, const BYTE* fenced, DWORD fencedSize, const BYTE* d2s, DWORD d2sSize, CharacterRecovery* recovery)
@@ -1127,7 +1165,7 @@ static void runCommitSteps(CommitTxn* txn, const char* name, const CommitPaths* 
 		}
 		if (!ok)
 		{
-			log_msg("Crash-safe save of %s: step %d failed\n", name, txn->next);
+			log_msg("Crash-safe save of %s: step %d (%s) failed\n", name, txn->next + 2, CommitStepName(txn->next));
 			if (CommitTxnStepFailed(txn) == COMMIT_RECOVER_NOW)
 			{
 				CommitRecovery plan;
@@ -1142,7 +1180,7 @@ static void runCommitSteps(CommitTxn* txn, const char* name, const CommitPaths* 
 	}
 }
 
-// The journaled save (C2): step 0 already ran in the entry hook.
+// The journaled save: step 0 already ran in the entry hook.
 static void commitJournaledSave(const char* d2sPath, const BYTE* d2s, DWORD d2sSize)
 {
 	char* name = pendingSave.name;
@@ -1156,24 +1194,29 @@ static void commitJournaledSave(const char* d2sPath, const BYTE* d2s, DWORD d2sS
 	DWORD fencedSize = 0;
 	DWORD d2xPreSize = 0;
 	bool prepared = false;
+	bool d2sReadOnly = false;
 	CommitPaths paths;
 	if (!getCommitPaths(name, &paths))
 		log_msg("Crash-safe save of %s: a save path is too long\n", name);
 	else
 	{
-		// Step 1. A read-only .d2s was frozen by the user on purpose: the whole save is refused, the stash included.
+		// Step 1. A read-only .d2s was frozen by the user on purpose, and an unreadable one can't be journaled: the whole
+		// save is refused, the stash included.
 		BYTE* d2sPre = NULL;
 		DWORD d2sPreSize = 0;
 		DWORD error;
 		CommitFileState d2sState = readDiskFile(paths.d2s, &d2sPre, &d2sPreSize, SAVE_READ_RETRIES, &error);
 		CommitDiskFile d2sPreFile = diskFile(d2sState, d2sPre, d2sPreSize);
 		free(d2sPre);
-		DWORD attributes = GetFileAttributesA(paths.d2s);
+		d2sReadOnly = isReadOnly(paths.d2s);
 		CommitFileState d2xState = readDiskFile(paths.d2x, &d2xPre, &d2xPreSize, SAVE_READ_RETRIES, &error);
-		if (d2sState == COMMIT_FILE_UNREADABLE || (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY)))
+		if (d2sReadOnly || d2sState == COMMIT_FILE_UNREADABLE)
 		{
 			failure = COMMIT_FAIL_D2S_PRECHECK;
-			log_msg("%s is read-only or unreadable: neither it nor the stash file is saved\n", paths.d2s);
+			if (d2sReadOnly)
+				log_msg("%s is read-only: neither it nor the stash file is saved\n", paths.d2s);
+			else
+				log_msg("%s can't be read: neither it nor the stash file is saved\n", paths.d2s);
 		}
 		else if (d2xState == COMMIT_FILE_UNREADABLE)
 			log_msg("Stash file not readable: the character and its stash wait for the next save too.\n");
@@ -1227,8 +1270,10 @@ static void commitJournaledSave(const char* d2sPath, const BYTE* d2s, DWORD d2sS
 	log_msg("Crash-safe save of %s not done: the files stay as the last save left them\n", name);
 	if (!pendingSave.isLeaving || allOrNothingLeaveSave)
 		return;
-	if (failure == COMMIT_FAIL_D2S_PRECHECK)
-		showLeavingSaveLost(name, paths.d2s, "is read-only or can't be read, so neither it nor the stash file was saved");
+	if (failure == COMMIT_FAIL_D2S_PRECHECK && d2sReadOnly)
+		showLeavingSaveFrozen(name, paths.d2s, false);
+	else if (failure == COMMIT_FAIL_D2S_PRECHECK)
+		showLeavingSaveLost(name, paths.d2s, "can't be read, so neither it nor the stash file was saved");
 	else if (recovery.verdict != COMMIT_VERDICT_NONE || recovery.actionFailed)
 	{
 		if (firstLeavingBoxThisGame())
@@ -1321,7 +1366,7 @@ static void retryCommit()
 
 static bool realmDatabaseLogged = false;
 
-// Every server frame (C7): cheap while nothing is pending.
+// Every server frame: cheap while nothing is pending.
 void STDCALL CharacterCommitTick(Game* ptGame)
 {
 	noteGameFrame(ptGame);
@@ -1340,25 +1385,6 @@ void STDCALL CharacterCommitTick(Game* ptGame)
 		return;
 	lastRetryTick = now;
 	retryCommit();
-}
-
-CommitResult getLastSaveResult(DWORD* seq)
-{
-	if (lastSaveState == COMMIT_RESULT_PENDING)
-		resolveStalePending();
-	if (seq)
-		*seq = lastSaveSeq;
-	return lastSaveState;
-}
-
-CommitResult forceCharacterSave(Game* ptGame, DWORD* seq)
-{
-	if (lastSaveState == COMMIT_RESULT_PENDING)
-		resolveStalePending();
-	// D2SaveGame may save no character at all: the result then stays ABORTED.
-	lastSaveState = COMMIT_RESULT_ABORTED;
-	D2SaveGame(ptGame);
-	return getLastSaveResult(seq);
 }
 
 // D2SaveSPChar(ECX game, EDX player, EBX name; stack: interaction flag, leaving flag), so at entry [ESP+8] is the

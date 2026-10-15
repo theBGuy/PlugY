@@ -29,7 +29,7 @@
 #include "extraOptions.h"		// Install_AlwaysRegenMapInSP()
 #include "language.h"			// Install_LanguageManagement()
 #include "windowed.h"			// installed with Install_PrintPlugYVersion()
-#include "savePlayerData.h"		// Install_SavePlayerData()
+#include "savePlayerData.h"		// Install_SavePlayerData() Install_CharacterCommit()
 #include "hostJoin.h"			// Install_HostJoin()
 #include "customLibraries.h"
 #include "common.h"

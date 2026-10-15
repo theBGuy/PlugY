@@ -717,6 +717,11 @@ sauvegarde de PlugY par partie le signale : la progression de cette partie depui
 Si cette sauvegarde a écrit un fichier de coffre (.d2x ou .sss) mais n'a pas pu écrire le fichier du personnage, la
 boîte le dit à la place : le personnage et son coffre peuvent alors ne pas correspondre jusqu'à la prochaine
 sauvegarde réussie.
+Quand le fichier du personnage est un .d2s en lecture seule, cette boîte ("its character file ... is read-only") ne
+s'affiche qu'une fois par personnage jusqu'à la fermeture de Diablo II : un personnage gardé exprès en lecture
+seule ne provoque donc pas une boîte à chaque partie. Retirez l'attribut lecture seule pour sauvegarder à nouveau ce
+personnage. Les autres échecs (un .d2s illisible, un fichier verrouillé, un disque plein) affichent une boîte à
+chaque partie où ils se produisent.
 Quand PlugY refuse de charger un personnage, une boîte de dialogue indique pourquoi et quoi faire, par exemple :
 - "already running in another game" : fermez l'autre partie, puis chargez à nouveau le personnage. Le chargement
   attend d'abord jusqu'à 5 secondes environ que l'autre partie libère le personnage.
@@ -725,11 +730,20 @@ Quand PlugY refuse de charger un personnage, une boîte de dialogue indique pour
   cela arrive deux fois de suite.
 - "finishing its interrupted save needs to change <file>, which failed" : ce fichier est en lecture seule,
   verrouillé par un autre programme, ou le disque est plein. Corrigez-le, puis chargez à nouveau le personnage.
-- "its stash file ... is marked as being saved, but no save journal is left" : restaurez le .d2x depuis un backup.
+- "its stash file ... carries a save mark, but no save journal is left to finish that save" : le .d2x contient
+  encore le coffre de la dernière sauvegarde terminée du personnage. La marque de sauvegarde est le "0J" juste après
+  "CSTM" au début du fichier (un .d2x normal a "01" à cet endroit) : restaurez le .d2x depuis un backup, ou remettez
+  "01" à la place de ce "0J" avec un éditeur hexadécimal. Un .d2x de seulement 6 octets ne contient aucun coffre :
+  supprimez-le plutôt. Dans tous les cas, le coffre est celui d'avant la sauvegarde interrompue ; si le fichier du
+  personnage est plus récent, les objets déplacés entre le personnage et son coffre depuis cette sauvegarde peuvent
+  être en double ou manquer.
 - "its save journal ... can't be read back" : ne supprimez ce .pyj que si vous acceptez de perdre la sauvegarde
-  qu'il contient.
+  qu'il contient. Si la boîte dit aussi que le fichier de coffre "carries a save mark", retirez également cette
+  marque, comme l'indique le point ci-dessus.
 - "the character files match neither side of the save in its journal" : restaurez le personnage depuis un backup,
-  ou ne supprimez le .pyj que si vous acceptez de perdre la sauvegarde qu'il contient.
+  ou ne supprimez le .pyj que si vous acceptez de perdre la sauvegarde qu'il contient. Si la boîte dit aussi que le
+  fichier de coffre "carries a save mark", retirez également cette marque, comme l'indique le point
+  "carries a save mark" plus haut.
 Ces boîtes de dialogue suivent ShowErrorMessageBox (voir [GENERAL]).
 PlugY garde deux fichiers par personnage à côté des sauvegardes :
 - <nom>.pyj, le journal d'une sauvegarde en cours. Il ne reste que pendant une sauvegarde, ou jusqu'à ce qu'un

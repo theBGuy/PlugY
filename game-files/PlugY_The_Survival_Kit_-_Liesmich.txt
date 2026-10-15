@@ -821,6 +821,11 @@ nicht gespeichert (ein Meldungsfenster zu einer Goldschatz-Datei, etwa zu einem 
 Goldschatz, kann zusätzlich erscheinen). Hat dieses Speichern eine Goldschatz-Datei (.d2x oder .sss) geschrieben,
 die Charakterdatei aber nicht, sagt das Meldungsfenster stattdessen das: Der Charakter und sein Goldschatz passen
 dann bis zum nächsten erfolgreichen Speichern womöglich nicht zusammen.
+Bei einer schreibgeschützten .d2s erscheint dieses Meldungsfenster ("its character file ... is read-only") nur
+einmal pro Charakter, bis Diablo II beendet wird; ein Charakter, den du absichtlich schreibgeschützt hältst, bekommt
+es also nicht nach jedem Spiel. Entferne den Schreibschutz, damit dieser Charakter wieder gespeichert wird. Bei
+anderen Fehlern (eine nicht lesbare .d2s, eine gesperrte Datei, ein voller Datenträger) erscheint das
+Meldungsfenster in jedem Spiel, in dem sie auftreten.
 Verweigert PlugY das Laden eines Charakters, nennt ein Meldungsfenster den Grund und was zu tun ist, zum Beispiel:
 - "already running in another game": Beende das andere Spiel und lade den Charakter dann erneut. Das Laden wartet
   vorher bis zu etwa 5 Sekunden, bis das andere Spiel den Charakter freigibt.
@@ -829,12 +834,20 @@ Verweigert PlugY das Laden eines Charakters, nennt ein Meldungsfenster den Grund
   Meldungsfenster erscheint, wenn es zweimal hintereinander passiert.
 - "finishing its interrupted save needs to change <file>, which failed": Die Datei ist schreibgeschützt, von einem
   anderen Programm gesperrt, oder der Datenträger ist voll. Behebe das und lade den Charakter dann erneut.
-- "its stash file ... is marked as being saved, but no save journal is left": Stelle die .d2x aus einem Backup
-  wieder her.
+- "its stash file ... carries a save mark, but no save journal is left to finish that save": Die .d2x enthält noch
+  den Goldschatz vom letzten abgeschlossenen Speichern des Charakters. Die Speichermarkierung ist das "0J" direkt
+  nach "CSTM" am Anfang der Datei (eine normale .d2x hat dort "01"): Stelle die .d2x aus einem Backup wieder her,
+  oder ändere dieses "0J" mit einem Hex-Editor wieder in "01". Eine nur 6 Byte große .d2x enthält keinen Goldschatz:
+  Lösche sie stattdessen. In jedem Fall stammt der Goldschatz aus der Zeit vor dem unterbrochenen Speichervorgang;
+  ist die Charakterdatei neuer, können daher Gegenstände, die seitdem zwischen dem Charakter und seinem Goldschatz
+  verschoben wurden, doppelt vorhanden sein oder fehlen.
 - "its save journal ... can't be read back": Lösche diese .pyj nur, wenn du in Kauf nimmst, den darin enthaltenen
-  Spielstand zu verlieren.
+  Spielstand zu verlieren. Sagt das Meldungsfenster außerdem, dass die Goldschatz-Datei eine Speichermarkierung
+  trägt ("carries a save mark"), entferne auch diese Markierung, wie es der Punkt darüber beschreibt.
 - "the character files match neither side of the save in its journal": Stelle den Charakter aus einem Backup
   wieder her, oder lösche die .pyj nur, wenn du in Kauf nimmst, den darin enthaltenen Spielstand zu verlieren.
+  Sagt das Meldungsfenster außerdem, dass die Goldschatz-Datei eine Speichermarkierung trägt
+  ("carries a save mark"), entferne auch diese Markierung, wie es der Punkt "carries a save mark" oben beschreibt.
 Diese Meldungsfenster richten sich nach ShowErrorMessageBox (siehe [GENERAL]).
 PlugY legt pro Charakter zwei Dateien neben den Spielständen an:
 - <Name>.pyj, das Journal eines laufenden Speichervorgangs. Es bleibt nur, solange gespeichert wird oder bis eine

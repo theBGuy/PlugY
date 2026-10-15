@@ -688,7 +688,7 @@ static void testNoJournal()
 	CHECK(!CommitVerdictProceeds(COMMIT_VERDICT_QUARANTINE));
 }
 
-// --- Commit test (P10) ----------------------------------------------------------------------------------------------
+// --- Commit test ---------------------------------------------------------------------------------------------------
 
 static void testCommitTest()
 {
@@ -742,7 +742,7 @@ static void testCommitTest()
 	CHECK(!r.rewritesD2s);
 }
 
-// --- Verdict matrix (C5a) -------------------------------------------------------------------------------------------
+// --- Verdict matrix ------------------------------------------------------------------------------------------------
 
 struct Case
 {
@@ -900,9 +900,11 @@ static void testMatrix()
 	printf("Verdict matrix: %d cells\n", matrixCells);
 	for (int v = COMMIT_VERDICT_NONE; v <= COMMIT_VERDICT_ROLL_BACK; v++)
 		CHECK(strcmp(CommitVerdictName((CommitVerdict)v), "?") != 0);
+	for (int s = COMMIT_STEP_PREPARE; s <= COMMIT_STEP_END; s++)
+		CHECK(strcmp(CommitStepName((CommitStep)s), "?") != 0);
 }
 
-// --- Orphans and the 0-byte rule (P3/N5/S3) -------------------------------------------------------------------------
+// --- Orphans and the 0-byte rule -----------------------------------------------------------------------------------
 
 static void testOrphans()
 {
@@ -975,7 +977,7 @@ static void testOrphans()
 	CHECK(!CommitOrphanSuffix(&t, NULL, 32));
 }
 
-// --- Commit steps (C2, P4, N9) --------------------------------------------------------------------------------------
+// --- Commit steps --------------------------------------------------------------------------------------------------
 
 // The disk a journaled save leaves after its first `steps` steps succeeded.
 static Disk diskAfterSteps(int steps, const Bytes& prepared, const Bytes& committed)
@@ -1041,7 +1043,7 @@ static void testTxn()
 	for (int failed = COMMIT_STEP_PREPARE; failed <= COMMIT_STEP_DELETE; failed++)
 	{
 		char cell[48];
-		sprintf(cell, "failed step %d", failed);
+		sprintf(cell, "failed step %d (%s)", failed + 2, CommitStepName((CommitStep)failed));
 		seq = base;
 		CommitTxnBegin(&txn, seq);
 		for (int s = 0; s < failed; s++)
@@ -1129,7 +1131,8 @@ static void testTxn()
 	CHECK(txn.journalOnDisk);
 	CHECK(disk.journal.present);
 	CHECK_EQ(seq, base);
-	// D8 stays blocked while that journal is on disk; the next recovery finishes the rollback, and then it may run.
+	// The leave fallback stays blocked while that journal is on disk; the next recovery finishes the rollback, and then
+	// it may run.
 	CHECK(!CommitLeaveFallbackAllowed(true, false, txn.journalOnDisk, COMMIT_FAIL_OTHER));
 	decide(disk, true, &r);
 	CHECK_EQ(r.verdict, COMMIT_VERDICT_ROLL_BACK);
@@ -1174,7 +1177,7 @@ static void testTxn()
 	CHECK_EQ(seq, base + 1);
 }
 
-// --- Leave fallback (D8, C6) ----------------------------------------------------------------------------------------
+// --- Leave fallback ------------------------------------------------------------------------------------------------
 
 static void testLeaveFallback()
 {
@@ -1187,7 +1190,7 @@ static void testLeaveFallback()
 	CHECK(!CommitLeaveFallbackAllowed(true, false, false, COMMIT_FAIL_SESSION_LOCK));
 }
 
-// --- Load refuse-once (C5 step 4) -----------------------------------------------------------------------------------
+// --- Load refuse-once ----------------------------------------------------------------------------------------------
 
 static void testLoadRefusal()
 {

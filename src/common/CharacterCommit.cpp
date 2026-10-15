@@ -398,7 +398,7 @@ void CommitDecideRecovery(CommitFileState journalState, const BYTE* journal, DWO
 		return;
 	}
 
-	// Rule 1.
+	// Rule 1: parse the journal and decide whether its commit point passed.
 	out->parse = CommitJournalParse(journal, journalSize, &out->journal);
 	if (out->parse != COMMIT_PARSE_OK)
 	{
@@ -505,6 +505,21 @@ const char* CommitVerdictName(CommitVerdict verdict)
 	case COMMIT_VERDICT_ORPHAN_SUPERSEDED: return "orphan (files replaced)";
 	case COMMIT_VERDICT_ROLL_FORWARD: return "roll forward";
 	case COMMIT_VERDICT_ROLL_BACK: return "roll back";
+	}
+	return "?";
+}
+
+const char* CommitStepName(CommitStep step)
+{
+	switch (step)
+	{
+	case COMMIT_STEP_PREPARE: return "prepare";
+	case COMMIT_STEP_FENCE: return "fence";
+	case COMMIT_STEP_COMMIT: return "commit";
+	case COMMIT_STEP_D2S: return "replace .d2s";
+	case COMMIT_STEP_D2X: return "replace .d2x";
+	case COMMIT_STEP_DELETE: return "delete journal";
+	case COMMIT_STEP_END: return "end";
 	}
 	return "?";
 }

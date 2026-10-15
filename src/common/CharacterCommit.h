@@ -83,7 +83,7 @@ DWORD CommitFence(const BYTE* pre, DWORD preSize, BYTE* out, DWORD outSize);
 
 // One journaled save. d2sPre describes the .d2s on disk when the commit begins (ABSENT or PRESENT); d2sPost is the
 // serializer's buffer; d2xPre is the .d2x on disk (NULL/0 when absent: preSize 0 then means absent or empty) and
-// d2xPost the stash writer's output. commitPointPart: 0 in Phase C (the journal's own state is the commit point).
+// d2xPost the stash writer's output. commitPointPart: 0 makes the journal's own state the commit point (saves pass 0).
 struct CommitBuildInput
 {
 	const char* name;
@@ -224,8 +224,10 @@ bool CommitLoadRefusesOnce(CommitVerdict verdict, bool committed, bool rewroteD2
 // ".orphan-20261013-142530" (local time), appended to the archived journal and .d2x. False when out is too small.
 bool CommitOrphanSuffix(const SYSTEMTIME* t, char* out, size_t outSize);
 
-// One journaled save's steps (C2): PREPARED journal, fence, COMMITTED journal (the commit point), .d2s, .d2x, delete
-// the journal.
+// One journaled save's steps, as every "step N" in the code counts them: 0 resolves any open journal (recovery, before
+// any read or write), 1 refuses a read-only or unreadable .d2s, 2 writes the PREPARED journal, 3 fences the .d2x, 4
+// flips the journal to COMMITTED (the commit point), 5 replaces the .d2s, 6 replaces the .d2x, 7 deletes the journal.
+// CommitStep covers steps 2 to 7: step N is the value N - 2.
 enum CommitStep
 {
 	COMMIT_STEP_PREPARE,
@@ -236,6 +238,7 @@ enum CommitStep
 	COMMIT_STEP_DELETE,
 	COMMIT_STEP_END,
 };
+const char* CommitStepName(CommitStep step);
 
 enum CommitResult
 {
@@ -279,7 +282,7 @@ void CommitTxnRecovered(CommitTxn* txn, const CommitRecovery* recovery, int acti
 enum CommitFailure
 {
 	COMMIT_FAIL_OTHER,
-	COMMIT_FAIL_D2S_PRECHECK,  // a read-only or unwritable .d2s refuses the whole save, leaving included
+	COMMIT_FAIL_D2S_PRECHECK,  // a read-only or unreadable .d2s refuses the whole save, leaving included
 	COMMIT_FAIL_SESSION_LOCK,  // never written around: another game may be playing the character
 };
 

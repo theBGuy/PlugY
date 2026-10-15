@@ -783,6 +783,10 @@ as you leave the game can't be made, one PlugY save-failure box per game says so
 last save was not saved (a box about a stash file, such as a shared-stash conflict, can come as well). When that
 save wrote a stash file (.d2x or .sss) but couldn't write the character file, the box says that instead: the
 character and its stash may not match until the next successful save.
+When the character file is a read-only .d2s, that box ("its character file ... is read-only") comes once per
+character until Diablo II is closed, so a character kept read-only on purpose doesn't get a box after every game;
+clear the read-only flag to save that character again. Other failures (a .d2s that can't be read, a locked file, a
+full disk) get a box in each game they happen in.
 When PlugY refuses to load a character, a message box says why and what to do, for example:
 - "already running in another game": close the other game, then load the character again. A load first waits up
   to about 5 seconds for the other game to release the character.
@@ -790,10 +794,17 @@ When PlugY refuses to load a character, a message box says why and what to do, f
   for a moment only refuses the load once, without a box; the box comes if it happens twice in a row.
 - "finishing its interrupted save needs to change <file>, which failed": that file is read-only, locked by another
   program, or the disk is full. Fix it, then load the character again.
-- "its stash file ... is marked as being saved, but no save journal is left": restore the .d2x from a backup.
-- "its save journal ... can't be read back": delete that .pyj only if you accept losing the save it holds.
+- "its stash file ... carries a save mark, but no save journal is left to finish that save": the .d2x still holds
+  the stash of the character's last finished save. The save mark is the "0J" right after "CSTM" at the start of the
+  file (a normal .d2x has "01" there): restore the .d2x from a backup, or change that "0J" back to "01" with a hex
+  editor. A .d2x of only 6 bytes holds no stash: delete it instead. Either way the stash is the one from before the
+  interrupted save, so if the character file is newer, items moved between the character and its stash since then
+  can be doubled or missing.
+- "its save journal ... can't be read back": delete that .pyj only if you accept losing the save it holds. When the
+  box also says the stash file "carries a save mark", remove that mark too, as the item above says.
 - "the character files match neither side of the save in its journal": restore the character from a backup, or
-  delete the .pyj only if you accept losing the save it holds.
+  delete the .pyj only if you accept losing the save it holds. When the box also says the stash file
+  "carries a save mark", remove that mark too, as the "carries a save mark" item above says.
 These boxes follow ShowErrorMessageBox (see [GENERAL]).
 PlugY keeps two files per character next to the saves:
 - <name>.pyj, the journal of a save in progress. It stays only while a save runs, or until a file it must replace
