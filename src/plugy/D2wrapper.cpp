@@ -31,6 +31,7 @@
 #include "windowed.h"			// installed with Install_PrintPlugYVersion()
 #include "savePlayerData.h"		// Install_SavePlayerData()
 #include "hostJoin.h"			// Install_HostJoin()
+#include "spriteLoad.h"			// Install_SpriteLoad() Install_HeaderCacheLock()
 #include "customLibraries.h"
 #include "common.h"
 
@@ -435,6 +436,9 @@ extern "C" __declspec(dllexport) void* __stdcall Init(LPSTR IniName)
 	Install_VariableOnRealm();
 	// Not behind a feature switch: it fixes vanilla's TCP/IP host.
 	Install_HostJoin();
+	// Not behind a feature switch: these fix vanilla 1.14d sprite loading.
+	Install_SpriteLoad();
+	Install_HeaderCacheLock();
 
 	if (active_Commands)
 		Install_Commands();
