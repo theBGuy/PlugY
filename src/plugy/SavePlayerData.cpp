@@ -1072,15 +1072,27 @@ static bool isReadOnly(const char* path)
 }
 
 // A .d2s frozen read-only on purpose would box at the end of every game: once per character per process instead. The
-// slot is its own, so this box and the .d2x writer's once-per-character box never silence each other.
-static char frozenBoxedName[COMMIT_NAME_SIZE] = "";
+// names are this box's own, so it and the .d2x writer's once-per-character box never silence each other; more frozen
+// characters than slots in one process only repeat a box.
+#define FROZEN_BOXED_NAMES 32
+static char frozenBoxedNames[FROZEN_BOXED_NAMES][COMMIT_NAME_SIZE];
+static int frozenBoxedNext = 0;
+
+static bool frozenBoxShown(const char* name)
+{
+	for (int i = 0; i < FROZEN_BOXED_NAMES; i++)
+		if (!_stricmp(frozenBoxedNames[i], name))
+			return true;
+	return false;
+}
 
 // stashWritten: this save wrote the stash files without the character file.
 static void showLeavingSaveFrozen(const char* name, const char* d2sPath, bool stashWritten)
 {
-	if (!_stricmp(frozenBoxedName, name) || !firstLeavingBoxThisGame())
+	if (frozenBoxShown(name) || !firstLeavingBoxThisGame())
 		return;
-	copyName(frozenBoxedName, name);
+	copyName(frozenBoxedNames[frozenBoxedNext], name);
+	frozenBoxedNext = (frozenBoxedNext + 1) % FROZEN_BOXED_NAMES;
 	if (stashWritten)
 		log_box("PlugY did not save %s when leaving the game: its character file %s is read-only. Its stash files were saved, so the character and its stash may not match.\nClear the read-only flag to save this character again. PlugY says this once per character until Diablo II is closed.", name, d2sPath);
 	else
