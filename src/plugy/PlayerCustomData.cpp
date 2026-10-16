@@ -136,6 +136,10 @@ void FASTCALL free_PlayerCustomData(DWORD p1, PlayerData* playerData, LPCSTR fil
 	free(ptPYPlayerData->sharedStash);//D2FogMemDeAlloc(ptPYPlayerData->sharedStash,__FILE__,__LINE__,0);
 	ptPYPlayerData->sharedStash = NULL;
 
+	// Only the PlayerData whose load took the session lock releases it: the client-side copy and TCP/IP joiners are
+	// freed here too.
+	releaseSessionLockOf(playerData);
+
 	D2FreeMem(p1,playerData,file,line,p5);
 }
 

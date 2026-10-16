@@ -33,6 +33,7 @@ Jedes Feature kann via PlugY.ini an/ausgeschaltet werden (siehe "Kommentare aus 
 - Deckard Cain steht jetzt in Harrogath am Wegpunkt.
 - Man kann die Skill- und Statuspunkte zurücksetzen.
 - Automatisches Backup von Spielständen vor dem eigentlichen Speichern.
+- Absturzsichere Spielstände (1.14d, Einzelspieler, standardmäßig aktiviert): Ein Speichervorgang, der den gemeinsamen Goldschatz nicht ändert, wird ganz oder gar nicht geschrieben, sodass der Charakter und seine Kiste nach einem Absturz oder Abbruch aus demselben vollständigen Spielstand geladen werden.
 - Man kann die gewählte Sprache verändern.
 - Man kann einstellen das im Einzelspieler-Modus die Karte mit jedem Spiel erneuert wird.
 - Man kann /players X automatisch ausführen lassen.
@@ -794,6 +795,79 @@ The backup will be store in a folder name "backup" in the save folder.
 - ActiveAutoBackup=0		{0:Disabled; 1:Enabled}
 - MaxBackupPerCharacter=20	{20: Number of backup to keep before delete; 0:No backup purge}
 
+Absturzsichere Spielstände, unter 1.14d nur im Einzelspieler.
+Ein Speichervorgang, der den gemeinsamen Goldschatz nicht ändert, wird ganz oder gar nicht geschrieben: Stürzt das
+Spiel in irgendeinem Moment ab oder wird es beendet, findet das nächste Laden entweder den vollständigen neuen oder
+den vollständigen vorherigen Spielstand, und der Charakter (.d2s) und seine Goldschatz-Datei (.d2x) passen
+zusammen. Ein Abbruch kostet nur den Fortschritt seit dem letzten abgeschlossenen Speichern.
+Ein Speichervorgang, der den gemeinsamen Goldschatz ändert, schreibt die Goldschatz-Dateien (.d2x und .sss) wie
+bisher; nach einem Abbruch währenddessen können sie daher weiterhin nicht zum Charakter passen. Die .d2s wird
+trotzdem immer vollständig geschrieben.
+Aktiv bei Neuinstallationen und bei Updates: Eine PlugY.ini ohne diese Zeile verwendet 1. Mit 0 wird auf die alte
+Weise gespeichert, aber PlugY schließt einen durch einen Absturz unterbrochenen Speichervorgang trotzdem ab und
+weist einen Charakter, den ein anderes Spiel gerade ausführt, weiterhin ab.
+Ein Abbruch früh im Speichervorgang wird stillschweigend rückgängig gemacht: Der Charakter lädt wie gewohnt seinen
+vorherigen Spielstand. Nach einem Abbruch spät im Speichervorgang (nachdem er festgeschrieben wurde) oder wenn das
+Laden warten musste, bis ein anderes Spiel den Charakter freigibt, schließt das nächste Laden den Speichervorgang ab
+und endet einmal mit "Unable to enter game", ohne Meldungsfenster, damit das Spiel nie mit einem veralteten Stand
+beginnt. Lade den Charakter erneut; D2Bot versucht es von selbst noch einmal.
+Ist die .d2s schreibgeschützt oder nicht lesbar (ein anderes Programm hält sie offen), schreibt ein Speichervorgang,
+der den gemeinsamen Goldschatz nicht ändert, weder die .d2s noch die .d2x (mit 0 wird die .d2x trotzdem
+gespeichert). Während des Spiels überspringt PlugY einen solchen Speichervorgang auch bei einer nicht lesbaren .d2x.
+Während des Spiels wird ein Speichervorgang, den PlugY nicht ausführen kann, nur ins Log geschrieben, und der
+nächste versucht es erneut. Kann das Speichern beim Verlassen des Spiels nicht ausgeführt werden, meldet das ein
+PlugY-Meldungsfenster für Speicherfehler pro Spiel: Der Fortschritt dieses Spiels seit dem letzten Speichern wurde
+nicht gespeichert (ein Meldungsfenster zu einer Goldschatz-Datei, etwa zu einem Konflikt beim gemeinsamen
+Goldschatz, kann zusätzlich erscheinen). Hat dieses Speichern eine Goldschatz-Datei (.d2x oder .sss) geschrieben,
+die Charakterdatei aber nicht, sagt das Meldungsfenster stattdessen das: Der Charakter und sein Goldschatz passen
+dann bis zum nächsten erfolgreichen Speichern womöglich nicht zusammen.
+Bei einer schreibgeschützten .d2s erscheint dieses Meldungsfenster ("its character file ... is read-only") nur
+einmal pro Charakter, bis Diablo II beendet wird; ein Charakter, den du absichtlich schreibgeschützt hältst, bekommt
+es also nicht nach jedem Spiel. Entferne den Schreibschutz, damit dieser Charakter wieder gespeichert wird. Bei
+anderen Fehlern (eine nicht lesbare .d2s, eine gesperrte Datei, ein voller Datenträger) erscheint das
+Meldungsfenster in jedem Spiel, in dem sie auftreten.
+Verweigert PlugY das Laden eines Charakters, nennt ein Meldungsfenster den Grund und was zu tun ist, zum Beispiel:
+- "already running in another game": Beende das andere Spiel und lade den Charakter dann erneut. Das Laden wartet
+  vorher bis zu etwa 5 Sekunden, bis das andere Spiel den Charakter freigibt.
+- "can't be read": Schließe das Programm, das diese Datei offen hält, oder korrigiere ihre Berechtigungen. Hält ein
+  anderes Programm die Datei nur kurz offen, wird das Laden einmal ohne Meldungsfenster verweigert; das
+  Meldungsfenster erscheint, wenn es zweimal hintereinander passiert.
+- "finishing its interrupted save needs to change <file>, which failed": Die Datei ist schreibgeschützt, von einem
+  anderen Programm gesperrt, oder der Datenträger ist voll. Behebe das und lade den Charakter dann erneut.
+- "its stash file ... carries a save mark, but no save journal is left to finish that save": Die .d2x enthält noch
+  den Goldschatz vom letzten abgeschlossenen Speichern des Charakters. Die Speichermarkierung ist das "0J" direkt
+  nach "CSTM" am Anfang der Datei (eine normale .d2x hat dort "01"): Stelle die .d2x aus einem Backup wieder her,
+  oder ändere dieses "0J" mit einem Hex-Editor wieder in "01". Eine nur 6 Byte große .d2x enthält keinen Goldschatz:
+  Lösche sie stattdessen. In jedem Fall stammt der Goldschatz aus der Zeit vor dem unterbrochenen Speichervorgang;
+  ist die Charakterdatei neuer, können daher Gegenstände, die seitdem zwischen dem Charakter und seinem Goldschatz
+  verschoben wurden, doppelt vorhanden sein oder fehlen.
+- "its save journal ... can't be read back": Lösche diese .pyj nur, wenn du in Kauf nimmst, den darin enthaltenen
+  Spielstand zu verlieren. Sagt das Meldungsfenster außerdem, dass die Goldschatz-Datei eine Speichermarkierung
+  trägt ("carries a save mark"), entferne auch diese Markierung, wie es der Punkt darüber beschreibt.
+- "the character files match neither side of the save in its journal": Stelle den Charakter aus einem Backup
+  wieder her, oder lösche die .pyj nur, wenn du in Kauf nimmst, den darin enthaltenen Spielstand zu verlieren.
+  Sagt das Meldungsfenster außerdem, dass die Goldschatz-Datei eine Speichermarkierung trägt
+  ("carries a save mark"), entferne auch diese Markierung, wie es der Punkt "carries a save mark" oben beschreibt.
+Diese Meldungsfenster richten sich nach ShowErrorMessageBox (siehe [GENERAL]).
+PlugY legt pro Charakter zwei Dateien neben den Spielständen an:
+- <Name>.pyj, das Journal eines laufenden Speichervorgangs. Es bleibt nur, solange gespeichert wird oder bis eine
+  Datei, die es ersetzen muss, geschrieben werden kann (PlugY versucht es während des Spiels etwa alle 2 Sekunden
+  erneut und beim nächsten Speichern oder Laden des Charakters); ein nach einem Absturz übrig gebliebenes Journal
+  wird beim nächsten Laden oder Speichern des Charakters abgeschlossen oder rückgängig gemacht. Solange es
+  existiert, können ältere PlugY-Versionen das Laden des Charakters verweigern, statt einen halben Spielstand
+  zu laden.
+  Wurde ein Charakter gelöscht und unter demselben Namen neu erstellt, wird seine alte .pyj in
+  <Name>.pyj.orphan-<YYYYMMDD-HHMMSS> umbenannt und seine übrig gebliebene .d2x, falls vorhanden, in
+  <Name>.d2x.orphan-<YYYYMMDD-HHMMSS>, damit der neue Charakter sauber beginnt; wurden nur seine Dateien durch
+  andere ersetzt, wird nur die .pyj umbenannt.
+- <Name>.pylive, die Sperre des laufenden Charakters: Solange ein Spiel einen Charakter ausführt, kann ihn kein
+  anderes Spiel laden oder speichern. Mit dem Mehrfachseiten-Goldschatz (ActiveMultiPageStash=1) endet die Sperre
+  mit dem Spiel; ohne ihn behält ein Game.exe, das ins Menü zurückgekehrt ist, die Sperre seines letzten
+  Charakters, bis es einen anderen Charakter lädt oder beendet wird. Die Datei bleibt danach liegen und schadet
+  nicht; auch eine schreibgeschützte .pylive wirkt als Sperre. Lässt sich die Sperrdatei nicht anlegen (zum
+  Beispiel in einem Spielstand-Ordner, der keine neuen Dateien zulässt), läuft der Charakter ohne die Sperre.
+- ActiveCrashSafeSaves=1	{0:Speichern auf die alte Weise; 1:Aktiviert}
+
 
 [MAIN SCREEN]
 Hier kann man die Versionsinfo des Hauptbildschirms ändern (Original ist : v 1.10)
@@ -1003,6 +1077,7 @@ Zum Beispiel können Modder Multiplayer-Spiele auf einem PC testen.
 Warnung :
 Startet keine Spiele mit dem gleichen Speicherort (SavePath), wenn Ihr den gemeinsamen Goldschatz aktiviert habt.
 Benutzt nicht zweimal den gleichen Charakter zur gleichen Zeit.
+Unter 1.14d verweigert PlugY im Einzelspieler das Laden eines Charakters, den ein anderes Spiel gerade ausführt (siehe [SAVEPATH]).
 - ActiveLaunchAnyNumberOfLOD=0		{0:Deaktiviert ; 1: Aktiviert}
 
 Im Einzelspieler Modus kann die Karte bei jedem Start automatisch erneuert werden (wie im Mehrspieler).

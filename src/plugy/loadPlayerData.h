@@ -17,4 +17,7 @@ void Install_LoadPlayerData();
 // the id, and must not append to the stale entry). Server thread only, like ReceiveSaveFiles.
 void discardClientSaveFiles(DWORD clientID);
 
+// The stub of the 1.14d single-player load site, installed by Install_CharacterCommit.
+void caller_LoadSPCharacter_114();
+
 /*================================= END OF FILE =================================*/
