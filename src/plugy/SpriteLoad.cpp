@@ -514,8 +514,8 @@ static volatile LONG skipCallbackTick = 0;
 
 /*================================= ISSUE =================================*/
 
-enum SpriteIssueVerdict { SIV_OK, SIV_STALE, SIV_MISMATCH, SIV_UNKNOWN, SIV_BADCOPY, SIV_INJECTED };
-static const char* const issueVerdictNames[] = { "ok", "stale", "mismatch", "unknown", "badcopy", "injected" };
+enum SpriteIssueVerdict { SIV_OK, SIV_MISMATCH, SIV_UNKNOWN, SIV_BADCOPY, SIV_INJECTED };
+static const char* const issueVerdictNames[] = { "ok", "mismatch", "unknown", "badcopy", "injected" };
 
 // Called in place of the issuer (0x5FFA20) with its arguments; returns the header the load goes out with, or NULL to
 // fail the issue as the issuer itself does, so the caller evicts the sprite and the next frame retries it.
