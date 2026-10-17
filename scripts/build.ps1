@@ -36,7 +36,8 @@
     tests/SaveTransferTests.cpp, tests/MovedItemsPageTests.cpp,
     tests/ReleasedConnectionsTests.cpp, tests/StatBonusTests.cpp,
     tests/ServerMessageRulesTests.cpp, tests/UpdateNoticeRulesTests.cpp,
-    tests/IniSectionTests.cpp and tests/CharacterCommitTests.cpp into
+    tests/IniSectionTests.cpp, tests/CharacterCommitTests.cpp and
+    tests/SpriteLoadRulesTests.cpp into
     build/out/<Config>/tests/ (console, static CRT) and run them. Exits 1 when a
     test fails.
 
@@ -120,6 +121,7 @@ $DllSources = @(
     'src\plugy\SharedSaveFile.cpp'
     'src\plugy\SkillPerLevelUp.cpp'
     'src\plugy\SkillsPoints.cpp'
+    'src\plugy\SpriteLoad.cpp'
     'src\plugy\StashProtocol.cpp'
     'src\plugy\StatBonus.cpp'
     'src\plugy\StatPerLevelUp.cpp'
@@ -532,6 +534,19 @@ try {
             LinkExtra = @()
         }
         Build-Target $CharacterCommitTests
+        $SpriteLoadRulesTests = @{
+            Key       = 'spriteloadtests'
+            Sources   = @('tests\SpriteLoadRulesTests.cpp')
+            Rc        = $null
+            Out       = 'tests\SpriteLoadRulesTests.exe'
+            Pdb       = 'tests\SpriteLoadRulesTests.pdb'
+            ClFlags   = @('/nologo', '/c', '/W3', '/EHsc') + $StaticOpt
+            Defines   = @('WIN32', $NDebug, '_CONSOLE', '_MBCS', '_CRT_SECURE_NO_WARNINGS')
+            RcFlags   = @()
+            LinkFlags = $ConsoleLink
+            LinkExtra = @()
+        }
+        Build-Target $SpriteLoadRulesTests
 
         $testArguments = @('--fixtures', (Join-Path $RepoRoot 'tests\fixtures'),
                            '--scratch', (Join-Path (Join-Path $OutDir 'tests') 'scratch'))
@@ -573,10 +588,13 @@ try {
         Write-Log ''
         Write-Log '=== CharacterCommitTests.exe'
         Invoke-Tool (Join-Path $OutDir $CharacterCommitTests.Out) @()
+        Write-Log ''
+        Write-Log '=== SpriteLoadRulesTests.exe'
+        Invoke-Tool (Join-Path $OutDir $SpriteLoadRulesTests.Out) @()
     }
 
     $warnings = @(Get-Content -LiteralPath $LogFile | Where-Object { $_ -match ': warning [A-Z]+\d+' }).Count
-    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections, stat-bonus, server-message, update-notice, ini-section and character-commit tests passed' } else { '' }
+    $tested = if ($Test) { '; update-check, updater, session-log, save-transfer, moved-items-page, released-connections, stat-bonus, server-message, update-notice, ini-section, character-commit and sprite-load tests passed' } else { '' }
     Write-Host ''
     $defined = if ($Define.Count) { ', PlugY.dll with ' + ($Define -join ' ') } else { '' }
     Write-Host "Built PlugY.dll, PlugY.exe, PatchD2File.exe, RestoreD2File.exe, PlugY4KolbotUpdater.exe ($Config, /$Crt$defined) with $warnings warning(s) in $OutDir$tested" -ForegroundColor Green

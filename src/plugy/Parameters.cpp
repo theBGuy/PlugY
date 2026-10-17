@@ -40,6 +40,7 @@ const char* PARAM_DEFAULT_FILENAME = "PlugY\\PlugYDefault.ini";
 #include "language.h"
 #include "windowed.h"
 #include "savePlayerData.h"
+#include "spriteLoad.h"
 #include "../common/UpdateCheck.h"
 
 
@@ -246,6 +247,20 @@ const char* S_active_DoNotCloseNihlathakPortal = "ActiveDoNotCloseNihlathakPorta
 const char* S_active_MoveCainNearHarrogathWaypoint = "MoveCainNearHarrogathWaypoint";
 const char* S_active_RemoveExperienceDiminushingReturn = "RemoveExperienceDiminushingReturn";
 const char* S_active_AlwaysQuestDrops = "AlwaysQuestDrops";
+
+#ifdef PLUGY_TEST_HOOKS
+// Knobs of the live test harness, read in test builds only.
+const char* S_TEST = "TEST";
+const char* S_testSpriteFix = "SpriteFix";
+const char* S_testSpriteGuard = "SpriteGuard";
+const char* S_testHeaderCacheLock = "HeaderCacheLock";
+const char* S_testSpriteLoadDelayMs = "SpriteLoadDelayMs";
+const char* S_testHeaderCacheBytes = "HeaderCacheBytes";
+const char* S_testSpriteInjectEvery = "SpriteInjectEvery";
+const char* S_testSpriteIssueInjectEvery = "SpriteIssueInjectEvery";
+const char* S_testSpriteDecodeFailEvery = "SpriteDecodeFailEvery";
+const char* S_testSpriteSkipCallbackEvery = "SpriteSkipCallbackEvery";
+#endif
 
 const char* S_DLL = "DLL:\t";
 const char* S_DEFAULT = "DEFAULT:";
@@ -1210,6 +1225,55 @@ void init_ExtraOptions(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefa
 		log_msg("active_AlwaysQuestDrops\t\t= %u\n\n", active_AlwaysQuestDrops);
 }
 
+#ifdef PLUGY_TEST_HOOKS
+// Values as strtoul reads them with base 0: decimal, 0x hex, or octal after a leading 0. The delay is capped at 1 s,
+// and a budget other than 0 is kept between 0x3000 bytes and the game's own 0x7D000.
+void init_SpriteLoadTest(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFile, char* buffer, DWORD maxSize)
+{
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteFix, "1");
+	testSpriteFix = strtoul(buffer, NULL, 0) != 0;
+	log_msg("testSpriteFix\t\t\t\t= %d\n", testSpriteFix);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteGuard, "1");
+	testSpriteGuard = strtoul(buffer, NULL, 0) != 0;
+	log_msg("testSpriteGuard\t\t\t\t= %d\n", testSpriteGuard);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testHeaderCacheLock, "1");
+	testHeaderCacheLock = strtoul(buffer, NULL, 0) != 0;
+	log_msg("testHeaderCacheLock\t\t\t= %d\n", testHeaderCacheLock);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteLoadDelayMs, "0");
+	testSpriteLoadDelayMs = strtoul(buffer, NULL, 0);
+	if (testSpriteLoadDelayMs > 1000)
+		testSpriteLoadDelayMs = 1000;
+	log_msg("testSpriteLoadDelayMs\t\t= %u\n", testSpriteLoadDelayMs);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testHeaderCacheBytes, "0");
+	testHeaderCacheBytes = strtoul(buffer, NULL, 0);
+	if (testHeaderCacheBytes && testHeaderCacheBytes < 0x3000)
+		testHeaderCacheBytes = 0x3000;
+	if (testHeaderCacheBytes > 0x7D000)
+		testHeaderCacheBytes = 0x7D000;
+	log_msg("testHeaderCacheBytes\t\t= %u\n", testHeaderCacheBytes);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteInjectEvery, "0");
+	testSpriteInjectEvery = strtoul(buffer, NULL, 0);
+	log_msg("testSpriteInjectEvery\t\t= %u\n", testSpriteInjectEvery);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteIssueInjectEvery, "0");
+	testSpriteIssueInjectEvery = strtoul(buffer, NULL, 0);
+	log_msg("testSpriteIssueInjectEvery\t= %u\n", testSpriteIssueInjectEvery);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteDecodeFailEvery, "0");
+	testSpriteDecodeFailEvery = strtoul(buffer, NULL, 0);
+	log_msg("testSpriteDecodeFailEvery\t= %u\n", testSpriteDecodeFailEvery);
+
+	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteSkipCallbackEvery, "0");
+	testSpriteSkipCallbackEvery = strtoul(buffer, NULL, 0);
+	log_msg("testSpriteSkipCallbackEvery\t= %u\n\n", testSpriteSkipCallbackEvery);
+}
+#endif
+
 
 void loadParameters()
 {
@@ -1260,6 +1324,9 @@ void loadParameters()
 			init_UberQuest(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
 			init_NewInterfaces(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
 			init_ExtraOptions(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
+#ifdef PLUGY_TEST_HOOKS
+			init_SpriteLoadTest(iniFile, iniFixedFile, iniDefaultFile, buffer, BUFSIZE);
+#endif
 		}
 		log_msg("Reading parameters end.\n\n\n");
 	} else {
