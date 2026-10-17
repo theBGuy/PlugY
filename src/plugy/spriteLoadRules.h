@@ -112,8 +112,9 @@ inline void dccCopyName(const BYTE* hdr, char out[DCC_COPY_NAME_SIZE])
 	out[n] = '\0';
 }
 
-// For logs only: a stale copy can hold freed bytes, and a control byte would split the session log's line. Every
-// byte outside printable ASCII becomes '?'; comparisons and the pair table keep the dccCopyName form.
+// For logs only: a header's name is printed from its raw bytes (in fix-off test runs, from a cache slot another file
+// may hold by then), and a control byte would split the session log's line. Every byte outside printable ASCII
+// becomes '?'; comparisons and the pair table keep the dccCopyName form.
 inline void dccPrintableName(const char* name, char out[DCC_COPY_NAME_SIZE])
 {
 	int n = 0;
@@ -128,12 +129,15 @@ inline void dccPrintableName(const char* name, char out[DCC_COPY_NAME_SIZE])
 struct SpritePair { char expected[DCC_NAME_SIZE]; char found[DCC_COPY_NAME_SIZE]; DWORD count; DWORD counted; };
 struct SpritePairTable { SpritePair pairs[SPRITE_PAIR_CAPACITY]; DWORD used; DWORD clock; DWORD recycled; };
 
-// Returns the pair's new reject count; a new pair starts at 1. It takes a free slot, else one whose streak was reset,
-// else the slot of the pair counted longest ago: a streak left behind when its sprite went off screen must not hold
-// its slot for good, while a load rejected on every frame stays among the most recently counted and reaches the cap.
-inline DWORD spritePairCount(SpritePairTable* t, const char* expected, const char* found)
+// Returns the pair's new reject count; a new pair starts at 1 and sets *isNew. It takes a slot whose streak was
+// reset, else a free one, else the slot of the pair counted longest ago: a streak left behind when its sprite went
+// off screen must not hold its slot for good, while a load rejected on every frame stays among the most recently
+// counted and reaches the cap.
+inline DWORD spritePairCount(SpritePairTable* t, const char* expected, const char* found, bool* isNew = NULL)
 {
 	t->clock++;
+	if (isNew)
+		*isNew = false;
 	SpritePair* reset = NULL;
 	SpritePair* oldest = NULL;
 	for (DWORD i = 0; i < t->used; i++)
@@ -163,6 +167,8 @@ inline DWORD spritePairCount(SpritePairTable* t, const char* expected, const cha
 	p->found[DCC_COPY_NAME_SIZE - 1] = '\0';
 	p->count = 1;
 	p->counted = t->clock;
+	if (isNew)
+		*isNew = true;
 	return 1;
 }
 
@@ -174,6 +180,9 @@ inline void spritePairReset(SpritePairTable* t, const char* expected)
 		if (!strcmp(t->pairs[i].expected, expected))
 			t->pairs[i].count = 0;
 }
+
+// A load whose pair reached this count goes through: past the cap of rejects in a row.
+inline bool spritePastCap(DWORD n) { return n > SPRITE_REJECT_CAP; }
 
 // Every event up to the 32nd, then one in 256: a soak keeps its first cases and a running total.
 inline bool spriteLogThis(LONG n) { return n <= 32 || n % 256 == 0; }
@@ -190,6 +199,19 @@ inline bool dccHeaderIsLive(const BYTE* nameRec, const BYTE* hdr)
 struct HcRecord { DWORD data, size, owner, next, prev; };
 struct HcLists { DWORD head, tail, freeHead, freeTail, count, used; };
 typedef void (*HcOwnerRelease)(HcRecord* rec, void* ctx);
+
+// True when a record of the pool holds this buffer. The header getter returns only such buffers (a record's data on a
+// hit, a newly allocated record's on a miss), so one that no record holds has left the cache: evicted, its buffer
+// freed, or dropped by a teardown.
+inline bool hcHoldsData(const HcRecord* records, DWORD max, const BYTE* data)
+{
+	if (!records || !data)
+		return false;
+	for (DWORD i = 0; i < max; i++)
+		if (records[i].data == (DWORD)data)
+			return true;
+	return false;
+}
 
 inline void hcAppend(DWORD* head, DWORD* tail, HcRecord* rec)
 {

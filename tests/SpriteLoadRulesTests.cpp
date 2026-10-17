@@ -357,6 +357,19 @@ static void testPairs()
 	CHECK_EQ(spritePairCount(&pairTable, "NEW", "PAIR"), 2);
 	CHECK_EQ(spritePairCount(&pairTable, "F4", "H"), 2);
 
+	// isNew marks a pair that takes a slot; a match, even one whose streak was reset, is not new.
+	memset(&pairTable2, 0, sizeof(pairTable2));
+	bool isNew = false;
+	CHECK_EQ(spritePairCount(&pairTable2, "A", "B", &isNew), 1);
+	CHECK(isNew);
+	CHECK_EQ(spritePairCount(&pairTable2, "A", "B", &isNew), 2);
+	CHECK(!isNew);
+	spritePairReset(&pairTable2, "A");
+	CHECK_EQ(spritePairCount(&pairTable2, "A", "B", &isNew), 1);
+	CHECK(!isNew);
+	CHECK_EQ(spritePairCount(&pairTable2, "A", "C", &isNew), 1);
+	CHECK(isNew);
+
 	// A 15-character file name, the longest five tokens give, is stored and matched whole.
 	memset(&pairTable2, 0, sizeof(pairTable2));
 	CHECK_EQ(spritePairCount(&pairTable2, "ABCDEFGHIJKLMNO", "H"), 1);
@@ -398,7 +411,7 @@ static void testPrintableName()
 	dccPrintableName("", shown);
 	CHECK(!strcmp(shown, ""));
 
-	// The logged form of a stale copy: same length as its raw form, which the pair table keeps.
+	// The logged form of a name made of control bytes: same length as its raw form, which the pair table keeps.
 	BYTE hdr[DCC_HEADER_SIZE];
 	setHeader(hdr, 8, 16);
 	memset(hdr + DCC_HDR_NAME_OFFSET, '\n', DCC_HDR_NAME_SIZE);
@@ -427,6 +440,17 @@ static void testLive()
 	*(BYTE**)poolRec = hdr;
 	*(BYTE**)(nameRec + 0x24) = NULL;
 	CHECK(!dccHeaderIsLive(nameRec, hdr));
+
+	// Held by any record of the pool, the last one included; a freed record holds nothing.
+	HcRecord records[4] = {};
+	records[1].data = (DWORD)other;
+	records[3].data = (DWORD)hdr;
+	CHECK(hcHoldsData(records, 4, hdr));
+	CHECK(hcHoldsData(records, 4, other));
+	CHECK(!hcHoldsData(records, 3, hdr));
+	CHECK(!hcHoldsData(records, 4, nameRec));
+	CHECK(!hcHoldsData(records, 4, NULL));
+	CHECK(!hcHoldsData(NULL, 4, hdr));
 }
 
 /*-------------------------------- T-RELINK --------------------------------*/
@@ -608,6 +632,12 @@ static void testLogThis()
 	CHECK(spriteLogThis(256));
 	CHECK(!spriteLogThis(257));
 	CHECK(spriteLogThis(512));
+
+	// Rejects 1 to 8 of a pair in a row are rejected; the 9th goes through.
+	CHECK(!spritePastCap(1));
+	CHECK(!spritePastCap(SPRITE_REJECT_CAP));
+	CHECK(spritePastCap(SPRITE_REJECT_CAP + 1));
+	CHECK_EQ(SPRITE_REJECT_CAP, 8);
 }
 
 int main()

@@ -7,11 +7,12 @@
 	file's header and the game halts ("Sprite Decompression Error", Halt 1632). The cache may also be reached from
 	more than one thread, and an LRU emptied by such a race would make the cache's allocator spin forever.
 	The patches copy the header into each sprite object when its load is issued, after checking under the cache lock
-	that the header is still that file's; a stale or wrong header drops the load through the game's own "cannot
-	issue" path, so it retries on the next frame (after 8 rejects in a row the load goes through, so that a check that
-	is wrong for a file cannot keep its sprite blank). The read is checked against the copy before it is decoded, and a
-	load that did not decode ends in the game's own "no graphics" state instead of a halt. A synchronous load, which
-	waits for its own read, holds the cache lock while it waits. An emptied LRU is rebuilt from the cache's records.
+	that the cache still holds it and that it is still that file's; a stale or wrong header drops the load through the
+	game's own "cannot issue" path, so it retries on the next frame. A header the cache no longer holds is never sent;
+	a wrong one goes through after 8 rejects in a row, so that a check that is wrong for a file cannot keep its sprite
+	blank. The read is checked against the copy before it is decoded, and a load that did not decode ends in the
+	game's own "no graphics" state instead of a halt. A synchronous load, which waits for its own read, holds the
+	cache lock while it waits. An emptied LRU is rebuilt from the cache's records.
 
 =================================================================*/
 
@@ -141,14 +142,15 @@ static DWORD sl_stormRead;
 
 static bool sharedInitDone = false;
 static bool sharedInitOk = false;
+static bool headerCacheLockInstalled = false;
 static DWORD pinError = 0;
 static DWORD mainThreadId = 0;
 
 // hdrLock is held for every call a sprite load makes into the header cache: both getter calls, the issue check, each
-// synchronous load (its read is in flight until it returns), the eviction repair and the two pool flushes. Vanilla
-// still uses the getter's header unlocked for a short stretch after it returns; the getter has just moved that header
-// to the LRU's tail (0x609380), and an eviction takes the head. The cache re-init (0x5FFD40) and
-// teardown (0x5FFE30) clear the name table and the pool around their flush without the lock, as in vanilla.
+// synchronous load (its read is in flight until it returns), the allocator's evictions with their repair and the two
+// pool flushes. Vanilla still uses the getter's header unlocked for a short stretch after it returns; the getter has
+// just moved that header to the LRU's tail (0x609380), and an eviction takes the head. The cache re-init (0x5FFD40)
+// and teardown (0x5FFE30) clear the name table and the pool around their flush without the lock, as in vanilla.
 // Lock order is hdrLock, then ringLock or the log lock, never the reverse; pairLock is taken alone.
 static CRITICAL_SECTION hdrLock;
 static CRITICAL_SECTION pairLock;
@@ -433,20 +435,23 @@ static void repairHeaderLru(BYTE* pool, const char* why)
 }
 
 // Replaces the eviction call in the allocator's retry loop, which never ends once the LRU head is gone (the
-// eviction then frees nothing) or the count is 0 (it returns at once). Other pools pass straight through.
+// eviction then frees nothing) or the count is 0 (it returns at once). The eviction runs under the lock with its
+// repair; the header pool's allocator is only reached from the locked getter anyway. Other pools pass straight through.
 static void FASTCALL headerEvictOrRepair(BYTE* pool, BYTE* rec)
 {
-	if (pool == SL_HEADER_POOL_PTR && !rec)
+	if (pool != SL_HEADER_POOL_PTR || rec)
 	{
-		headerCacheEnter();
-		DWORD head = POOL_FIELD(pool, POOL_HEAD);
-		const char* why = !head ? "empty-head" : !POOL_FIELD(pool, POOL_COUNT) ? "zero-count"
-			: !((HcRecord*)head)->data ? "freed-head" : NULL;
-		if (why)
-			repairHeaderLru(pool, why);
-		headerCacheLeave();
+		SL_CALL(t_poolEvict, SL_POOL_EVICT)(pool, rec);
+		return;
 	}
+	headerCacheEnter();
+	DWORD head = POOL_FIELD(pool, POOL_HEAD);
+	const char* why = !head ? "empty-head" : !POOL_FIELD(pool, POOL_COUNT) ? "zero-count"
+		: !((HcRecord*)head)->data ? "freed-head" : NULL;
+	if (why)
+		repairHeaderLru(pool, why);
 	SL_CALL(t_poolEvict, SL_POOL_EVICT)(pool, rec);
+	headerCacheLeave();
 }
 
 /*================================= TEST HEADER RING =================================*/
@@ -512,16 +517,6 @@ static volatile LONG skipCallbackTick = 0;
 enum SpriteIssueVerdict { SIV_OK, SIV_STALE, SIV_MISMATCH, SIV_UNKNOWN, SIV_BADCOPY, SIV_INJECTED };
 static const char* const issueVerdictNames[] = { "ok", "stale", "mismatch", "unknown", "badcopy", "injected" };
 
-// A load let through past the cap: with its copy, whose name the completion no longer checks, or, when the header
-// was not live and so was never copied, with the header vanilla would have sent.
-static BYTE* passThrough(BYTE* S, BYTE* hdr, bool live)
-{
-	if (!live)
-		return hdr;
-	*(volatile DWORD*)(S + S_COOKIE) = SL_COOKIE_PASSTHROUGH;
-	return S + S_COPY;
-}
-
 // Called in place of the issuer (0x5FFA20) with its arguments; returns the header the load goes out with, or NULL to
 // fail the issue as the issuer itself does, so the caller evicts the sprite and the next frame retries it.
 BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
@@ -540,8 +535,12 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 	bool injected = false;
 	headerCacheEnter();
 	BYTE* nameRec = SL_CALL(t_nameLookup, SL_NAME_LOOKUP)((void*)(offset_D2Game + SL_NAME_TABLE), expected);
-	// Only a live header is read: one evicted since the getter returned it may already be freed (0x6092D0).
-	bool live = dccHeaderIsLive(nameRec, hdr);
+	// Only a header the cache still holds is read: one evicted since the getter returned it may already be freed
+	// (0x6092D0). When the file's own record does not hold it, any record may: the name check then judges it, so a
+	// lookup that misses for some file cannot make all its loads stale.
+	BYTE* pool = SL_HEADER_POOL_PTR;
+	bool live = dccHeaderIsLive(nameRec, hdr)
+		|| hcHoldsData((const HcRecord*)POOL_FIELD(pool, POOL_RECORDS), POOL_FIELD(pool, POOL_MAX), hdr);
 	if (live)
 		memcpy(copy, hdr, DCC_HEADER_SIZE);
 #ifdef PLUGY_TEST_HOOKS
@@ -552,15 +551,23 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 	}
 #endif
 	headerCacheLeave();
-	if (!live && !SL_GUARD_ON)
-		return hdr;
-	char copyName[DCC_COPY_NAME_SIZE] = "";
-	char shownName[DCC_COPY_NAME_SIZE] = "(not live)";
-	if (live)
+	if (!live)
 	{
-		dccCopyName(copy, copyName);
-		dccPrintableName(copyName, shownName);
+		// Without guard checks (test builds) it goes out as vanilla sends it.
+		if (!SL_GUARD_ON)
+			return hdr;
+		// Never let through: the header is gone, and the getter returns one the cache holds on the next frame.
+		LONG total = InterlockedIncrement(&cntRejects);
+		LONG own = InterlockedIncrement(&cntStale);
+		if (spriteLogThis(total))
+			log_msg("SpriteLoad: issue rejected (stale): file %s, its header no longer cached, retried on the next frame,"
+				" %u total, %u stale\n", expected, total, own);
+		return NULL;
 	}
+	char copyName[DCC_COPY_NAME_SIZE];
+	dccCopyName(copy, copyName);
+	char shownName[DCC_COPY_NAME_SIZE];
+	dccPrintableName(copyName, shownName);
 #ifdef PLUGY_TEST_HOOKS
 	if (injected)
 		log_msg("SpriteLoad TEST: injected header %s into file %s (issue)\n", shownName, expected);
@@ -573,8 +580,6 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 		DccNameVerdict name;
 		if (injected)
 			verdict = SIV_INJECTED;
-		else if (!live)
-			verdict = SIV_STALE;
 		else if ((name = dccHeaderNameMatches(copy, S + S_TOKENS)) != DCC_NAME_MATCH)
 			verdict = name == DCC_NAME_MISMATCH ? SIV_MISMATCH : SIV_UNKNOWN;
 		else if ((shape = dccIssueCopyOk(copy, type, d, count)) == DCC_ISSUE_BAD_COPY)
@@ -606,36 +611,39 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 		// Never counted in the pair table, so injected pairs never reach the cap.
 		LONG total = InterlockedIncrement(&cntRejects);
 		LONG own = InterlockedIncrement(&cntInjectedRejects);
-		log_msg("SpriteLoad: issue rejected (%s): file %s, header %s, reject %u of 8 for this pair, %u total, %u %s\n",
-			word, expected, shownName, 0, total, own, word);
+		log_msg("SpriteLoad: issue rejected (%s): file %s, header %s, reject %u of %u for this pair, %u total, %u %s\n",
+			word, expected, shownName, 0, SPRITE_REJECT_CAP, total, own, word);
 		return NULL;
 	}
 #endif
 
 	EnterCriticalSection(&pairLock);
 	DWORD recycledBefore = pairs.recycled;
-	DWORD n = spritePairCount(&pairs, expected, copyName);
+	bool isNew;
+	DWORD n = spritePairCount(&pairs, expected, copyName, &isNew);
 	DWORD recycled = pairs.recycled != recycledBefore ? pairs.recycled : 0;
 	LeaveCriticalSection(&pairLock);
 	if (recycled && spriteLogThis((LONG)recycled))
 		log_msg("SpriteLoad: reject table full: file %s took the slot of the pair counted longest ago, %u total\n",
 			expected, recycled);
-	if (n <= SPRITE_REJECT_CAP)
+	if (!spritePastCap(n))
 	{
 		LONG total = InterlockedIncrement(&cntRejects);
-		volatile LONG* counter = verdict == SIV_STALE ? &cntStale : verdict == SIV_MISMATCH ? &cntMismatch
-			: verdict == SIV_UNKNOWN ? &cntUnknown : &cntBadCopy;
+		volatile LONG* counter = verdict == SIV_MISMATCH ? &cntMismatch : verdict == SIV_UNKNOWN ? &cntUnknown : &cntBadCopy;
 		LONG own = InterlockedIncrement(counter);
-		if (n == 1 || spriteLogThis(total))
-			log_msg("SpriteLoad: issue rejected (%s): file %s, header %s, reject %u of 8 for this pair, %u total, %u %s\n",
-				word, expected, shownName, n, total, own, word);
+		if (isNew || spriteLogThis(total))
+			log_msg("SpriteLoad: issue rejected (%s): file %s, header %s, reject %u of %u for this pair, %u total, %u %s\n",
+				word, expected, shownName, n, SPRITE_REJECT_CAP, total, own, word);
 		return NULL;
 	}
-	// A rule that is wrong for a file must not keep its sprite blank for good.
+	// A rule that is wrong for a file must not keep its sprite blank for good. The load goes out with its copy, whose
+	// name the completion no longer checks.
 	LONG total = InterlockedIncrement(&cntPassthrough);
 	if (n == SPRITE_REJECT_CAP + 1 || spriteLogThis(total))
-		log_msg("SpriteLoad: issue passed through after 8 rejects in a row: file %s, header %s, %u total\n", expected, shownName, total);
-	return passThrough(S, hdr, live);
+		log_msg("SpriteLoad: issue passed through after %u rejects in a row: file %s, header %s, %u total\n",
+			SPRITE_REJECT_CAP, expected, shownName, total);
+	*(volatile DWORD*)(S + S_COOKIE) = SL_COOKIE_PASSTHROUGH;
+	return copy;
 }
 
 // The issuer's arguments are re-pushed for spriteIssue (count, d, desc, hdr, S); a non-NULL result replaces the hdr
@@ -845,7 +853,7 @@ FCT_ASM ( caller_spriteFinalize )
 	JE noGraphics
 	TEST EAX,EAX
 	JE vanillaFinalize
-	LEA EAX,[EDI+0xB8]
+	LEA EAX,[EDI+S_COPY]
 	MOV DWORD PTR SS:[ESP+0x4],EAX
 vanillaFinalize:
 	JMP sl_finalizer
@@ -950,6 +958,8 @@ static void installTestHooks()
 }
 #endif
 
+static DWORD changedHeaderCacheSite();
+
 void Install_SpriteLoad()
 {
 	static int isInstalled = false;
@@ -963,6 +973,15 @@ void Install_SpriteLoad()
 	if (changed)
 	{
 		log_msg("SpriteLoad not installed: the code was already changed (site %08X)\n\n", changed);
+		return;
+	}
+	// The issue check reads the cache under hdrLock, which only protects it once HeaderCacheLock is in. Before it
+	// installs its sites are still vanilla, and after it they are its own, so either install may come first.
+	changed = headerCacheLockInstalled ? 0 : changedHeaderCacheSite();
+	if (changed)
+	{
+		log_msg("SpriteLoad not installed: the header cache code it needs locked was already changed (site %08X)\n\n",
+			changed);
 		return;
 	}
 	if (!initShared())
@@ -1068,6 +1087,7 @@ void Install_HeaderCacheLock()
 	mem_seek(offset_D2Game + SL_SYNC_LOAD_CALL2 + 1);
 	MEMC_REF4(offset_D2Game + SL_SYNC_LOAD, caller_syncLoadLocked);
 	//00600488  |. E8 03FAFFFF    CALL Game.005FFE90
+	headerCacheLockInstalled = true;
 	log_msg("HeaderCacheLock installed\n");
 	log_msg("\n");
 }
