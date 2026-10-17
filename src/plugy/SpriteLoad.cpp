@@ -8,9 +8,10 @@
 	more than one thread, and an LRU emptied by such a race would make the cache's allocator spin forever.
 	The patches copy the header into each sprite object when its load is issued, after checking under the cache lock
 	that the header is still that file's; a stale or wrong header drops the load through the game's own "cannot
-	issue" path, so it retries on the next frame (after 8 rejects of the same pair the load goes through as vanilla).
-	The read is checked against the copy before it is decoded, and a load that did not decode ends in the game's own
-	"no graphics" state instead of a halt. An emptied LRU is rebuilt from the cache's record array.
+	issue" path, so it retries on the next frame (after 8 rejects in a row the load goes through, so that a check that
+	is wrong for a file cannot keep its sprite blank). The read is checked against the copy before it is decoded, and a
+	load that did not decode ends in the game's own "no graphics" state instead of a halt. A synchronous load, which
+	waits for its own read, holds the cache lock while it waits. An emptied LRU is rebuilt from the cache's records.
 
 =================================================================*/
 
@@ -22,7 +23,7 @@
 
 // 1.14d Game.exe, as offsets from offset_D2Game.
 #define SL_ISSUER				0x1FFA20	// eax=desc, ecx=d, edx=count, esi=S, push file, d, hdr; ret 0Ch; -1 = cannot issue
-#define SL_ISSUE_CALL			0x20001A	// call 005FFA20, the only asynchronous issue (in 0x5FFFA0)
+#define SL_ISSUE_CALL			0x20001A	// call 005FFA20, the only call to the issuer (in 0x5FFFA0)
 #define SL_LOAD_DONE			0x1FF6E0	// stdcall(buf, size, cb), ret 0Ch: the loader's completion callback
 #define SL_LOAD_DONE_MOV		0x1FFB8E	// mov [ebp-30h],5FF6E0h: the callback put in the request descriptor
 #define SL_FINALIZER			0x1FEC90	// edi=S, push desc, hdr; ret 8: waits for the read and builds the frames
@@ -40,8 +41,11 @@
 #define SL_HEADER_GET_CALL1		0x20025A	// in 0x6001F0
 #define SL_HEADER_GET_CALL2		0x200552	// in 0x6004E0
 #define SL_POOL_FLUSH			0x2093E0	// fastcall(pool): evicts every record
-#define SL_FLUSH_CALL1			0x1FFD9D	// header pool flush at video re-init
-#define SL_FLUSH_CALL2			0x1FFE69	// header pool flush at shutdown
+#define SL_FLUSH_CALL1			0x1FFD9D	// header pool flush in the cache re-init 0x5FFD40
+#define SL_FLUSH_CALL2			0x1FFE69	// header pool flush in the cache teardown 0x5FFE30
+#define SL_SYNC_LOAD			0x1FFE90	// esi=desc, push hdr and 3 more; ret 10h: reads with the raw header and waits for it
+#define SL_SYNC_LOAD_CALL1		0x2001DD	// in 0x6000B0
+#define SL_SYNC_LOAD_CALL2		0x200488	// in 0x6001F0
 #define SL_POOL_EVICT			0x2092D0	// fastcall(pool, record): evicts the record, or the LRU head when 0
 #define SL_EVICT_CALL			0x209465	// in the allocator 0x609420's retry loop
 #ifdef PLUGY_TEST_HOOKS
@@ -56,7 +60,8 @@
 
 // Sprite object S (B = S+0x20): +0xC the 5 file name tokens, B+0 flags (bit0 no graphics, bit1 asynchronous, bit2
 // pending), +0x28 finalized, +0xB0 the read request. The tail past vanilla's 0xB8 bytes is PlugY's, zeroed by the
-// game's own memset of the bumped size.
+// game's own memset of the bumped size. The sprite cache charges its 0xD0 bytes to its budget (0x5FF3F0), little next
+// to the decoded frames charged to the same record.
 #define VANILLA_SPRITE_OBJECT_SIZE	0xB8
 #define SPRITE_OBJECT_SIZE		0x188
 #define S_TOKENS				0x0C
@@ -72,7 +77,7 @@ C_ASSERT(S_RAN + 8 == SPRITE_OBJECT_SIZE);
 #define SL_STATE_SKIPPED		1
 #define SL_STATE_DECODE_FAILED	2
 #define SL_COOKIE_CHECKED		0x31444C53	// 'SLD1': issued with a checked copy
-#define SL_COOKIE_PASSTHROUGH	0x50444C53	// 'SLDP': issued with an unchecked copy after the reject cap
+#define SL_COOKIE_PASSTHROUGH	0x50444C53	// 'SLDP': issued with its copy after the reject cap
 
 #define SL_FLAG_NO_GRAPHICS		1
 #define SL_FLAG_PENDING			4
@@ -129,6 +134,7 @@ static DWORD sl_issuer;
 static DWORD sl_finalizer;
 static DWORD sl_finalizeExit;
 static DWORD sl_headerGet;
+static DWORD sl_syncLoad;
 #ifdef PLUGY_TEST_HOOKS
 static DWORD sl_stormRead;
 #endif
@@ -138,8 +144,12 @@ static bool sharedInitOk = false;
 static DWORD pinError = 0;
 static DWORD mainThreadId = 0;
 
-// hdrLock covers the header cache and its name table; lock order is hdrLock, then ringLock or the log lock, never the
-// reverse. pairLock is taken alone.
+// hdrLock is held for every call a sprite load makes into the header cache: both getter calls, the issue check, each
+// synchronous load (its read is in flight until it returns), the eviction repair and the two pool flushes. Vanilla
+// still uses the getter's header unlocked for a short stretch after it returns; the getter has just moved that header
+// to the LRU's tail (0x609380), and an eviction takes the head. The cache re-init (0x5FFD40) and
+// teardown (0x5FFE30) clear the name table and the pool around their flush without the lock, as in vanilla.
+// Lock order is hdrLock, then ringLock or the log lock, never the reverse; pairLock is taken alone.
 static CRITICAL_SECTION hdrLock;
 static CRITICAL_SECTION pairLock;
 static CRITICAL_SECTION ringLock;
@@ -149,9 +159,12 @@ static LONG hdrDepth = 0;					// changed only by the thread holding hdrLock
 static volatile LONG threadIds[SL_THREAD_SLOTS] = {};
 static SpritePairTable pairs = {};
 
-static volatile LONG cntIssues, cntCopies, cntRejects, cntStale, cntMismatch, cntUnknown, cntBadCopy, cntInjectedRejects;
-static volatile LONG cntPassthrough, cntGuard, cntNoGraphics, cntDecodeFail, cntNoCallback, cntInjected, cntInjectSkipped;
-static volatile LONG cntIssueInjected, cntDelayed, cntRepairs, cntRepairsSkipped, cntContentions, cntThreads, cntThreadsOverflow;
+static volatile LONG cntIssues, cntCopies, cntRejects, cntStale, cntMismatch, cntUnknown, cntBadCopy;
+static volatile LONG cntPassthrough, cntGuard, cntNoGraphics, cntDecodeFail, cntNoCallback;
+static volatile LONG cntRepairs, cntRepairsSkipped, cntContentions, cntThreads, cntThreadsOverflow;
+#ifdef PLUGY_TEST_HOOKS
+static volatile LONG cntInjectedRejects, cntInjected, cntInjectSkipped, cntIssueInjected, cntDelayed, cntSyncLoads;
+#endif
 
 static bool initShared()
 {
@@ -278,12 +291,12 @@ static void testHealth()
 	DWORD count = POOL_FIELD(pool, POOL_COUNT);
 	DWORD linked = countLinked(pool, count);
 	log_msg("SpriteLoad TEST health: issues %u copies %u rejects %u stale %u mismatch %u unknown %u badcopy %u"
-		" injectedrejects %u passthrough %u pairoverflow %u guard %u nographics %u decodefail %u nocallback %u injected %u"
-		" injectskipped %u issueinjected %u delayed %u repairs %u contentions %u threads %u threadsoverflow %u"
+		" injectedrejects %u passthrough %u pairrecycled %u guard %u nographics %u decodefail %u nocallback %u injected %u"
+		" injectskipped %u issueinjected %u delayed %u syncloads %u repairs %u contentions %u threads %u threadsoverflow %u"
 		" headers count %u linked %u used %u cap %u\n",
 		cntIssues, cntCopies, cntRejects, cntStale, cntMismatch, cntUnknown, cntBadCopy,
-		cntInjectedRejects, cntPassthrough, pairs.overflow, cntGuard, cntNoGraphics, cntDecodeFail, cntNoCallback, cntInjected,
-		cntInjectSkipped, cntIssueInjected, cntDelayed, cntRepairs, cntContentions, cntThreads, cntThreadsOverflow,
+		cntInjectedRejects, cntPassthrough, pairs.recycled, cntGuard, cntNoGraphics, cntDecodeFail, cntNoCallback, cntInjected,
+		cntInjectSkipped, cntIssueInjected, cntDelayed, cntSyncLoads, cntRepairs, cntContentions, cntThreads, cntThreadsOverflow,
 		count, linked, POOL_FIELD(pool, POOL_USED), POOL_FIELD(pool, POOL_CAP));
 }
 #endif
@@ -343,13 +356,47 @@ FCT_ASM ( caller_headerGetLocked )
 	RETN 4
 }}
 
-// Replaces the two header pool flushes (video re-init and shutdown); callers keep only ESI/EDI across the call.
+// Replaces the two header pool flushes (cache re-init and teardown); callers keep only ESI/EDI across the call.
 static void FASTCALL headerFlushLocked(BYTE* pool)
 {
 	headerCacheEnter();
 	SL_CALL(t_poolFlush, SL_POOL_FLUSH)(pool);
 	headerCacheLeave();
 }
+
+void STDCALL syncLoadEnter()
+{
+#ifdef PLUGY_TEST_HOOKS
+	InterlockedIncrement(&cntSyncLoads);
+#endif
+	headerCacheEnter();
+}
+
+// The synchronous load (0x5FFE90) sends its read with the raw cached header and then waits for it (0x5FFF7C) unless
+// that header is flagged no graphics by then: the lock keeps another thread from evicting the header while it waits.
+// Its four arguments are re-pushed; ESI passes through.
+FCT_ASM ( caller_syncLoadLocked )
+	PUSH EAX
+	PUSH ECX
+	PUSH EDX
+	CALL syncLoadEnter
+	POP EDX
+	POP ECX
+	POP EAX
+	PUSH DWORD PTR SS:[ESP+0x10]
+	PUSH DWORD PTR SS:[ESP+0x10]
+	PUSH DWORD PTR SS:[ESP+0x10]
+	PUSH DWORD PTR SS:[ESP+0x10]
+	CALL sl_syncLoad
+	PUSH EAX
+	PUSH ECX
+	PUSH EDX
+	CALL headerCacheLeave
+	POP EDX
+	POP ECX
+	POP EAX
+	RETN 0x10
+}}
 
 // The pool's eviction callback, as its own eviction calls it: it clears the name record's link and frees it.
 static void releaseOwner(HcRecord* rec, void* ctx)
@@ -465,6 +512,16 @@ static volatile LONG skipCallbackTick = 0;
 enum SpriteIssueVerdict { SIV_OK, SIV_STALE, SIV_MISMATCH, SIV_UNKNOWN, SIV_BADCOPY, SIV_INJECTED };
 static const char* const issueVerdictNames[] = { "ok", "stale", "mismatch", "unknown", "badcopy", "injected" };
 
+// A load let through past the cap: with its copy, whose name the completion no longer checks, or, when the header
+// was not live and so was never copied, with the header vanilla would have sent.
+static BYTE* passThrough(BYTE* S, BYTE* hdr, bool live)
+{
+	if (!live)
+		return hdr;
+	*(volatile DWORD*)(S + S_COOKIE) = SL_COOKIE_PASSTHROUGH;
+	return S + S_COPY;
+}
+
 // Called in place of the issuer (0x5FFA20) with its arguments; returns the header the load goes out with, or NULL to
 // fail the issue as the issuer itself does, so the caller evicts the sprite and the next frame retries it.
 BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
@@ -483,26 +540,34 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 	bool injected = false;
 	headerCacheEnter();
 	BYTE* nameRec = SL_CALL(t_nameLookup, SL_NAME_LOOKUP)((void*)(offset_D2Game + SL_NAME_TABLE), expected);
+	// Only a live header is read: one evicted since the getter returned it may already be freed (0x6092D0).
 	bool live = dccHeaderIsLive(nameRec, hdr);
-	memcpy(copy, hdr, DCC_HEADER_SIZE);
+	if (live)
+		memcpy(copy, hdr, DCC_HEADER_SIZE);
 #ifdef PLUGY_TEST_HOOKS
-	if (everyKth(&issueInjectTick, testSpriteIssueInjectEvery) && ringInject(copy, false, 0, 0))
+	if (live && everyKth(&issueInjectTick, testSpriteIssueInjectEvery) && ringInject(copy, false, 0, 0))
 	{
 		injected = true;
 		InterlockedIncrement(&cntIssueInjected);
 	}
 #endif
 	headerCacheLeave();
-	char copyName[DCC_COPY_NAME_SIZE];
-	dccCopyName(copy, copyName);
-	char shownName[DCC_COPY_NAME_SIZE];
-	dccPrintableName(copyName, shownName);
+	if (!live && !SL_GUARD_ON)
+		return hdr;
+	char copyName[DCC_COPY_NAME_SIZE] = "";
+	char shownName[DCC_COPY_NAME_SIZE] = "(not live)";
+	if (live)
+	{
+		dccCopyName(copy, copyName);
+		dccPrintableName(copyName, shownName);
+	}
 #ifdef PLUGY_TEST_HOOKS
 	if (injected)
 		log_msg("SpriteLoad TEST: injected header %s into file %s (issue)\n", shownName, expected);
 #endif
 
 	SpriteIssueVerdict verdict = SIV_OK;
+	DccIssueVerdict shape = DCC_ISSUE_OK;
 	if (SL_GUARD_ON)
 	{
 		DccNameVerdict name;
@@ -512,12 +577,19 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 			verdict = SIV_STALE;
 		else if ((name = dccHeaderNameMatches(copy, S + S_TOKENS)) != DCC_NAME_MATCH)
 			verdict = name == DCC_NAME_MISMATCH ? SIV_MISMATCH : SIV_UNKNOWN;
-		else if (dccIssueCopyOk(copy, type, d, count) == DCC_ISSUE_BAD_COPY)
+		else if ((shape = dccIssueCopyOk(copy, type, d, count)) == DCC_ISSUE_BAD_COPY)
 			verdict = SIV_BADCOPY;
 	}
 
 	if (verdict == SIV_OK)
 	{
+		// A VANILLA shape goes on to the issuer, which refuses it by itself: no streak ends there.
+		if (shape == DCC_ISSUE_OK)
+		{
+			EnterCriticalSection(&pairLock);
+			spritePairReset(&pairs, expected);
+			LeaveCriticalSection(&pairLock);
+		}
 		*(volatile DWORD*)(S + S_COOKIE) = SL_COOKIE_CHECKED;
 #ifdef PLUGY_TEST_HOOKS
 		if (!injected && dccHeaderNameMatches(copy, S + S_TOKENS) == DCC_NAME_MATCH)
@@ -528,6 +600,7 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 	}
 
 	const char* word = issueVerdictNames[verdict];
+#ifdef PLUGY_TEST_HOOKS
 	if (verdict == SIV_INJECTED)
 	{
 		// Never counted in the pair table, so injected pairs never reach the cap.
@@ -537,18 +610,16 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 			word, expected, shownName, 0, total, own, word);
 		return NULL;
 	}
+#endif
 
 	EnterCriticalSection(&pairLock);
+	DWORD recycledBefore = pairs.recycled;
 	DWORD n = spritePairCount(&pairs, expected, copyName);
+	DWORD recycled = pairs.recycled != recycledBefore ? pairs.recycled : 0;
 	LeaveCriticalSection(&pairLock);
-	if (!n)
-	{
-		*(volatile DWORD*)(S + S_COOKIE) = SL_COOKIE_PASSTHROUGH;
-		LONG total = InterlockedIncrement(&cntPassthrough);
-		if (spriteLogThis((LONG)pairs.overflow))
-			log_msg("SpriteLoad: issue passed through (pair table full): file %s, header %s, %u total\n", expected, shownName, total);
-		return copy;
-	}
+	if (recycled && spriteLogThis((LONG)recycled))
+		log_msg("SpriteLoad: reject table full: file %s took the slot of the pair counted longest ago, %u total\n",
+			expected, recycled);
 	if (n <= SPRITE_REJECT_CAP)
 	{
 		LONG total = InterlockedIncrement(&cntRejects);
@@ -560,13 +631,11 @@ BYTE* STDCALL spriteIssue(BYTE* S, BYTE* hdr, BYTE* desc, DWORD d, DWORD count)
 				word, expected, shownName, n, total, own, word);
 		return NULL;
 	}
-	// Past the cap the load goes out with the copy as it is: a rule that is wrong for a file must not keep the
-	// sprite blank for good.
-	*(volatile DWORD*)(S + S_COOKIE) = SL_COOKIE_PASSTHROUGH;
+	// A rule that is wrong for a file must not keep its sprite blank for good.
 	LONG total = InterlockedIncrement(&cntPassthrough);
 	if (n == SPRITE_REJECT_CAP + 1 || spriteLogThis(total))
-		log_msg("SpriteLoad: issue passed through after 8 rejects: file %s, header %s, %u total\n", expected, shownName, total);
-	return copy;
+		log_msg("SpriteLoad: issue passed through after 8 rejects in a row: file %s, header %s, %u total\n", expected, shownName, total);
+	return passThrough(S, hdr, live);
 }
 
 // The issuer's arguments are re-pushed for spriteIssue (count, d, desc, hdr, S); a non-NULL result replaces the hdr
@@ -614,8 +683,9 @@ static void spanOf(const BYTE* hdr, DWORD start, DWORD count, DWORD* span)
 }
 
 // The loader thread's completion callback (reached by "call eax", stdcall, ret 0Ch), with Storm's lock released. It
-// never waits, frees or touches the header cache: the main thread may hold the cache lock while it waits for this
-// read. A sprite PlugY did not issue goes to vanilla unchanged.
+// never takes the cache lock, frees or touches the header cache: a synchronous load holds that lock while it waits
+// for its own read, which this thread may serve after this one. The only locks PlugY takes here are the log's (and the
+// test ring's in test builds). A sprite PlugY did not issue goes to vanilla unchanged.
 static DWORD STDCALL spriteLoadDone(BYTE* buf, DWORD size, DWORD* cb)
 {
 	t_loadDone vanilla = SL_CALL(t_loadDone, SL_LOAD_DONE);
@@ -628,13 +698,16 @@ static DWORD STDCALL spriteLoadDone(BYTE* buf, DWORD size, DWORD* cb)
 #ifdef PLUGY_TEST_HOOKS
 		if (!testSpriteFix)
 		{
-			DccNameVerdict v = dccHeaderNameMatches((BYTE*)cb[1], S + S_TOKENS);
+			// Read once, so the logged name is the one compared.
+			BYTE seen[DCC_HEADER_SIZE];
+			memcpy(seen, (BYTE*)cb[1], DCC_HEADER_SIZE);
+			DccNameVerdict v = dccHeaderNameMatches(seen, S + S_TOKENS);
 			if (v != DCC_NAME_MATCH)
 			{
 				char file[DCC_NAME_SIZE];
 				char header[DCC_COPY_NAME_SIZE];
 				dccTokenName(S + S_TOKENS, file);
-				printableHeaderName((BYTE*)cb[1], header);
+				printableHeaderName(seen, header);
 				log_msg("SpriteLoad TEST: fix off, header %s for file %s (%s)\n", header, file,
 					v == DCC_NAME_MISMATCH ? "mismatch" : "unknown");
 			}
@@ -944,6 +1017,10 @@ static DWORD changedHeaderCacheSite()
 		return offset_D2Game + SL_FLUSH_CALL2;
 	if (!callsTo(SL_EVICT_CALL, SL_POOL_EVICT))
 		return offset_D2Game + SL_EVICT_CALL;
+	if (!callsTo(SL_SYNC_LOAD_CALL1, SL_SYNC_LOAD))
+		return offset_D2Game + SL_SYNC_LOAD_CALL1;
+	if (!callsTo(SL_SYNC_LOAD_CALL2, SL_SYNC_LOAD))
+		return offset_D2Game + SL_SYNC_LOAD_CALL2;
 	return 0;
 }
 
@@ -968,6 +1045,7 @@ void Install_HeaderCacheLock()
 		return;
 	}
 	sl_headerGet = offset_D2Game + SL_HEADER_GET;
+	sl_syncLoad = offset_D2Game + SL_SYNC_LOAD;
 
 	mem_seek(offset_D2Game + SL_EVICT_CALL + 1);
 	MEMC_REF4(offset_D2Game + SL_POOL_EVICT, headerEvictOrRepair);
@@ -984,6 +1062,12 @@ void Install_HeaderCacheLock()
 	mem_seek(offset_D2Game + SL_HEADER_GET_CALL2 + 1);
 	MEMC_REF4(offset_D2Game + SL_HEADER_GET, caller_headerGetLocked);
 	//00600552  |. E8 39E4FFFF    CALL Game.005FE990
+	mem_seek(offset_D2Game + SL_SYNC_LOAD_CALL1 + 1);
+	MEMC_REF4(offset_D2Game + SL_SYNC_LOAD, caller_syncLoadLocked);
+	//006001DD  |. E8 AEFCFFFF    CALL Game.005FFE90
+	mem_seek(offset_D2Game + SL_SYNC_LOAD_CALL2 + 1);
+	MEMC_REF4(offset_D2Game + SL_SYNC_LOAD, caller_syncLoadLocked);
+	//00600488  |. E8 03FAFFFF    CALL Game.005FFE90
 	log_msg("HeaderCacheLock installed\n");
 	log_msg("\n");
 }

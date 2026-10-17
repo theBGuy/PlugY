@@ -1,6 +1,6 @@
 /*=================================================================
-	Sprite loading: each asynchronous DCC sprite load decodes with its own copy of the file's header, checked
-	against the file it was issued for, and the game's DCC header cache is used under one lock. 1.14d only.
+	Sprite loading: an asynchronous DCC sprite load decodes with its own copy of its file's header, checked when the
+	load is issued, and sprite loads call into the game's DCC header cache under one lock. 1.14d only.
 
 =================================================================*/
 #pragma once

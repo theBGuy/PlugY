@@ -201,6 +201,37 @@ static void testLoadMatches()
 	CHECK_EQ(dccLoadMatches(hdr, B, 0, 4, 0x4FEF), DCC_LOAD_BAD_SPAN);
 	setOff(hdr, 4, 0x2F);
 	CHECK_EQ(dccLoadMatches(hdr, B, 0, 4, 0), DCC_LOAD_BAD_SPAN);
+
+	// A negative or zero span fails even when the sprite object and the size agree with it.
+	setOff(hdr, 4, 0x2E);
+	setB(B, 4, 0, 9, 0x10, 4, 0xFFFFFFFF);
+	CHECK_EQ(dccLoadMatches(hdr, B, 0, 4, 0xFFFFFFFF), DCC_LOAD_BAD_SPAN);
+	setOff(hdr, 4, 0x2F);
+	setB(B, 4, 0, 9, 0x10, 4, 0);
+	CHECK_EQ(dccLoadMatches(hdr, B, 0, 4, 0), DCC_LOAD_BAD_SPAN);
+
+	// Each layout byte on its own: count, directions + 1, frames.
+	setX(hdr);
+	setB(B, 3, 0, 9, 0x10, 4, 0x4FEF);
+	CHECK_EQ(dccLoadMatches(hdr, B, 0, 4, 0x4FEF), DCC_LOAD_BAD_LAYOUT);
+	setB(B, 4, 0, 8, 0x10, 4, 0x4FEF);
+	CHECK_EQ(dccLoadMatches(hdr, B, 0, 4, 0x4FEF), DCC_LOAD_BAD_LAYOUT);
+	setB(B, 4, 0, 9, 0x0F, 4, 0x4FEF);
+	CHECK_EQ(dccLoadMatches(hdr, B, 0, 4, 0x4FEF), DCC_LOAD_BAD_LAYOUT);
+
+	// A count past 32, which without its own check would wrap the end back into range.
+	setB(B, 4, 0, 9, 0x10, 4, 0x4FEF);
+	CHECK_EQ(dccLoadMatches(hdr, B, 0x10, 0xFFFFFFF8, 0x4FEF), DCC_LOAD_BAD_RANGE);
+
+	// 32 directions, the limit: a read may end at the last one.
+	setHeader(hdr, 32, 1);
+	for (int i = 0; i <= 32; i++)
+		setOff(hdr, i, 0x100 + 0x10 * i);
+	setB(B, 32, 0, 33, 1, 32, 0x200);
+	CHECK_EQ(dccLoadMatches(hdr, B, 0, 32, 0x200), DCC_LOAD_OK);
+	setB(B, 1, 31, 33, 1, 32, 0x10);
+	CHECK_EQ(dccLoadMatches(hdr, B, 31, 1, 0x10), DCC_LOAD_OK);
+	CHECK_EQ(dccLoadMatches(hdr, B, 32, 1, 0x10), DCC_LOAD_BAD_RANGE);
 }
 
 /*-------------------------------- T-ISSUE --------------------------------*/
@@ -226,10 +257,36 @@ static void testIssueCopy()
 	setOff(hdr, 4, 0x200);
 	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 4), DCC_ISSUE_OK);
 
-	// One decreasing pair inside a positive span.
+	// An offset below the start offset inside a positive span.
 	setX(hdr);
 	setOff(hdr, 2, 0x10);
 	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 4), DCC_ISSUE_BAD_COPY);
+
+	// Like the issuer, each offset is tested against the start offset, not its neighbour: a dip that stays above the
+	// start is sound, and a distance of 2 GB or more reads as negative.
+	setX(hdr);
+	setOff(hdr, 2, 0x4000);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 4), DCC_ISSUE_OK);
+	setX(hdr);
+	setOff(hdr, 4, 0x2Fu + 0x80000000u);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 4), DCC_ISSUE_BAD_COPY);
+	setOff(hdr, 4, 0x2Fu + 0x7FFFFFFFu);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 4), DCC_ISSUE_OK);
+
+	// A count past 32, which without its own check would wrap the end back into range.
+	setX(hdr);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 1, 0x80000001), DCC_ISSUE_BAD_COPY);
+
+	// 32 directions, the limit.
+	setHeader(hdr, 32, 1);
+	for (int i = 0; i <= 32; i++)
+		setOff(hdr, i, 0x100 + 0x10 * i);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 32), DCC_ISSUE_OK);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 1, 16), DCC_ISSUE_OK);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 31, 1), DCC_ISSUE_OK);
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 32, 1), DCC_ISSUE_BAD_COPY);
+	*(DWORD*)(hdr + 0x14) = 33;
+	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 32), DCC_ISSUE_BAD_COPY);
 
 	setX(hdr);
 	*(DWORD*)(hdr + 0x14) = 0;
@@ -243,6 +300,8 @@ static void testIssueCopy()
 	setX(hdr);
 	CHECK_EQ(dccIssueCopyOk(hdr, 1, 0, 1), DCC_ISSUE_VANILLA);
 	CHECK_EQ(dccIssueCopyOk(hdr, 0, 0, 1), DCC_ISSUE_OK);
+	*(DWORD*)(hdr + 0x14) = 0;
+	CHECK_EQ(dccIssueCopyOk(hdr, 1, 0, 1), DCC_ISSUE_VANILLA);
 	*(DWORD*)(hdr + 0x14) = 1;
 	CHECK_EQ(dccIssueCopyOk(hdr, 1, 0, 1), DCC_ISSUE_OK);
 
@@ -276,10 +335,33 @@ static void testPairs()
 		CHECK_EQ(spritePairCount(&pairTable, expected, "H"), 1);
 	}
 	CHECK_EQ(pairTable.used, SPRITE_PAIR_CAPACITY);
-	CHECK_EQ(pairTable.overflow, 0);
-	CHECK_EQ(spritePairCount(&pairTable, "NEW", "PAIR"), 0);
-	CHECK_EQ(pairTable.overflow, 1);
+	CHECK_EQ(pairTable.recycled, 0);
+
+	// A full table: a new pair takes the slot of the pair counted longest ago, so a streak left behind cannot hold a
+	// slot for good while a pair counted on every frame keeps its own.
 	CHECK_EQ(spritePairCount(&pairTable, "THHDth2A2hth", "SOSHlrgNUhth"), 10);
+	CHECK_EQ(spritePairCount(&pairTable, "NEW", "PAIR"), 1);
+	CHECK_EQ(pairTable.recycled, 1);
+	CHECK_EQ(spritePairCount(&pairTable, "THHDth2A2hth", "ZMTRlitA1hth"), 1);
+	CHECK_EQ(pairTable.recycled, 2);
+	CHECK_EQ(spritePairCount(&pairTable, "THHDth2A2hth", "SOSHlrgNUhth"), 11);
+	CHECK_EQ(pairTable.used, SPRITE_PAIR_CAPACITY);
+
+	// A file whose load passed starts its pairs over, and a pair reset to 0 gives its slot to the next new pair.
+	spritePairReset(&pairTable, "THHDth2A2hth");
+	CHECK_EQ(spritePairCount(&pairTable, "THHDth2A2hth", "SOSHlrgNUhth"), 1);
+	CHECK_EQ(spritePairCount(&pairTable, "NEW2", "PAIR"), 1);
+	CHECK_EQ(pairTable.recycled, 2);
+	CHECK_EQ(spritePairCount(&pairTable, "ZMTRlitA1hth", "SOSHlrgNUhth"), 1);
+	CHECK_EQ(pairTable.recycled, 3);
+	CHECK_EQ(spritePairCount(&pairTable, "NEW", "PAIR"), 2);
+	CHECK_EQ(spritePairCount(&pairTable, "F4", "H"), 2);
+
+	// A 15-character file name, the longest five tokens give, is stored and matched whole.
+	memset(&pairTable2, 0, sizeof(pairTable2));
+	CHECK_EQ(spritePairCount(&pairTable2, "ABCDEFGHIJKLMNO", "H"), 1);
+	CHECK_EQ(spritePairCount(&pairTable2, "ABCDEFGHIJKLMNO", "H"), 2);
+	CHECK(!strcmp(pairTable2.pairs[0].expected, "ABCDEFGHIJKLMNO"));
 
 	// A header name with no NUL in its 0x20 bytes: one 31-char form, stored and matched as is.
 	BYTE hdr[DCC_HEADER_SIZE];
@@ -385,9 +467,21 @@ static int walk(DWORD head, int seen[NB_RECORDS])
 	return n;
 }
 
+// Each record's prev is the record before it, and the walk ends at the list's tail.
+static void checkPrev(DWORD head, DWORD tail)
+{
+	DWORD prev = 0;
+	int n = 0;
+	for (DWORD p = head; p && n < 4 * NB_RECORDS; prev = p, p = ((HcRecord*)p)->next, n++)
+		CHECK_EQ(((HcRecord*)p)->prev, prev);
+	CHECK_EQ(prev, tail);
+}
+
 // Both lists together hold every record exactly once, live ones in the LRU.
 static void checkLists(const HcLists* lists, DWORD expectedCount, DWORD expectedUsed)
 {
+	checkPrev(lists->head, lists->tail);
+	checkPrev(lists->freeHead, lists->freeTail);
 	int seenLru[NB_RECORDS] = {};
 	int seenFree[NB_RECORDS] = {};
 	int lru = walk(lists->head, seenLru);
@@ -477,6 +571,28 @@ static void testRelink()
 	checkLists(&lists, 0, 0);
 	CHECK_EQ(lists.head, 0);
 	CHECK_EQ(lists.tail, 0);
+
+	// Stale links on every record: the rebuilt lists keep none of them.
+	memset(recs, 0, sizeof(recs));
+	for (int i = 0; i < NB_RECORDS; i++)
+	{
+		setRecord(i, i % 3 != 0);
+		recs[i].next = (DWORD)&recs[(i + 3) % NB_RECORDS];
+		recs[i].prev = (DWORD)&recs[(i + 5) % NB_RECORDS];
+	}
+	releases = 0;
+	hcRelink(recs, NB_RECORDS, &lists, countRelease, recs);
+	checkLists(&lists, 5, 0x20 + 0x30 + 0x50 + 0x60 + 0x80);
+	CHECK_EQ(releases, 0);
+
+	// Without a release callback, a freed record whose owner still points back goes to the free list all the same.
+	memset(recs, 0, sizeof(recs));
+	for (int i = 0; i < NB_RECORDS; i++)
+		setRecord(i, i < 3);
+	recs[2].data = 0;
+	hcRelink(recs, NB_RECORDS, &lists, NULL, NULL);
+	CHECK_EQ(recs[2].owner, 0);
+	checkLists(&lists, 2, 0x10 + 0x20);
 }
 
 /*-------------------------------- T-LOG --------------------------------*/

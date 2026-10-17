@@ -56,8 +56,9 @@ inline DccNameVerdict dccHeaderNameMatches(const BYTE* hdr, const BYTE tokens[20
 	return strcmp(name, expected) == 0 ? DCC_NAME_MATCH : DCC_NAME_MISMATCH;
 }
 
-// The issuer's own range and offset checks (0x5FFA20), run on the copy before the request goes out. VANILLA is the
-// case where the issuer fails by itself (type 1, one direction asked of a multi-direction file).
+// The issuer's halts on the header (0x5FFA20: span 0 halts 0x3A9, a direction past 32 halts 0x3C1, an offset below the
+// start offset halts 0x3C3) as rejects, run on the copy before the request goes out, plus range checks it does not make.
+// VANILLA is the case where the issuer fails by itself (type 1, one direction asked of a multi-direction file).
 inline DccIssueVerdict dccIssueCopyOk(const BYTE* hdr, DWORD type, DWORD d, DWORD count)
 {
 	DWORD dirs = DCC_HDR_DIRS(hdr);
@@ -69,12 +70,12 @@ inline DccIssueVerdict dccIssueCopyOk(const BYTE* hdr, DWORD type, DWORD d, DWOR
 	DWORD end = start + count;
 	if (end > DCC_MAX_DIRS || dirs < 1 || dirs > DCC_MAX_DIRS || end > dirs)
 		return DCC_ISSUE_BAD_COPY;
-	// Equal neighbours are allowed, as the issuer's sign test is.
-	for (DWORD i = start; i < end; i++)
-		if (DCC_HDR_OFF(hdr, i + 1) < DCC_HDR_OFF(hdr, i))
-			return DCC_ISSUE_BAD_COPY;
-	if (DCC_HDR_OFF(hdr, end) - DCC_HDR_OFF(hdr, start) == 0)
+	DWORD base = DCC_HDR_OFF(hdr, start);
+	if (DCC_HDR_OFF(hdr, end) == base)
 		return DCC_ISSUE_BAD_COPY;
+	for (DWORD i = start + 1; i <= end; i++)
+		if ((LONG)(DCC_HDR_OFF(hdr, i) - base) < 0)
+			return DCC_ISSUE_BAD_COPY;
 	return DCC_ISSUE_OK;
 }
 
@@ -124,38 +125,61 @@ inline void dccPrintableName(const char* name, char out[DCC_COPY_NAME_SIZE])
 	out[n] = '\0';
 }
 
-struct SpritePair { char expected[DCC_NAME_SIZE]; char found[DCC_COPY_NAME_SIZE]; DWORD count; };
-struct SpritePairTable { SpritePair pairs[SPRITE_PAIR_CAPACITY]; DWORD used; DWORD overflow; };
+struct SpritePair { char expected[DCC_NAME_SIZE]; char found[DCC_COPY_NAME_SIZE]; DWORD count; DWORD counted; };
+struct SpritePairTable { SpritePair pairs[SPRITE_PAIR_CAPACITY]; DWORD used; DWORD clock; DWORD recycled; };
 
-// Returns the pair's new reject count (a new pair starts at 1), or 0 when the table is full: a full table must not
-// let a rule bug reject the same load forever.
+// Returns the pair's new reject count; a new pair starts at 1. It takes a free slot, else one whose streak was reset,
+// else the slot of the pair counted longest ago: a streak left behind when its sprite went off screen must not hold
+// its slot for good, while a load rejected on every frame stays among the most recently counted and reaches the cap.
 inline DWORD spritePairCount(SpritePairTable* t, const char* expected, const char* found)
 {
+	t->clock++;
+	SpritePair* reset = NULL;
+	SpritePair* oldest = NULL;
 	for (DWORD i = 0; i < t->used; i++)
 	{
-		SpritePair* p = &t->pairs[i];
-		if (!strcmp(p->expected, expected) && !strcmp(p->found, found))
-			return ++p->count;
+		SpritePair* q = &t->pairs[i];
+		if (!strcmp(q->expected, expected) && !strcmp(q->found, found))
+		{
+			q->counted = t->clock;
+			return ++q->count;
+		}
+		if (!reset && !q->count)
+			reset = q;
+		if (!oldest || t->clock - q->counted > t->clock - oldest->counted)
+			oldest = q;
 	}
-	if (t->used >= SPRITE_PAIR_CAPACITY)
+	SpritePair* p = reset;
+	if (!p && t->used < SPRITE_PAIR_CAPACITY)
+		p = &t->pairs[t->used++];
+	if (!p)
 	{
-		t->overflow++;
-		return 0;
+		p = oldest;
+		t->recycled++;
 	}
-	SpritePair* p = &t->pairs[t->used++];
 	strncpy(p->expected, expected, DCC_NAME_SIZE - 1);
 	p->expected[DCC_NAME_SIZE - 1] = '\0';
 	strncpy(p->found, found, DCC_COPY_NAME_SIZE - 1);
 	p->found[DCC_COPY_NAME_SIZE - 1] = '\0';
 	p->count = 1;
+	p->counted = t->clock;
 	return 1;
+}
+
+// A file whose load passed the issue checks starts all its pairs over, so the cap counts rejects in a row: a race
+// rejects a load now and then over a session, a rule that is wrong for a file rejects every one of its loads.
+inline void spritePairReset(SpritePairTable* t, const char* expected)
+{
+	for (DWORD i = 0; i < t->used; i++)
+		if (!strcmp(t->pairs[i].expected, expected))
+			t->pairs[i].count = 0;
 }
 
 // Every event up to the 32nd, then one in 256: a soak keeps its first cases and a running total.
 inline bool spriteLogThis(LONG n) { return n <= 32 || n % 256 == 0; }
 
-// The header getter's own liveness test (0x5FE9C4-0x5FE9D4): the file's name record holds a pool record (+0x24)
-// whose data (+0) is still this header.
+// The file's name record still holds a pool record (+0x24) whose data (+0) is this header: the links the header getter
+// follows from its lookup (0x5FE9C4-0x5FE9D4), with the null check and the comparison the getter does not make.
 inline bool dccHeaderIsLive(const BYTE* nameRec, const BYTE* hdr)
 {
 	const BYTE* poolRec = nameRec ? *(const BYTE* const*)(nameRec + 0x24) : 0;

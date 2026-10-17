@@ -1226,8 +1226,8 @@ void init_ExtraOptions(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefa
 }
 
 #ifdef PLUGY_TEST_HOOKS
-// Values in decimal or 0x hex. The delay is capped at 1 s, and a budget other than 0 is kept between 0x3000 bytes
-// and the game's own 0x7D000.
+// Values as strtoul reads them with base 0: decimal, 0x hex, or octal after a leading 0. The delay is capped at 1 s,
+// and a budget other than 0 is kept between 0x3000 bytes and the game's own 0x7D000.
 void init_SpriteLoadTest(INIFile* iniFile, INIFile* iniFixedFile, INIFile* iniDefaultFile, char* buffer, DWORD maxSize)
 {
 	GET_PRIVATE_PROFILE_STRING(S_TEST, S_testSpriteFix, "1");
